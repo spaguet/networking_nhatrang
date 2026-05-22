@@ -221,12 +221,23 @@
       }
 
       try {
+        // Без Content-Type: application/json — иначе браузер шлёт OPTIONS preflight,
+        // а GAS на него отвечает 405 и fetch падает с CORS.
         const res = await fetch(GAS_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          showStatus(
+            'Сервер вернул не JSON (часто устаревший GAS_URL). Обновите URL деплоя /exec в index.html.',
+            true
+          );
+          return;
+        }
 
         if (data.ok) {
           showStatus(data.message || 'Анкета отправлена на модерацию', false);
@@ -237,7 +248,10 @@
           showStatus(ERRORS[key] || data.error || 'Ошибка отправки', true);
         }
       } catch (err) {
-        showStatus('Не удалось отправить. Проверьте GAS_URL и интернет.', true);
+        showStatus(
+          'Не удалось отправить. Проверьте GAS_URL (URL деплоя GAS /exec) и интернет.',
+          true
+        );
       } finally {
         submitBtn.disabled = false;
       }
