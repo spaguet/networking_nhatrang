@@ -333,6 +333,30 @@
     } else {
       tg.ready();
       tg.expand();
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('prefill') !== '1') return;
+      
+        var nameVal     = params.get('name')     || '';
+        var catVal      = params.get('cat')      || '';
+        var descVal     = params.get('desc')     || '';
+        var contactsVal = params.get('contacts') || '';
+      
+        if (nameVal)     document.getElementById('display_name').value = nameVal;
+        if (descVal)     document.getElementById('description').value  = descVal;
+        if (contactsVal) document.getElementById('contacts').value     = contactsVal;
+      
+        // Выбрать нужную категорию в select
+        if (catVal) {
+          var sel = document.getElementById('category');
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === catVal) {
+              sel.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      })();
       const user = tg.initDataUnsafe?.user;
       if (user?.first_name) {
         const nameInput = document.getElementById('display_name');
