@@ -29,6 +29,11 @@
       margin: 0 0 6px;
       font-weight: 700;
     }
+    h2 {
+      font-size: 1.1rem;
+      margin: 0 0 16px;
+      font-weight: 600;
+    }
     .subtitle {
       color: var(--hint);
       font-size: 0.9rem;
@@ -71,21 +76,35 @@
       color: var(--hint);
       margin-top: 6px;
     }
-    button[type="submit"] {
+    .btn {
       width: 100%;
       padding: 14px;
       font-size: 1rem;
       font-weight: 600;
       border: none;
       border-radius: 12px;
-      background: var(--btn);
-      color: var(--btn-text);
       cursor: pointer;
       margin-top: 8px;
+      font-family: inherit;
     }
-    button[type="submit"]:disabled {
+    .btn-primary {
+      background: var(--btn);
+      color: var(--btn-text);
+    }
+    .btn-secondary {
+      background: var(--secondary);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+    .btn-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
     }
     .status {
       margin-top: 14px;
@@ -93,6 +112,7 @@
       border-radius: 10px;
       font-size: 0.9rem;
       display: none;
+      line-height: 1.45;
     }
     .status.ok { display: block; background: #d1fae5; color: #065f46; }
     .status.err { display: block; background: #fee2e2; color: #991b1b; }
@@ -102,34 +122,56 @@
       padding: 40px 20px;
       color: var(--hint);
     }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <div id="app">
-    <h1>Анкета специалиста</h1>
-    <p class="subtitle">Нетворкинг Нячанг — разместите профиль в каталоге. Только анкеты специалистов, не вакансии.</p>
+    <div id="screenForm">
+      <h1>Анкета специалиста</h1>
+      <p class="subtitle">Нетворкинг Нячанг — разместите профиль в каталоге. Только анкеты специалистов, не вакансии.</p>
 
-    <div id="listingInfo" class="status info" role="status" hidden></div>
+      <div id="listingInfo" class="status info" role="status" hidden></div>
 
-    <form id="listingForm">
-      <div class="card">
-        <label for="display_name">Имя для каталога</label>
-        <input id="display_name" name="display_name" required maxlength="80" placeholder="Как вас показывать в витрине" />
+      <form id="listingForm">
+        <div class="card">
+          <label for="display_name">Имя для каталога</label>
+          <input id="display_name" name="display_name" required maxlength="80" placeholder="Как вас показывать в витрине" />
 
-        <label for="category" style="margin-top:14px">Категория</label>
-        <select id="category" name="category" required></select>
+          <label for="category" style="margin-top:14px">Категория</label>
+          <select id="category" name="category" required></select>
 
-        <label for="description" style="margin-top:14px">Описание</label>
-        <textarea id="description" name="description" required maxlength="2000" placeholder="Специализация, опыт, чем можете быть полезны"></textarea>
-        <p class="hint">Без запрещённого контента и объявлений о найме сотрудников.</p>
+          <label for="description" style="margin-top:14px">Описание</label>
+          <textarea id="description" name="description" required maxlength="2000" placeholder="Специализация, опыт, чем можете быть полезны"></textarea>
+          <p class="hint">Без запрещённого контента и объявлений о найме сотрудников.</p>
 
-        <label for="contacts" style="margin-top:14px">Контакты</label>
-        <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
+          <label for="contacts" style="margin-top:14px">Контакты</label>
+          <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
+        </div>
+
+        <div id="freeActions">
+          <button type="submit" class="btn btn-primary" id="submitBtn">Отправить на модерацию</button>
+        </div>
+        <div id="paidActions" class="btn-row" hidden>
+          <button type="button" class="btn btn-primary" id="paidBtn">Разместить платно</button>
+          <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
+        </div>
+        <div id="status" class="status" role="alert"></div>
+      </form>
+    </div>
+
+    <div id="screenPayment" hidden>
+      <h1>Оплата размещения</h1>
+      <h2>Выберите способ оплаты</h2>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary pay-method" data-method="vnd">VND по QR</button>
+        <button type="button" class="btn btn-primary pay-method" data-method="bybit">USDT Tether (Bybit)</button>
+        <button type="button" class="btn btn-primary pay-method" data-method="trc20">USDT TRC20</button>
+        <button type="button" class="btn btn-primary pay-method" data-method="solana">USDT Solana</button>
+        <button type="button" class="btn btn-secondary" id="backBtn">Назад</button>
       </div>
-
-      <button type="submit" id="submitBtn">Отправить на модерацию</button>
-      <div id="status" class="status" role="alert"></div>
-    </form>
+      <div id="paymentStatus" class="status" role="alert"></div>
+    </div>
   </div>
 
   <div id="outside" class="outside" hidden>
@@ -157,26 +199,34 @@
 
     const ERRORS = {
       stop_words: 'Текст содержит запрещённые слова. Измените описание.',
-      duplicate: 'У вас уже есть анкета на модерации или в каталоге.',
-      duplicate_active: 'У вас уже есть опубликованная анкета в каталоге.',
-      duplicate_moderation: 'Анкета уже на модерации — дождитесь решения в чате с ботом.',
-      duplicate_pending_payment: 'Анкета ожидает оплату — проверьте сообщения от бота.',
+      use_paid_flow: 'Используйте платное размещение.',
       Invalid_initData: 'Ошибка авторизации Telegram. Перезапустите Mini App.',
       invalid_category: 'Выберите категорию из списка.',
       validation: 'Заполните все поля.',
       invalid_secret: 'Ошибка конфигурации приложения.',
+      invalid_payment_method: 'Выберите способ оплаты.',
+      qr_not_configured: 'QR для этого способа ещё не настроен.',
       server_error: 'Сервер временно недоступен. Попробуйте позже.'
     };
 
     const tg = window.Telegram?.WebApp;
     const appEl = document.getElementById('app');
     const outsideEl = document.getElementById('outside');
+    const screenForm = document.getElementById('screenForm');
+    const screenPayment = document.getElementById('screenPayment');
     const form = document.getElementById('listingForm');
     const categorySelect = document.getElementById('category');
     const statusEl = document.getElementById('status');
+    const paymentStatusEl = document.getElementById('paymentStatus');
     const listingInfoEl = document.getElementById('listingInfo');
+    const freeActions = document.getElementById('freeActions');
+    const paidActions = document.getElementById('paidActions');
     const submitBtn = document.getElementById('submitBtn');
-    let submitBlocked = false;
+    const paidBtn = document.getElementById('paidBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const backBtn = document.getElementById('backBtn');
+
+    let appMode = 'free';
 
     CATEGORIES.forEach(function (c) {
       const opt = document.createElement('option');
@@ -184,6 +234,98 @@
       opt.textContent = c;
       categorySelect.appendChild(opt);
     });
+
+    function showStatus(el, text, type) {
+      el.textContent = text;
+      el.className = 'status ' + type;
+    }
+
+    function clearStatus(el) {
+      el.className = 'status';
+      el.textContent = '';
+    }
+
+    function setMode(mode, banner) {
+      appMode = mode;
+      if (mode === 'paid') {
+        freeActions.hidden = true;
+        paidActions.hidden = false;
+        submitBtn.disabled = false;
+        if (banner) {
+          listingInfoEl.textContent = banner;
+          listingInfoEl.hidden = false;
+        }
+      } else {
+        freeActions.hidden = false;
+        paidActions.hidden = true;
+        listingInfoEl.hidden = true;
+      }
+    }
+
+    function buildPayload(action, extra) {
+      const user = tg.initDataUnsafe.user;
+      const payload = Object.assign(
+        {
+          action: action,
+          tg_id: user.id,
+          username: user.username || '',
+          first_name: user.first_name || '',
+          initData: tg.initData
+        },
+        extra || {}
+      );
+      if (WEBAPP_SECRET) {
+        payload.secret = WEBAPP_SECRET;
+      }
+      return payload;
+    }
+
+    function getFormData() {
+      return {
+        display_name: form.display_name.value.trim(),
+        category: form.category.value,
+        description: form.description.value.trim(),
+        contacts: form.contacts.value.trim()
+      };
+    }
+
+    function validateFormClient() {
+      const data = getFormData();
+      if (!data.display_name || !data.category || !data.description || !data.contacts) {
+        showStatus(statusEl, ERRORS.validation, 'err');
+        return null;
+      }
+      return data;
+    }
+
+    async function apiPost(payload) {
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error('not_json');
+      }
+    }
+
+    async function checkListingStatus() {
+      if (!tg?.initData) {
+        return;
+      }
+      try {
+        const data = await apiPost(buildPayload('check_listing_status'));
+        if (data.ok && data.paid_mode) {
+          setMode('paid', data.banner);
+        } else {
+          setMode('free');
+        }
+      } catch (err) {
+        // форма всё равно попробует отправить
+      }
+    }
 
     if (!tg || !tg.initData) {
       appEl.hidden = true;
@@ -201,123 +343,104 @@
       checkListingStatus();
     }
 
-    function showStatus(text, isError) {
-      statusEl.textContent = text;
-      statusEl.className = 'status ' + (isError ? 'err' : 'ok');
-    }
+    cancelBtn.addEventListener('click', function () {
+      tg.close?.();
+    });
 
-    function setSubmitBlocked(blocked, infoText) {
-      submitBlocked = blocked;
-      submitBtn.disabled = blocked;
-      if (infoText) {
-        listingInfoEl.textContent = infoText;
-        listingInfoEl.hidden = false;
-      } else {
-        listingInfoEl.hidden = true;
-      }
-    }
+    backBtn.addEventListener('click', function () {
+      screenPayment.hidden = true;
+      screenForm.hidden = false;
+      clearStatus(paymentStatusEl);
+    });
 
-    function buildPayload(action) {
-      const user = tg.initDataUnsafe.user;
-      const payload = {
-        action: action,
-        tg_id: user.id,
-        username: user.username || '',
-        first_name: user.first_name || '',
-        initData: tg.initData
-      };
-      if (WEBAPP_SECRET) {
-        payload.secret = WEBAPP_SECRET;
-      }
-      return payload;
-    }
-
-    async function checkListingStatus() {
-      if (!tg?.initData) {
+    paidBtn.addEventListener('click', function () {
+      if (!validateFormClient()) {
         return;
       }
-      try {
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify(buildPayload('check_listing_status'))
-        });
-        const data = JSON.parse(await res.text());
-        if (data.ok && data.has_listing && data.can_submit === false) {
-          setSubmitBlocked(true, data.message || ERRORS[data.error] || ERRORS.duplicate);
-        }
-      } catch (err) {
-        // Тихо игнорируем — форма покажет ошибку при отправке
-      }
-    }
+      clearStatus(statusEl);
+      screenForm.hidden = true;
+      screenPayment.hidden = false;
+      clearStatus(paymentStatusEl);
+    });
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
-      if (!tg?.initData) return;
-      if (submitBlocked) {
-        showStatus(listingInfoEl.textContent || ERRORS.duplicate, true);
+      if (!tg?.initData || appMode === 'paid') {
         return;
       }
 
-      const user = tg.initDataUnsafe.user;
-      submitBtn.disabled = true;
-      statusEl.className = 'status';
-
-      const payload = {
-        action: 'submit_listing',
-        tg_id: user.id,
-        username: user.username || '',
-        first_name: user.first_name || '',
-        display_name: form.display_name.value.trim(),
-        category: form.category.value,
-        description: form.description.value.trim(),
-        contacts: form.contacts.value.trim(),
-        initData: tg.initData
-      };
-      if (WEBAPP_SECRET) {
-        payload.secret = WEBAPP_SECRET;
+      const formData = validateFormClient();
+      if (!formData) {
+        return;
       }
 
-      try {
-        // Без Content-Type: application/json — иначе браузер шлёт OPTIONS preflight,
-        // а GAS на него отвечает 405 и fetch падает с CORS.
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-        const text = await res.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (parseErr) {
-          showStatus(
-            'Сервер вернул не JSON (часто устаревший GAS_URL). Обновите URL деплоя /exec в index.html.',
-            true
-          );
-          return;
-        }
+      submitBtn.disabled = true;
+      clearStatus(statusEl);
 
+      try {
+        const data = await apiPost(buildPayload('submit_listing', formData));
         if (data.ok) {
-          showStatus(data.message || 'Анкета отправлена на модерацию', false);
+          showStatus(statusEl, data.message || 'Анкета отправлена на модерацию', 'ok');
           form.reset();
           tg.close?.();
         } else {
           const key = (data.error || '').replace(/\s/g, '_');
-          const text = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
-          showStatus(text, true);
-          if (key.indexOf('duplicate_') === 0) {
-            setSubmitBlocked(true, text);
+          const msg = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
+          showStatus(statusEl, msg, 'err');
+          if (data.paid_mode || key === 'use_paid_flow') {
+            setMode('paid', data.message || msg);
           }
         }
       } catch (err) {
         showStatus(
-          'Не удалось отправить. Проверьте GAS_URL (URL деплоя GAS /exec) и интернет.',
-          true
+          statusEl,
+          err.message === 'not_json'
+            ? 'Сервер вернул не JSON. Обновите URL деплоя GAS /exec в index.html.'
+            : 'Не удалось отправить. Проверьте GAS_URL и интернет.',
+          'err'
         );
       } finally {
-        if (!submitBlocked) {
-          submitBtn.disabled = false;
-        }
+        submitBtn.disabled = false;
       }
+    });
+
+    document.querySelectorAll('.pay-method').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const formData = validateFormClient();
+        if (!formData) {
+          screenPayment.hidden = true;
+          screenForm.hidden = false;
+          return;
+        }
+
+        const method = btn.getAttribute('data-method');
+        btn.disabled = true;
+        clearStatus(paymentStatusEl);
+
+        try {
+          const data = await apiPost(
+            buildPayload('select_payment_method', Object.assign({ payment_method: method }, formData))
+          );
+          if (data.ok) {
+            showStatus(
+              paymentStatusEl,
+              data.message ||
+                'QR-код отправлен в чат с ботом. После оплаты пришлите скриншот чека в ответ боту.',
+              'ok'
+            );
+            setTimeout(function () {
+              tg.close?.();
+            }, 2500);
+          } else {
+            const key = (data.error || '').replace(/\s/g, '_');
+            showStatus(paymentStatusEl, data.message || ERRORS[key] || 'Ошибка оплаты', 'err');
+          }
+        } catch (err) {
+          showStatus(paymentStatusEl, 'Не удалось отправить запрос. Проверьте интернет.', 'err');
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
   </script>
 </body>
