@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Место Встречи — Нячанг</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    /* ── Telegram theme tokens + custom layer ── */
+    :root {
+      --tg-bg:        var(--tg-theme-bg-color,           #0f1117);
+      --tg-text:      var(--tg-theme-text-color,         #e8eaed);
+      --tg-hint:      var(--tg-theme-hint-color,         #8b949e);
+      --tg-btn:       var(--tg-theme-button-color,       #2aabee);
+      --tg-btn-text:  var(--tg-theme-button-text-color,  #ffffff);
+      --tg-sec:       var(--tg-theme-secondary-bg-color, #1a1d24);
+      --tg-border:    rgba(255, 255, 255, 0.08);
+
+      --accent:        #2aabee;
+      --accent-warm:   #f0a500;
+      --c-active:      #34d399;
+      --c-archive:     #6b7280;
+      --c-moderate:    #f59e0b;
+      --c-reject:      #ef4444;
+
+      --r-card: 16px;
+      --r-btn:  12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      background: var(--tg-bg);
+      color: var(--tg-text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ═══════════════════════════════════
+       SCREEN TRANSITIONS
+    ═══════════════════════════════════ */
+    .screen {
+      min-height: 100vh;
+      padding-bottom: 32px;
+      animation: slideIn 0.22s cubic-bezier(.25,.46,.45,.94) both;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(18px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ═══════════════════════════════════
+       SCREEN 1 — MAIN
+    ═══════════════════════════════════ */
+    .main-glow {
+      position: fixed; top: -60px; right: -60px;
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(42,171,238,.18) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .main-header {
+      position: relative; z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 22px 16px 0;
+    }
+
+    .logo h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      background: linear-gradient(130deg, var(--accent) 0%, #76d6f7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .logo .loc {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--accent-warm);
+      margin-top: 2px;
+    }
+
+    .tagline {
+      position: relative; z-index: 1;
+      padding: 10px 16px 26px;
+      font-size: 0.85rem;
+      color: var(--tg-hint);
+      font-style: italic;
+    }
+
+    .profile-btn {
+      background: var(--tg-sec);
+      border: 1px solid var(--tg-border);
+      color: var(--tg-text);
+      padding: 9px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background .15s, border-color .15s;
+    }
+    .profile-btn:active { border-color: var(--accent); }
+
+    .section-label {
+      position: relative; z-index: 1;
+      padding: 0 16px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--tg-hint);
+    }
+
+    .categories-grid {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 0 16px;
+    }
+
+    .cat-btn {
+      background: var(--tg-sec);
+      border: 1px solid var(--tg-border);
+      border-radius: var(--r-card);
+      padding: 14px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      color: var(--tg-text);
+      transition: border-color .15s, transform .12s;
+    }
+    .cat-btn:active { transform: scale(.96); border-color: var(--accent); }
+
+    .cat-icon  { font-size: 1.35rem; flex-shrink: 0; }
+    .cat-label { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
+
+    /* ═══════════════════════════════════
+       SHARED HEADER (screens 2 & 3)
+    ═══════════════════════════════════ */
+    .screen-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px 16px;
+      position: sticky; top: 0;
+      background: var(--tg-bg);
+      z-index: 10;
+      border-bottom: 1px solid var(--tg-border);
+    }
+    .back-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--tg-sec);
+      border: 1px solid var(--tg-border);
+      color: var(--tg-text);
+      font-size: 1.05rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .back-btn:active { border-color: var(--accent); }
+    .screen-title {
+      font-size: 1rem;
+      font-weight: 700;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════
+       SCREEN 2 — LISTING CARDS
+    ═══════════════════════════════════ */
+    .listings-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .listing-card {
+      background: var(--tg-sec);
+      border: 1px solid var(--tg-border);
+      border-radius: var(--r-card);
+      padding: 16px;
+      animation: cardIn .3s ease both;
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .card-avatar {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #76d6f7);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.05rem; color: #fff;
+      flex-shrink: 0;
+    }
+    .card-name { font-size: .97rem; font-weight: 700; line-height: 1.2; }
+    .card-cat  { font-size: .73rem; color: var(--tg-hint); margin-top: 2px; }
+
+    .card-desc {
+      font-size: .87rem;
+      line-height: 1.5;
+      opacity: .88;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .copy-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: transparent;
+      border: 1px solid var(--tg-border);
+      border-radius: 9px;
+      padding: 9px 12px;
+      font-size: .8rem;
+      color: var(--accent);
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+      width: 100%;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .copy-btn:active { background: rgba(42,171,238,.1); }
+
+    /* ═══════════════════════════════════
+       SCREEN 3 — PROFILE
+    ═══════════════════════════════════ */
+    .profile-wrap {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .profile-card {
+      background: var(--tg-sec);
+      border-radius: var(--r-card);
+      padding: 16px;
+      border: 2px solid var(--tg-border);
+      animation: cardIn .3s ease both;
+    }
+    .profile-card.s-active      { border-color: var(--c-active); }
+    .profile-card.s-archived    { border-color: var(--c-archive); }
+    .profile-card.s-on_moderation { border-color: var(--c-moderate); }
+    .profile-card.s-rejected    { border-color: var(--c-reject); }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .71rem;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+      letter-spacing: .01em;
+    }
+    .sb-active      { background: rgba(52,211,153,.15); color: var(--c-active); }
+    .sb-archived    { background: rgba(107,114,128,.15); color: var(--c-archive); }
+    .sb-on_moderation { background: rgba(245,158,11,.15); color: var(--c-moderate); }
+    .sb-rejected    { background: rgba(239,68,68,.15); color: var(--c-reject); }
+
+    .p-name { font-size: .97rem; font-weight: 700; margin-bottom: 3px; }
+    .p-cat  { font-size: .78rem; color: var(--tg-hint); margin-bottom: 8px; }
+    .p-desc {
+      font-size: .85rem;
+      line-height: 1.45;
+      opacity: .87;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 9px;
+    }
+    .p-dates {
+      font-size: .74rem;
+      color: var(--tg-hint);
+      line-height: 1.65;
+      margin-bottom: 12px;
+    }
+    .p-actions { display: flex; gap: 8px; }
+
+    /* ═══════════════════════════════════
+       BUTTONS
+    ═══════════════════════════════════ */
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: var(--r-btn);
+      font-size: .83rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      border: none;
+      transition: opacity .15s, transform .12s;
+    }
+    .btn:active { opacity: .75; transform: scale(.97); }
+    .btn:disabled { opacity: .45; pointer-events: none; }
+    .btn-primary { background: var(--tg-btn); color: var(--tg-btn-text); }
+    .btn-danger  { background: rgba(239,68,68,.14); color: var(--c-reject); border: 1px solid rgba(239,68,68,.25); }
+    .btn-outline { background: var(--tg-bg); color: var(--tg-text); border: 1px solid var(--tg-border); }
+
+    /* ═══════════════════════════════════
+       EMPTY STATE / LOADER
+    ═══════════════════════════════════ */
+    .empty {
+      text-align: center;
+      padding: 52px 24px 24px;
+      color: var(--tg-hint);
+    }
+    .empty-icon  { font-size: 2.6rem; margin-bottom: 12px; }
+    .empty-title { font-size: 1rem; font-weight: 700; color: var(--tg-text); margin-bottom: 6px; }
+    .empty-sub   { font-size: .85rem; line-height: 1.5; margin-bottom: 20px; }
+
+    .loader {
+      display: flex;
+      justify-content: center;
+      padding: 48px 0;
+    }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--tg-border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ═══════════════════════════════════
+       TOAST
+    ═══════════════════════════════════ */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(70px);
+      background: rgba(20, 24, 32, 0.96);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 22px;
+      font-size: .84rem;
+      font-weight: 500;
+      z-index: 200;
+      white-space: nowrap;
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,.1);
+      transition: transform .25s cubic-bezier(.34,1.56,.64,1), opacity .25s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* ═══════════════════════════════════
+       DIVIDER
+    ═══════════════════════════════════ */
+    .divider {
+      height: 1px;
+      background: var(--tg-border);
+      margin: 4px 16px 14px;
+    }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ SCREEN 1: MAIN ═══ -->
+<div id="screenMain" class="screen">
+  <div class="main-glow"></div>
+
+  <div class="main-header">
+    <div class="logo">
+      <h1>Место Встречи</h1>
+      <div class="loc">— Нячанг</div>
+    </div>
+    <button class="profile-btn" id="profileBtn">👤 Профиль</button>
+  </div>
+
+  <p class="tagline">Здесь встречаются профессионалы</p>
+
+  <div class="section-label">Выберите раздел</div>
+  <div class="categories-grid" id="categoriesGrid"></div>
+</div>
+
+<!-- ═══ SCREEN 2: LISTINGS ═══ -->
+<div id="screenListings" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromListings">←</button>
+    <span class="screen-title" id="listingsCatTitle"></span>
+  </div>
+  <div id="listingsContainer"></div>
+</div>
+
+<!-- ═══ SCREEN 3: PROFILE ═══ -->
+<div id="screenProfile" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromProfile">←</button>
+    <span class="screen-title">Мой профиль</span>
+  </div>
+  <div id="profileContainer"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ─────────────────────────────────────
+     CONFIG — замените GAS_URL на свой
+  ───────────────────────────────────── */
+  var GAS_URL       = 'https://script.google.com/macros/s/AKfycbwVAGa_BKyprhGRyF8mxbM_mimURSeVNnqMKI_lUqx_TAaCGBeWiK9cmC5b0ULyvdnZ/exec';
+  var FORM_URL      = 'index.html';
+  var WEBAPP_SECRET = 'getting_more_money';
+
+  /* ─────────────────────────────────────
+     DATA
+  ───────────────────────────────────── */
+  var CATEGORIES = [
+    { label: 'IT и разработка',           icon: '💻' },
+    { label: 'Дизайн и creative',         icon: '🎨' },
+    { label: 'Маркетинг и SMM',           icon: '📣' },
+    { label: 'Бизнес и финансы',          icon: '💼' },
+    { label: 'Юриспруденция',             icon: '⚖️' },
+    { label: 'Медицина и здоровье',       icon: '🏥' },
+    { label: 'Красота и уход',            icon: '✨' },
+    { label: 'Туризм и экскурсии',        icon: '🌴' },
+    { label: 'Образование и репетиторство', icon: '📚' },
+    { label: 'Строительство и ремонт',    icon: '🔨' },
+    { label: 'Транспорт и логистика',     icon: '🚚' },
+    { label: 'Другое',                    icon: '🔹' }
+  ];
+
+  var STATUS_META = {
+    active:        { text: '✅ Активно',        cls: 'active' },
+    archived:      { text: '📦 В архиве',        cls: 'archived' },
+    on_moderation: { text: '⏳ На модерации',    cls: 'on_moderation' },
+    rejected:      { text: '❌ Отклонено',       cls: 'rejected' }
+  };
+
+  /* ─────────────────────────────────────
+     TELEGRAM INIT
+  ───────────────────────────────────── */
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  /* ─────────────────────────────────────
+     BUILD CATEGORY GRID
+  ───────────────────────────────────── */
+  var grid = document.getElementById('categoriesGrid');
+  CATEGORIES.forEach(function (cat) {
+    var btn = document.createElement('button');
+    btn.className = 'cat-btn';
+    btn.innerHTML =
+      '<span class="cat-icon">' + cat.icon + '</span>' +
+      '<span class="cat-label">' + cat.label + '</span>';
+    btn.addEventListener('click', function () { openListings(cat.label, cat.icon); });
+    grid.appendChild(btn);
+  });
+
+  /* ─────────────────────────────────────
+     NAVIGATION
+  ───────────────────────────────────── */
+  document.getElementById('profileBtn').addEventListener('click', openProfile);
+
+  document.getElementById('backFromListings').addEventListener('click', function () {
+    showScreen('main');
+  });
+  document.getElementById('backFromProfile').addEventListener('click', function () {
+    showScreen('main');
+  });
+
+  function showScreen(name) {
+    document.getElementById('screenMain').hidden     = (name !== 'main');
+    document.getElementById('screenListings').hidden = (name !== 'listings');
+    document.getElementById('screenProfile').hidden  = (name !== 'profile');
+  }
+
+  /* ─────────────────────────────────────
+     TOAST
+  ───────────────────────────────────── */
+  var _toastTimer;
+  function showToast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+  }
+
+  /* ─────────────────────────────────────
+     API HELPERS
+  ───────────────────────────────────── */
+  function buildPayload(action, extra) {
+    if (!tg || !tg.initData) return null;
+    var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    var payload = {
+      action:     action,
+      tg_id:      user.id,
+      username:   user.username   || '',
+      first_name: user.first_name || '',
+      initData:   tg.initData,
+      secret:     WEBAPP_SECRET
+    };
+    if (extra) {
+      Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
+    }
+    return payload;
+  }
+
+  function apiPost(payload) {
+    return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (r) { return r.text(); })
+      .then(function (t) { return JSON.parse(t); });
+  }
+
+  /* ─────────────────────────────────────
+     UTILS
+  ───────────────────────────────────── */
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function avatarLetter(name) {
+    return String(name || '?').trim().charAt(0).toUpperCase();
+  }
+
+  function fmtDate(val) {
+    if (!val) return '—';
+    var d = new Date(val);
+    if (isNaN(d.getTime())) return String(val).slice(0, 10);
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function copyText(text) {
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try { document.execCommand('copy'); showToast('📋 Скопировано!'); }
+      catch (e) { showToast('Не удалось скопировать'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(function () { showToast('📋 Скопировано!'); })
+        .catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function loader() {
+    return '<div class="loader"><div class="spinner"></div></div>';
+  }
+
+  function emptyState(icon, title, sub, btnHtml) {
+    return '<div class="empty">' +
+      '<div class="empty-icon">' + icon + '</div>' +
+      '<div class="empty-title">' + esc(title) + '</div>' +
+      '<div class="empty-sub">' + esc(sub) + '</div>' +
+      (btnHtml || '') +
+    '</div>';
+  }
+
+  /* ─────────────────────────────────────
+     SCREEN 2 — LISTINGS BY CATEGORY
+  ───────────────────────────────────── */
+  function openListings(category, icon) {
+    document.getElementById('listingsCatTitle').textContent = icon + '\u00a0' + category;
+    document.getElementById('listingsContainer').innerHTML = loader();
+    showScreen('listings');
+
+    var payload = buildPayload('get_listings', { category: category });
+    if (!payload) {
+      document.getElementById('listingsContainer').innerHTML =
+        emptyState('🔒', 'Нет доступа', 'Откройте через Telegram-бота');
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          document.getElementById('listingsContainer').innerHTML =
+            emptyState('⚠️', 'Ошибка загрузки', data.message || 'Попробуйте позже');
+          return;
+        }
+
+        var listings = data.listings || [];
+        if (!listings.length) {
+          document.getElementById('listingsContainer').innerHTML =
+            emptyState('🔍', 'Пока пусто', 'В этой категории ещё нет специалистов');
+          return;
+        }
+
+        var html = '<div class="listings-wrap">';
+        listings.forEach(function (l, i) {
+          html +=
+            '<div class="listing-card" style="animation-delay:' + (i * 0.055) + 's">' +
+              '<div class="card-head">' +
+                '<div class="card-avatar">' + avatarLetter(l.display_name) + '</div>' +
+                '<div>' +
+                  '<div class="card-name">' + esc(l.display_name) + '</div>' +
+                  '<div class="card-cat">' + esc(l.category) + '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="card-desc">' + esc(l.description) + '</div>' +
+              '<button class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
+                '📋\u00a0' + esc(l.contacts) +
+              '</button>' +
+            '</div>';
+        });
+        html += '</div>';
+
+        document.getElementById('listingsContainer').innerHTML = html;
+
+        document.querySelectorAll('.copy-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            copyText(btn.getAttribute('data-contacts'));
+          });
+        });
+      })
+      .catch(function () {
+        document.getElementById('listingsContainer').innerHTML =
+          emptyState('📡', 'Нет связи', 'Проверьте интернет и попробуйте снова');
+      });
+  }
+
+  /* ─────────────────────────────────────
+     SCREEN 3 — PROFILE
+  ───────────────────────────────────── */
+  function openProfile() {
+    document.getElementById('profileContainer').innerHTML = loader();
+    showScreen('profile');
+
+    var payload = buildPayload('get_my_listings');
+    if (!payload) {
+      document.getElementById('profileContainer').innerHTML =
+        emptyState('🔒', 'Нет доступа', 'Откройте через Telegram-бота');
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          document.getElementById('profileContainer').innerHTML =
+            emptyState('⚠️', 'Ошибка загрузки', data.message || 'Попробуйте позже');
+          return;
+        }
+
+        var listings = data.listings || [];
+
+        if (!listings.length) {
+          document.getElementById('profileContainer').innerHTML =
+            emptyState(
+              '📂',
+              'Нет размещений',
+              'Вы ещё не разместили мини-резюме в каталоге',
+              '<button class="btn btn-primary" style="width:auto;padding:12px 28px" ' +
+                'onclick="goToForm(null)">Разместить резюме</button>'
+            );
+          return;
+        }
+
+        var html = '<div class="profile-wrap">';
+        listings.forEach(function (l, i) {
+          var meta = STATUS_META[l.status] || { text: l.status, cls: 'archived' };
+          var isActive   = l.status === 'active';
+          var canReplace = l.status === 'archived' || l.status === 'rejected';
+
+          /* dates block */
+          var dates = [];
+          if (l.submitted_at)            dates.push('Отправлено: ' + fmtDate(l.submitted_at));
+          if (l.created_at)              dates.push('Размещено: '  + fmtDate(l.created_at));
+          if (l.expires_at && isActive)  dates.push('До: '         + fmtDate(l.expires_at));
+
+          /* action buttons */
+          var actions = '';
+          if (isActive) {
+            actions =
+              '<div class="p-actions">' +
+                '<button class="btn btn-danger" ' +
+                  'data-action="archive" data-id="' + esc(l.listing_id) + '">' +
+                  'В архив' +
+                '</button>' +
+              '</div>';
+          }
+          if (canReplace) {
+            actions =
+              '<div class="p-actions">' +
+                '<button class="btn btn-primary" data-action="republish" ' +
+                  'data-name="'     + esc(l.display_name) + '" ' +
+                  'data-cat="'      + esc(l.category)     + '" ' +
+                  'data-desc="'     + esc(l.description)  + '" ' +
+                  'data-contacts="' + esc(l.contacts)     + '">' +
+                  'Разместить' +
+                '</button>' +
+              '</div>';
+          }
+
+          html +=
+            '<div class="profile-card s-' + meta.cls + '" style="animation-delay:' + (i * 0.055) + 's">' +
+              '<span class="status-badge sb-' + meta.cls + '">' + meta.text + '</span>' +
+              '<div class="p-name">' + esc(l.display_name) + '</div>' +
+              '<div class="p-cat">'  + esc(l.category)     + '</div>' +
+              '<div class="p-desc">' + esc(l.description)  + '</div>' +
+              (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
+              actions +
+            '</div>';
+        });
+        html += '</div>';
+
+        document.getElementById('profileContainer').innerHTML = html;
+
+        /* bind archive buttons */
+        document.querySelectorAll('[data-action="archive"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            doArchive(btn.getAttribute('data-id'), btn);
+          });
+        });
+
+        /* bind republish buttons */
+        document.querySelectorAll('[data-action="republish"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            goToForm({
+              display_name: btn.getAttribute('data-name'),
+              category:     btn.getAttribute('data-cat'),
+              description:  btn.getAttribute('data-desc'),
+              contacts:     btn.getAttribute('data-contacts')
+            });
+          });
+        });
+      })
+      .catch(function () {
+        document.getElementById('profileContainer').innerHTML =
+          emptyState('📡', 'Нет связи', 'Проверьте интернет и попробуйте снова');
+      });
+  }
+
+  /* ─────────────────────────────────────
+     ARCHIVE LISTING
+  ───────────────────────────────────── */
+  function doArchive(listingId, btn) {
+    if (!confirm('Убрать это резюме в архив?')) return;
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    var payload = buildPayload('archive_listing', { listing_id: listingId });
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok) {
+          showToast('📦 Резюме перемещено в архив');
+          /* refresh profile */
+          setTimeout(openProfile, 500);
+        } else {
+          showToast(data.message || 'Ошибка архивации');
+          btn.disabled = false;
+          btn.textContent = 'В архив';
+        }
+      })
+      .catch(function () {
+        showToast('Ошибка. Проверьте интернет.');
+        btn.disabled = false;
+        btn.textContent = 'В архив';
+      });
+  }
+
+  /* ─────────────────────────────────────
+     GO TO FORM (with optional prefill)
+  ───────────────────────────────────── */
+  function goToForm(prefill) {
+    var url = FORM_URL;
+    if (prefill) {
+      var p = new URLSearchParams({
+        prefill:  '1',
+        name:     prefill.display_name || '',
+        cat:      prefill.category     || '',
+        desc:     prefill.description  || '',
+        contacts: prefill.contacts     || ''
+      });
+      url += '?' + p.toString();
+    }
+    window.location.href = url;
+  }
+</script>
+</body>
+</html>
