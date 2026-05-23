@@ -96,6 +96,7 @@
     }
     .status.ok { display: block; background: #d1fae5; color: #065f46; }
     .status.err { display: block; background: #fee2e2; color: #991b1b; }
+    .status.info { display: block; background: #dbeafe; color: #1e40af; }
     .outside {
       text-align: center;
       padding: 40px 20px;
@@ -107,6 +108,8 @@
   <div id="app">
     <h1>Анкета специалиста</h1>
     <p class="subtitle">Нетворкинг Нячанг — разместите профиль в каталоге. Только анкеты специалистов, не вакансии.</p>
+
+    <div id="listingInfo" class="status info" role="status" hidden></div>
 
     <form id="listingForm">
       <div class="card">
@@ -155,6 +158,9 @@
     const ERRORS = {
       stop_words: 'Текст содержит запрещённые слова. Измените описание.',
       duplicate: 'У вас уже есть анкета на модерации или в каталоге.',
+      duplicate_active: 'У вас уже есть опубликованная анкета в каталоге.',
+      duplicate_moderation: 'Анкета уже на модерации — дождитесь решения в чате с ботом.',
+      duplicate_pending_payment: 'Анкета ожидает оплату — проверьте сообщения от бота.',
       Invalid_initData: 'Ошибка авторизации Telegram. Перезапустите Mini App.',
       invalid_category: 'Выберите категорию из списка.',
       validation: 'Заполните все поля.',
@@ -168,7 +174,9 @@
     const form = document.getElementById('listingForm');
     const categorySelect = document.getElementById('category');
     const statusEl = document.getElementById('status');
+    const listingInfoEl = document.getElementById('listingInfo');
     const submitBtn = document.getElementById('submitBtn');
+    let submitBlocked = false;
 
     CATEGORIES.forEach(function (c) {
       const opt = document.createElement('option');
@@ -190,6 +198,7 @@
           nameInput.value = user.first_name;
         }
       }
+      checkListingStatus();
     }
 
     function showStatus(text, isError) {
@@ -197,9 +206,57 @@
       statusEl.className = 'status ' + (isError ? 'err' : 'ok');
     }
 
+    function setSubmitBlocked(blocked, infoText) {
+      submitBlocked = blocked;
+      submitBtn.disabled = blocked;
+      if (infoText) {
+        listingInfoEl.textContent = infoText;
+        listingInfoEl.hidden = false;
+      } else {
+        listingInfoEl.hidden = true;
+      }
+    }
+
+    function buildPayload(action) {
+      const user = tg.initDataUnsafe.user;
+      const payload = {
+        action: action,
+        tg_id: user.id,
+        username: user.username || '',
+        first_name: user.first_name || '',
+        initData: tg.initData
+      };
+      if (WEBAPP_SECRET) {
+        payload.secret = WEBAPP_SECRET;
+      }
+      return payload;
+    }
+
+    async function checkListingStatus() {
+      if (!tg?.initData) {
+        return;
+      }
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify(buildPayload('check_listing_status'))
+        });
+        const data = JSON.parse(await res.text());
+        if (data.ok && data.has_listing && data.can_submit === false) {
+          setSubmitBlocked(true, data.message || ERRORS[data.error] || ERRORS.duplicate);
+        }
+      } catch (err) {
+        // Тихо игнорируем — форма покажет ошибку при отправке
+      }
+    }
+
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
       if (!tg?.initData) return;
+      if (submitBlocked) {
+        showStatus(listingInfoEl.textContent || ERRORS.duplicate, true);
+        return;
+      }
 
       const user = tg.initDataUnsafe.user;
       submitBtn.disabled = true;
@@ -245,7 +302,11 @@
           tg.close?.();
         } else {
           const key = (data.error || '').replace(/\s/g, '_');
-          showStatus(ERRORS[key] || data.error || 'Ошибка отправки', true);
+          const text = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
+          showStatus(text, true);
+          if (key.indexOf('duplicate_') === 0) {
+            setSubmitBlocked(true, text);
+          }
         }
       } catch (err) {
         showStatus(
@@ -253,7 +314,9 @@
           true
         );
       } finally {
-        submitBtn.disabled = false;
+        if (!submitBlocked) {
+          submitBtn.disabled = false;
+        }
       }
     });
   </script>
