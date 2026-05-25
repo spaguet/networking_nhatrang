@@ -396,6 +396,89 @@
       margin: 4px 16px 14px;
     }
 
+    /* ═══════════════════════════════════
+       SCREEN 4 & 5 — FORM / PAYMENT
+    ═══════════════════════════════════ */
+    .form-wrap {
+      padding: 0 16px 32px;
+    }
+    .form-subtitle {
+      color: var(--tg-hint);
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+    .card {
+      background: var(--tg-sec);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      border: 1px solid var(--tg-border);
+    }
+    .form-wrap label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--tg-hint);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .form-wrap input,
+    .form-wrap select,
+    .form-wrap textarea {
+      width: 100%;
+      font-size: 1rem;
+      padding: 12px;
+      border: 1px solid var(--tg-border);
+      border-radius: 10px;
+      background: var(--tg-bg);
+      color: var(--tg-text);
+      font-family: inherit;
+    }
+    .form-wrap textarea { min-height: 120px; resize: vertical; }
+    .form-wrap input:focus,
+    .form-wrap select:focus,
+    .form-wrap textarea:focus {
+      outline: 2px solid var(--tg-btn);
+      outline-offset: 0;
+    }
+    .hint {
+      font-size: 0.78rem;
+      color: var(--tg-hint);
+      margin-top: 6px;
+    }
+    #listingForm .btn,
+    .btn-row .btn {
+      width: 100%;
+      flex: none;
+      padding: 14px;
+      font-size: 1rem;
+      margin-top: 8px;
+    }
+    .btn-secondary {
+      background: var(--tg-sec);
+      color: var(--tg-text);
+      border: 1px solid var(--tg-border);
+    }
+    .btn-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .status {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      display: none;
+      line-height: 1.45;
+    }
+    .status.ok { display: block; background: rgba(52,211,153,.15); color: var(--c-active); }
+    .status.err { display: block; background: rgba(239,68,68,.15); color: var(--c-reject); }
+    .status.info { display: block; background: rgba(42,171,238,.15); color: var(--accent); }
+
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -437,6 +520,63 @@
   <div id="profileContainer"></div>
 </div>
 
+<!-- ═══ SCREEN 4: FORM ═══ -->
+<div id="screenForm" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromForm">←</button>
+    <span class="screen-title">Анкета специалиста</span>
+  </div>
+  <div class="form-wrap">
+    <p class="form-subtitle">Разместите профиль в каталоге. Только анкеты специалистов, не вакансии.</p>
+
+    <div id="listingInfo" class="status info" role="status" hidden></div>
+
+    <form id="listingForm">
+      <div class="card">
+        <label for="display_name">Имя для каталога</label>
+        <input id="display_name" name="display_name" required maxlength="80" placeholder="Как вас показывать в витрине" />
+
+        <label for="category" style="margin-top:14px">Категория</label>
+        <select id="category" name="category" required></select>
+
+        <label for="description" style="margin-top:14px">Описание</label>
+        <textarea id="description" name="description" required maxlength="2000" placeholder="Специализация, опыт, чем можете быть полезны"></textarea>
+        <p class="hint">Без запрещённого контента и объявлений о найме сотрудников.</p>
+
+        <label for="contacts" style="margin-top:14px">Контакты</label>
+        <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
+      </div>
+
+      <div id="freeActions">
+        <button type="submit" class="btn btn-primary" id="submitBtn">Отправить на модерацию</button>
+      </div>
+      <div id="paidActions" class="btn-row" hidden>
+        <button type="button" class="btn btn-primary" id="paidBtn">Разместить платно</button>
+        <button type="button" class="btn btn-secondary" id="cancelBtn">Отмена</button>
+      </div>
+      <div id="status" class="status" role="alert"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 5: PAYMENT ═══ -->
+<div id="screenPayment" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backBtn">←</button>
+    <span class="screen-title">Оплата размещения</span>
+  </div>
+  <div class="form-wrap">
+    <p class="form-subtitle">Выберите способ оплаты</p>
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary pay-method" data-method="vnd">VND по QR</button>
+      <button type="button" class="btn btn-primary pay-method" data-method="bybit">USDT Tether (Bybit)</button>
+      <button type="button" class="btn btn-primary pay-method" data-method="trc20">USDT TRC20</button>
+      <button type="button" class="btn btn-primary pay-method" data-method="solana">USDT Solana</button>
+    </div>
+    <div id="paymentStatus" class="status" role="alert"></div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -445,7 +585,6 @@
      CONFIG — замените GAS_URL на свой
   ───────────────────────────────────── */
   var GAS_URL       = 'https://script.google.com/macros/s/AKfycbwVAGa_BKyprhGRyF8mxbM_mimURSeVNnqMKI_lUqx_TAaCGBeWiK9cmC5b0ULyvdnZ/exec';
-  var FORM_URL      = 'index.html';
   var WEBAPP_SECRET = 'getting_more_money';
 
   /* ─────────────────────────────────────
@@ -473,6 +612,22 @@
     rejected:      { text: '❌ Отклонено',       cls: 'rejected' }
   };
 
+  var ERRORS = {
+    stop_words: 'Текст содержит запрещённые слова. Измените описание.',
+    use_paid_flow: 'Используйте платное размещение.',
+    Invalid_initData: 'Ошибка авторизации Telegram. Перезапустите Mini App.',
+    invalid_category: 'Выберите категорию из списка.',
+    validation: 'Заполните все поля.',
+    invalid_secret: 'Ошибка конфигурации приложения.',
+    invalid_payment_method: 'Выберите способ оплаты.',
+    qr_not_configured: 'QR для этого способа ещё не настроен.',
+    server_error: 'Сервер временно недоступен. Попробуйте позже.'
+  };
+
+  var appMode = 'free';
+  var _formReturnScreen = 'main';
+  var _formPrefill = null;
+
   /* ─────────────────────────────────────
      TELEGRAM INIT
   ───────────────────────────────────── */
@@ -480,9 +635,10 @@
   if (tg) { tg.ready(); tg.expand(); }
 
   /* ─────────────────────────────────────
-     BUILD CATEGORY GRID
+     BUILD CATEGORY GRID + FORM SELECT
   ───────────────────────────────────── */
   var grid = document.getElementById('categoriesGrid');
+  var categorySelect = document.getElementById('category');
   CATEGORIES.forEach(function (cat) {
     var btn = document.createElement('button');
     btn.className = 'cat-btn';
@@ -491,6 +647,11 @@
       '<span class="cat-label">' + cat.label + '</span>';
     btn.addEventListener('click', function () { openListings(cat.label, cat.icon); });
     grid.appendChild(btn);
+
+    var opt = document.createElement('option');
+    opt.value = cat.label;
+    opt.textContent = cat.label;
+    categorySelect.appendChild(opt);
   });
 
   /* ─────────────────────────────────────
@@ -504,11 +665,16 @@
   document.getElementById('backFromProfile').addEventListener('click', function () {
     showScreen('main');
   });
+  document.getElementById('backFromForm').addEventListener('click', function () {
+    showScreen(_formReturnScreen);
+  });
 
   function showScreen(name) {
     document.getElementById('screenMain').hidden     = (name !== 'main');
     document.getElementById('screenListings').hidden = (name !== 'listings');
     document.getElementById('screenProfile').hidden  = (name !== 'profile');
+    document.getElementById('screenForm').hidden     = (name !== 'form');
+    document.getElementById('screenPayment').hidden  = (name !== 'payment');
   }
 
   /* ─────────────────────────────────────
@@ -546,7 +712,14 @@
   function apiPost(payload) {
     return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
       .then(function (r) { return r.text(); })
-      .then(function (t) { return JSON.parse(t); });
+      .then(function (t) {
+        try {
+          return JSON.parse(t);
+        } catch (parseErr) {
+          var err = new Error('not_json');
+          throw err;
+        }
+      });
   }
 
   /* ─────────────────────────────────────
@@ -811,18 +984,237 @@
      GO TO FORM (with optional prefill)
   ───────────────────────────────────── */
   function goToForm(prefill) {
-    var url = FORM_URL;
-    if (prefill) {
-      var p = new URLSearchParams({
-        prefill:  '1',
-        name:     prefill.display_name || '',
-        cat:      prefill.category     || '',
-        desc:     prefill.description  || '',
-        contacts: prefill.contacts     || ''
-      });
-      url += '?' + p.toString();
+    _formPrefill = prefill || null;
+    _formReturnScreen = document.getElementById('screenProfile').hidden ? 'main' : 'profile';
+    applyPrefill(prefill);
+    checkListingStatus();
+    showScreen('form');
+  }
+
+  function applyPrefill(prefill) {
+    var form = document.getElementById('listingForm');
+    form.reset();
+    clearStatus(document.getElementById('status'));
+
+    if (!prefill) {
+      var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+      if (user && user.first_name) {
+        var nameInput = document.getElementById('display_name');
+        if (!nameInput.value) nameInput.value = user.first_name;
+      }
+      return;
     }
-    window.location.href = url;
+
+    if (prefill.display_name)
+      document.getElementById('display_name').value = prefill.display_name;
+    if (prefill.description)
+      document.getElementById('description').value = prefill.description;
+    if (prefill.contacts)
+      document.getElementById('contacts').value = prefill.contacts;
+
+    if (prefill.category) {
+      var sel = document.getElementById('category');
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === prefill.category) {
+          sel.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  /* ─────────────────────────────────────
+     FORM HELPERS
+  ───────────────────────────────────── */
+  function showStatus(el, text, type) {
+    el.textContent = text;
+    el.className = 'status ' + type;
+  }
+
+  function clearStatus(el) {
+    el.className = 'status';
+    el.textContent = '';
+  }
+
+  function setMode(mode, banner) {
+    appMode = mode;
+    var freeActions = document.getElementById('freeActions');
+    var paidActions = document.getElementById('paidActions');
+    var listingInfoEl = document.getElementById('listingInfo');
+    var submitBtn = document.getElementById('submitBtn');
+    if (mode === 'paid') {
+      freeActions.hidden = true;
+      paidActions.hidden = false;
+      submitBtn.disabled = false;
+      if (banner) {
+        listingInfoEl.textContent = banner;
+        listingInfoEl.hidden = false;
+      }
+    } else {
+      freeActions.hidden = false;
+      paidActions.hidden = true;
+      listingInfoEl.hidden = true;
+    }
+  }
+
+  function getFormData() {
+    var form = document.getElementById('listingForm');
+    return {
+      display_name: form.display_name.value.trim(),
+      category: form.category.value,
+      description: form.description.value.trim(),
+      contacts: form.contacts.value.trim()
+    };
+  }
+
+  function validateFormClient() {
+    var statusEl = document.getElementById('status');
+    var data = getFormData();
+    if (!data.display_name || !data.category || !data.description || !data.contacts) {
+      showStatus(statusEl, ERRORS.validation, 'err');
+      return null;
+    }
+    return data;
+  }
+
+  function checkListingStatus() {
+    if (!tg || !tg.initData) return;
+    var payload = buildPayload('check_listing_status');
+    if (!payload) return;
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok && data.paid_mode) {
+          setMode('paid', data.banner);
+        } else {
+          setMode('free');
+        }
+      })
+      .catch(function () {
+        // форма всё равно попробует отправить
+      });
+  }
+
+  /* ─────────────────────────────────────
+     FORM EVENT HANDLERS
+  ───────────────────────────────────── */
+  var form = document.getElementById('listingForm');
+  var statusEl = document.getElementById('status');
+  var paymentStatusEl = document.getElementById('paymentStatus');
+  var submitBtn = document.getElementById('submitBtn');
+
+  document.getElementById('cancelBtn').addEventListener('click', function () {
+    showScreen('main');
+  });
+
+  document.getElementById('backBtn').addEventListener('click', function () {
+    showScreen('form');
+    clearStatus(paymentStatusEl);
+  });
+
+  document.getElementById('paidBtn').addEventListener('click', function () {
+    if (!validateFormClient()) return;
+    clearStatus(statusEl);
+    showScreen('payment');
+    clearStatus(paymentStatusEl);
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!tg || !tg.initData || appMode === 'paid') return;
+
+    var formData = validateFormClient();
+    if (!formData) return;
+
+    submitBtn.disabled = true;
+    clearStatus(statusEl);
+
+    var payload = buildPayload('submit_listing', formData);
+    if (!payload) {
+      showStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      submitBtn.disabled = false;
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok) {
+          showStatus(statusEl, data.message || 'Анкета отправлена на модерацию', 'ok');
+          form.reset();
+          setTimeout(function () { showScreen('main'); }, 1500);
+        } else {
+          var key = (data.error || '').replace(/\s/g, '_');
+          var msg = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
+          showStatus(statusEl, msg, 'err');
+          if (data.paid_mode || key === 'use_paid_flow') {
+            setMode('paid', data.message || msg);
+          }
+        }
+      })
+      .catch(function (err) {
+        showStatus(
+          statusEl,
+          err && err.message === 'not_json'
+            ? 'Сервер вернул не JSON. Обновите URL деплоя GAS /exec в catalog.html.'
+            : 'Не удалось отправить. Проверьте GAS_URL и интернет.',
+          'err'
+        );
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+      });
+  });
+
+  document.querySelectorAll('.pay-method').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var formData = validateFormClient();
+      if (!formData) {
+        showScreen('form');
+        return;
+      }
+
+      var method = btn.getAttribute('data-method');
+      btn.disabled = true;
+      clearStatus(paymentStatusEl);
+
+      var payload = buildPayload('select_payment_method', Object.assign({ payment_method: method }, formData));
+      if (!payload) {
+        showStatus(paymentStatusEl, ERRORS.Invalid_initData, 'err');
+        btn.disabled = false;
+        return;
+      }
+
+      apiPost(payload)
+        .then(function (data) {
+          if (data.ok) {
+            showStatus(
+              paymentStatusEl,
+              data.message ||
+                'QR-код отправлен в чат с ботом. После оплаты пришлите скриншот чека в ответ боту.',
+              'ok'
+            );
+            setTimeout(function () {
+              if (tg && tg.close) tg.close();
+            }, 2500);
+          } else {
+            var key = (data.error || '').replace(/\s/g, '_');
+            showStatus(paymentStatusEl, data.message || ERRORS[key] || 'Ошибка оплаты', 'err');
+          }
+        })
+        .catch(function () {
+          showStatus(paymentStatusEl, 'Не удалось отправить запрос. Проверьте интернет.', 'err');
+        })
+        .finally(function () {
+          btn.disabled = false;
+        });
+    });
+  });
+
+  /* ─────────────────────────────────────
+     INIT — open form via ?form=1
+  ───────────────────────────────────── */
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('form') === '1') {
+    goToForm(null);
   }
 </script>
 </body>
