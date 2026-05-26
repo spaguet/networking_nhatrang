@@ -26,7 +26,8 @@ jobs:
       - name: Prepare site files
         run: |
           mkdir site
-          cp catalog.html index.html site/
+          cp catalog.html site/
+          cp catalog.html site/index.html
           touch site/.nojekyll
           ls -la site
 
