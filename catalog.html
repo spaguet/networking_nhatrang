@@ -479,8 +479,18 @@
 
     .loader {
       display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
       justify-content: center;
       padding: 56px 0;
+    }
+    .loader-text {
+      margin: 0;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      text-align: center;
     }
     .spinner {
       width: 30px; height: 30px;
@@ -872,7 +882,7 @@
   /* ─────────────────────────────────────
      CONFIG — замените GAS_URL на свой
   ───────────────────────────────────── */
-  var GAS_URL       = 'https://script.google.com/macros/s/AKfycbwR-sZOgipB5gPgkpjAv5qLZ1qSyeXvjR2p2oQcjrJfqfMIq2mNcpyUqnO-88NEuiBc/exec';
+  var GAS_URL       = 'https://script.google.com/macros/s/AKfycbwVAGa_BKyprhGRyF8mxbM_mimURSeVNnqMKI_lUqx_TAaCGBeWiK9cmC5b0ULyvdnZ/exec';
   var WEBAPP_SECRET = 'getting_more_money';
 
   /* ─────────────────────────────────────
@@ -909,7 +919,8 @@
     invalid_secret:         'Ошибка конфигурации приложения.',
     invalid_payment_method: 'Выберите способ оплаты.',
     qr_not_configured:      'QR для этого способа ещё не настроен.',
-    server_error:           'Сервер временно недоступен. Попробуйте позже.'
+    server_error:           'Сервер временно недоступен. Попробуйте позже.',
+    unknown_action:         'На сервере старая версия. Задеплойте новую версию Code.gs.'
   };
 
   var appMode = 'free';
@@ -1000,15 +1011,43 @@
 
   function apiPost(payload) {
     return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
-      .then(function (r) { return r.text(); })
-      .then(function (t) {
-        try {
-          return JSON.parse(t);
-        } catch (parseErr) {
-          var err = new Error('not_json');
-          throw err;
-        }
+      .then(function (r) {
+        return r.text().then(function (t) {
+          if (!r.ok) {
+            var httpErr = new Error('http_error');
+            httpErr.httpStatus = r.status;
+            httpErr.body = (t || '').slice(0, 200);
+            throw httpErr;
+          }
+          try {
+            return JSON.parse(t);
+          } catch (parseErr) {
+            var jsonErr = new Error('not_json');
+            jsonErr.body = (t || '').slice(0, 200);
+            throw jsonErr;
+          }
+        });
       });
+  }
+
+  function apiErrorMessage(err) {
+    if (!err) {
+      return 'Проверьте интернет и попробуйте снова';
+    }
+    if (err.message === 'http_error') {
+      if (err.httpStatus === 404) {
+        return 'Сервер не найден (404). Обновите GAS_URL в catalog.html после деплоя Apps Script.';
+      }
+      return 'Ошибка сервера (HTTP ' + err.httpStatus + ').';
+    }
+    if (err.message === 'not_json') {
+      var body = (err.body || '').trim();
+      if (body === 'OK') {
+        return 'Сервер вернул «OK» вместо JSON. Проверьте URL деплоя GAS /exec и webhook.';
+      }
+      return 'Сервер вернул некорректный ответ. Обновите URL деплоя GAS /exec в catalog.html.';
+    }
+    return 'Проверьте интернет и попробуйте снова';
   }
 
   /* ─────────────────────────────────────
@@ -1054,8 +1093,31 @@
     }
   }
 
+  var loaderSlowTimer = null;
+  var LOADER_SLOW_MS = 5000;
+
+  function clearLoaderTimer() {
+    if (loaderSlowTimer !== null) {
+      clearTimeout(loaderSlowTimer);
+      loaderSlowTimer = null;
+    }
+  }
+
   function loader() {
-    return '<div class="loader"><div class="spinner"></div></div>';
+    return '<div class="loader">' +
+      '<div class="spinner"></div>' +
+      '<p class="loader-text">Загружаем данные...</p>' +
+    '</div>';
+  }
+
+  function showLoaderIn(container) {
+    clearLoaderTimer();
+    container.innerHTML = loader();
+    loaderSlowTimer = setTimeout(function () {
+      loaderSlowTimer = null;
+      var textEl = container.querySelector('.loader-text');
+      if (textEl) textEl.textContent = 'Ого! Как много данных!';
+    }, LOADER_SLOW_MS);
   }
 
   function emptyState(icon, title, sub, btnHtml) {
@@ -1072,21 +1134,29 @@
   ───────────────────────────────────── */
   function openListings(category, icon) {
     document.getElementById('listingsCatTitle').textContent = icon + '\u00a0' + category;
-    document.getElementById('listingsContainer').innerHTML = loader();
+    var listingsContainer = document.getElementById('listingsContainer');
+    showLoaderIn(listingsContainer);
     showScreen('listings');
 
     var payload = buildPayload('get_listings', { category: category });
     if (!payload) {
-      document.getElementById('listingsContainer').innerHTML =
+      clearLoaderTimer();
+      listingsContainer.innerHTML =
         emptyState('🔒', 'Нет доступа', 'Откройте через Telegram-бота');
       return;
     }
 
     apiPost(payload)
       .then(function (data) {
+        clearLoaderTimer();
         if (!data.ok) {
+          var listKey = (data.error || '').replace(/\s/g, '_');
           document.getElementById('listingsContainer').innerHTML =
-            emptyState('⚠️', 'Ошибка загрузки', data.message || 'Попробуйте позже');
+            emptyState(
+              '⚠️',
+              'Ошибка загрузки',
+              data.message || ERRORS[listKey] || data.error || 'Попробуйте позже'
+            );
           return;
         }
 
@@ -1124,9 +1194,10 @@
           });
         });
       })
-      .catch(function () {
+      .catch(function (err) {
+        clearLoaderTimer();
         document.getElementById('listingsContainer').innerHTML =
-          emptyState('📡', 'Нет связи', 'Проверьте интернет и попробуйте снова');
+          emptyState('📡', 'Нет связи с сервером', apiErrorMessage(err));
       });
   }
 
@@ -1134,21 +1205,29 @@
      SCREEN 3 — PROFILE
   ───────────────────────────────────── */
   function openProfile() {
-    document.getElementById('profileContainer').innerHTML = loader();
+    var profileContainer = document.getElementById('profileContainer');
+    showLoaderIn(profileContainer);
     showScreen('profile');
 
     var payload = buildPayload('get_my_listings');
     if (!payload) {
-      document.getElementById('profileContainer').innerHTML =
+      clearLoaderTimer();
+      profileContainer.innerHTML =
         emptyState('🔒', 'Нет доступа', 'Откройте через Telegram-бота');
       return;
     }
 
     apiPost(payload)
       .then(function (data) {
+        clearLoaderTimer();
         if (!data.ok) {
+          var profKey = (data.error || '').replace(/\s/g, '_');
           document.getElementById('profileContainer').innerHTML =
-            emptyState('⚠️', 'Ошибка загрузки', data.message || 'Попробуйте позже');
+            emptyState(
+              '⚠️',
+              'Ошибка загрузки',
+              data.message || ERRORS[profKey] || data.error || 'Попробуйте позже'
+            );
           return;
         }
 
@@ -1231,9 +1310,10 @@
           });
         });
       })
-      .catch(function () {
+      .catch(function (err) {
+        clearLoaderTimer();
         document.getElementById('profileContainer').innerHTML =
-          emptyState('📡', 'Нет связи', 'Проверьте интернет и попробуйте снова');
+          emptyState('📡', 'Нет связи с сервером', apiErrorMessage(err));
       });
   }
 
@@ -1257,8 +1337,8 @@
           btn.textContent = 'В архив';
         }
       })
-      .catch(function () {
-        showToast('Ошибка. Проверьте интернет.');
+      .catch(function (err) {
+        showToast(apiErrorMessage(err));
         btn.disabled = false;
         btn.textContent = 'В архив';
       });
@@ -1433,13 +1513,7 @@
         }
       })
       .catch(function (err) {
-        showStatus(
-          statusEl,
-          err && err.message === 'not_json'
-            ? 'Сервер вернул не JSON. Обновите URL деплоя GAS /exec в catalog.html.'
-            : 'Не удалось отправить. Проверьте GAS_URL и интернет.',
-          'err'
-        );
+        showStatus(statusEl, apiErrorMessage(err), 'err');
       })
       .finally(function () {
         submitBtn.disabled = false;
@@ -1482,8 +1556,8 @@
             showStatus(paymentStatusEl, data.message || ERRORS[key] || 'Ошибка оплаты', 'err');
           }
         })
-        .catch(function () {
-          showStatus(paymentStatusEl, 'Не удалось отправить запрос. Проверьте интернет.', 'err');
+        .catch(function (err) {
+          showStatus(paymentStatusEl, apiErrorMessage(err), 'err');
         })
         .finally(function () {
           btn.disabled = false;
