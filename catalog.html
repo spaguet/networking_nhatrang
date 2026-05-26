@@ -480,6 +480,55 @@
     .status.info { display: block; background: rgba(42,171,238,.15); color: var(--accent); }
 
     [hidden] { display: none !important; }
+
+    /* ═══════════════════════════════════
+       CTA — РАЗМЕСТИТЬ МИНИ-РЕЗЮМЕ
+    ═══════════════════════════════════ */
+    .add-resume-wrap {
+      position: relative; z-index: 1;
+      padding: 0 16px 20px;
+    }
+    .add-resume-btn {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(42,171,238,.16) 0%, rgba(118,214,247,.08) 100%);
+      border: 1px solid rgba(42,171,238,.38);
+      border-radius: var(--r-card);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--tg-text);
+      text-align: left;
+      transition: border-color .15s, transform .12s, background .15s;
+    }
+    .add-resume-btn:active {
+      transform: scale(.97);
+      border-color: var(--accent);
+      background: rgba(42,171,238,.22);
+    }
+    .add-resume-icon  { font-size: 1.5rem; flex-shrink: 0; }
+    .add-resume-text  { flex: 1; }
+    .add-resume-title {
+      display: block;
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+    .add-resume-sub {
+      display: block;
+      font-size: .76rem;
+      color: var(--tg-hint);
+      margin-top: 3px;
+    }
+    .add-resume-arrow {
+      font-size: 1.1rem;
+      color: var(--accent);
+      opacity: .65;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -497,6 +546,18 @@
   </div>
 
   <p class="tagline">Здесь встречаются профессионалы</p>
+
+  <!-- CTA: РАЗМЕСТИТЬ МИНИ-РЕЗЮМЕ -->
+  <div class="add-resume-wrap">
+    <button class="add-resume-btn" id="addResumeBtn">
+      <span class="add-resume-icon">✍️</span>
+      <div class="add-resume-text">
+        <span class="add-resume-title">Разместить мини-резюме</span>
+        <span class="add-resume-sub">Первое размещение бесплатно · Модерация 24 ч</span>
+      </div>
+      <span class="add-resume-arrow">→</span>
+    </button>
+  </div>
 
   <div class="section-label">Выберите раздел</div>
   <div class="categories-grid" id="categoriesGrid"></div>
@@ -584,7 +645,7 @@
   /* ─────────────────────────────────────
      CONFIG — замените GAS_URL на свой
   ───────────────────────────────────── */
-  var GAS_URL       = 'https://script.google.com/macros/s/AKfycbwR-sZOgipB5gPgkpjAv5qLZ1qSyeXvjR2p2oQcjrJfqfMIq2mNcpyUqnO-88NEuiBc/exec';
+  var GAS_URL       = 'https://script.google.com/macros/s/AKfycbwVAGa_BKyprhGRyF8mxbM_mimURSeVNnqMKI_lUqx_TAaCGBeWiK9cmC5b0ULyvdnZ/exec';
   var WEBAPP_SECRET = 'getting_more_money';
 
   /* ─────────────────────────────────────
@@ -658,6 +719,7 @@
      NAVIGATION
   ───────────────────────────────────── */
   document.getElementById('profileBtn').addEventListener('click', openProfile);
+  document.getElementById('addResumeBtn').addEventListener('click', function () { goToForm(null); });
 
   document.getElementById('backFromListings').addEventListener('click', function () {
     showScreen('main');
