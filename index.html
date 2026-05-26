@@ -976,6 +976,7 @@
     use_paid_flow:          'Используйте платное размещение.',
     Invalid_initData:       'Ошибка авторизации Telegram. Перезапустите Mini App.',
     invalid_category:       'Выберите категорию из списка.',
+    invalid_contact_type:   'Выберите тип контакта из списка.',
     invalid_avatar:         'Выберите эмодзи-аватар из списка.',
     validation:             'Заполните все поля.',
     invalid_secret:         'Ошибка конфигурации приложения.',
@@ -1254,11 +1255,8 @@
               '</div>' +
               expBlock +
               '<div class="card-desc">' + esc(l.description) + '</div>' +
-              (l.contact_type
-                ? '<div class="card-contact-type">' + esc(l.contact_type) + '</div>'
-                : '') +
               '<button class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
-                '📋\u00a0' + esc(l.contacts) +
+                '📋\u00a0' + (l.contact_type ? esc(l.contact_type) + ': ' : '') + esc(l.contacts) +
               '</button>' +
             '</div>';
         });
