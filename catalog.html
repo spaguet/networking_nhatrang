@@ -335,6 +335,15 @@
     }
     .card-exp-label { color: var(--text-sub); font-weight: 600; }
 
+    .card-contact-type {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
     .card-desc {
       font-size: 0.86rem;
       line-height: 1.55;
@@ -836,7 +845,17 @@
         </div>
 
         <div class="field-item">
-          <label for="contacts">Контакты</label>
+          <label for="contact_type">Тип контакта</label>
+          <select id="contact_type" name="contact_type" required>
+            <option value="" disabled selected>Выберите тип</option>
+            <option value="Telegram">Telegram</option>
+            <option value="Whatsapp">Whatsapp</option>
+            <option value="Email">Email</option>
+          </select>
+        </div>
+
+        <div class="field-item">
+          <label for="contacts">Контакт</label>
           <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
         </div>
 
@@ -1233,6 +1252,9 @@
               '</div>' +
               expBlock +
               '<div class="card-desc">' + esc(l.description) + '</div>' +
+              (l.contact_type
+                ? '<div class="card-contact-type">' + esc(l.contact_type) + '</div>'
+                : '') +
               '<button class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
                 '📋\u00a0' + esc(l.contacts) +
               '</button>' +
@@ -1329,6 +1351,7 @@
                   'data-avatar="'   + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '" ' +
                   'data-exp="'      + esc(l.experience)   + '" ' +
                   'data-desc="'     + esc(l.description)  + '" ' +
+                  'data-contact-type="' + esc(l.contact_type) + '" ' +
                   'data-contacts="' + esc(l.contacts)     + '">' +
                   'Разместить' +
                 '</button>' +
@@ -1368,6 +1391,7 @@
               avatar_emoji: btn.getAttribute('data-avatar'),
               experience:   btn.getAttribute('data-exp'),
               description:  btn.getAttribute('data-desc'),
+              contact_type: btn.getAttribute('data-contact-type'),
               contacts:     btn.getAttribute('data-contacts')
             });
           });
@@ -1441,6 +1465,15 @@
       document.getElementById('experience').value = prefill.experience;
     if (prefill.description)
       document.getElementById('description').value = prefill.description;
+    if (prefill.contact_type) {
+      var contactTypeSel = document.getElementById('contact_type');
+      for (var j = 0; j < contactTypeSel.options.length; j++) {
+        if (contactTypeSel.options[j].value === prefill.contact_type) {
+          contactTypeSel.selectedIndex = j;
+          break;
+        }
+      }
+    }
     if (prefill.contacts)
       document.getElementById('contacts').value = prefill.contacts;
 
@@ -1497,6 +1530,7 @@
       category:     form.category.value,
       experience:   form.experience.value.trim(),
       description:  form.description.value.trim(),
+      contact_type: form.contact_type.value,
       contacts:     form.contacts.value.trim()
     };
   }
@@ -1504,7 +1538,7 @@
   function validateFormClient() {
     var statusEl = document.getElementById('status');
     var data = getFormData();
-    if (!data.display_name || !data.avatar_emoji || !data.category || !data.experience || !data.description || !data.contacts) {
+    if (!data.display_name || !data.avatar_emoji || !data.category || !data.experience || !data.description || !data.contact_type || !data.contacts) {
       showStatus(statusEl, ERRORS.validation, 'err');
       return null;
     }
