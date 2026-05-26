@@ -326,6 +326,14 @@
     }
     .card-name { font-size: 0.97rem; font-weight: 700; line-height: 1.2; color: var(--text); }
     .card-cat  { font-size: 0.72rem; color: var(--text-sub); margin-top: 2px; font-weight: 500; }
+    .card-exp  {
+      font-size: 0.78rem;
+      color: var(--text-mid);
+      margin-top: 8px;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .card-exp-label { color: var(--text-sub); font-weight: 600; }
 
     .card-desc {
       font-size: 0.86rem;
@@ -404,6 +412,13 @@
 
     .p-name { font-size: 0.97rem; font-weight: 700; margin-bottom: 3px; color: var(--text); }
     .p-cat  { font-size: 0.77rem; color: var(--text-sub); margin-bottom: 8px; font-weight: 500; }
+    .p-exp  {
+      font-size: 0.8rem;
+      color: var(--text-mid);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .p-exp-label { color: var(--text-sub); font-weight: 600; }
     .p-desc {
       font-size: 0.85rem;
       line-height: 1.5;
@@ -796,8 +811,13 @@
         </div>
 
         <div class="field-item">
+          <label for="experience">Опыт/стаж</label>
+          <input id="experience" name="experience" required maxlength="200" placeholder="Например: 5 лет в разработке, 3 года фриланса" />
+        </div>
+
+        <div class="field-item">
           <label for="description">О себе и услугах</label>
-          <textarea id="description" name="description" required maxlength="2000" placeholder="Специализация, опыт, чем можете быть полезны"></textarea>
+          <textarea id="description" name="description" required maxlength="2000" placeholder="Специализация, чем можете быть полезны"></textarea>
           <span class="field-hint">Без запрещённого контента и объявлений о найме.</span>
         </div>
 
@@ -1169,6 +1189,9 @@
 
         var html = '<div class="listings-wrap">';
         listings.forEach(function (l, i) {
+          var expBlock = l.experience
+            ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
+            : '';
           html +=
             '<div class="listing-card" style="animation-delay:' + (i * 0.055) + 's">' +
               '<div class="card-head">' +
@@ -1178,6 +1201,7 @@
                   '<div class="card-cat">' + esc(l.category) + '</div>' +
                 '</div>' +
               '</div>' +
+              expBlock +
               '<div class="card-desc">' + esc(l.description) + '</div>' +
               '<button class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
                 '📋\u00a0' + esc(l.contacts) +
@@ -1272,6 +1296,7 @@
                 '<button class="btn btn-primary" data-action="republish" ' +
                   'data-name="'     + esc(l.display_name) + '" ' +
                   'data-cat="'      + esc(l.category)     + '" ' +
+                  'data-exp="'      + esc(l.experience)   + '" ' +
                   'data-desc="'     + esc(l.description)  + '" ' +
                   'data-contacts="' + esc(l.contacts)     + '">' +
                   'Разместить' +
@@ -1279,11 +1304,16 @@
               '</div>';
           }
 
+          var expBlock = l.experience
+            ? '<div class="p-exp"><span class="p-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
+            : '';
+
           html +=
             '<div class="profile-card s-' + meta.cls + '" style="animation-delay:' + (i * 0.055) + 's">' +
               '<span class="status-badge sb-' + meta.cls + '">' + meta.text + '</span>' +
               '<div class="p-name">' + esc(l.display_name) + '</div>' +
               '<div class="p-cat">'  + esc(l.category)     + '</div>' +
+              expBlock +
               '<div class="p-desc">' + esc(l.description)  + '</div>' +
               (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
               actions +
@@ -1304,6 +1334,7 @@
             goToForm({
               display_name: btn.getAttribute('data-name'),
               category:     btn.getAttribute('data-cat'),
+              experience:   btn.getAttribute('data-exp'),
               description:  btn.getAttribute('data-desc'),
               contacts:     btn.getAttribute('data-contacts')
             });
@@ -1371,6 +1402,8 @@
 
     if (prefill.display_name)
       document.getElementById('display_name').value = prefill.display_name;
+    if (prefill.experience)
+      document.getElementById('experience').value = prefill.experience;
     if (prefill.description)
       document.getElementById('description').value = prefill.description;
     if (prefill.contacts)
@@ -1426,6 +1459,7 @@
     return {
       display_name: form.display_name.value.trim(),
       category:     form.category.value,
+      experience:   form.experience.value.trim(),
       description:  form.description.value.trim(),
       contacts:     form.contacts.value.trim()
     };
@@ -1434,7 +1468,7 @@
   function validateFormClient() {
     var statusEl = document.getElementById('status');
     var data = getFormData();
-    if (!data.display_name || !data.category || !data.description || !data.contacts) {
+    if (!data.display_name || !data.category || !data.experience || !data.description || !data.contacts) {
       showStatus(statusEl, ERRORS.validation, 'err');
       return null;
     }
