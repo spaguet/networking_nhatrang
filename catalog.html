@@ -394,6 +394,52 @@
       border-color: var(--orange);
     }
 
+    .navigation_bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 8px 16px 24px;
+    }
+    .nav-bar-btn {
+      background: var(--cream-card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-btn);
+      padding: 12px 20px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      box-shadow: var(--shadow);
+      transition: border-color .15s, background .15s, opacity .15s, transform .12s;
+    }
+    .nav-bar-btn:active:not(:disabled) {
+      transform: scale(.97);
+      border-color: var(--orange);
+      background: var(--orange-dim);
+    }
+    .nav-bar-btn:disabled {
+      opacity: 0.38;
+      cursor: default;
+      pointer-events: none;
+    }
+    .nav-page-circle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      box-shadow: 0 3px 12px var(--orange-glow);
+      flex-shrink: 0;
+      user-select: none;
+    }
+
     /* ══════════════════════════════════════════
        SCREEN 3 — PROFILE
     ══════════════════════════════════════════ */
@@ -1026,6 +1072,9 @@
   var appMode = 'free';
   var _formReturnScreen = 'main';
   var _formPrefill = null;
+  var LISTINGS_PER_PAGE = 20;
+  var _categoryListings = [];
+  var _listingsCurrentPage = 1;
 
   /* ─────────────────────────────────────
      TELEGRAM INIT
@@ -1310,6 +1359,101 @@
   /* ─────────────────────────────────────
      SCREEN 2 — LISTINGS BY CATEGORY
   ───────────────────────────────────── */
+  function buildListingCardHtml(l, animIndex) {
+    var cardId = String(l.listing_id || '').trim();
+    var likeBtn = cardId
+      ? '<button type="button" id="like-btn-' + cardId + '" class="like-btn" aria-label="Лайк">' +
+          '♡ <span id="like-count-' + cardId + '">0</span>' +
+        '</button>'
+      : '';
+    var expBlock = l.experience
+      ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
+      : '';
+    return (
+      '<div class="listing-card" style="animation-delay:' + (animIndex * 0.055) + 's">' +
+        '<div class="card-head">' +
+          '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
+          '<div>' +
+            '<div class="card-name">' + esc(l.display_name) + '</div>' +
+            '<div class="card-cat">' + esc(l.category) + '</div>' +
+          '</div>' +
+          likeBtn +
+        '</div>' +
+        expBlock +
+        '<div class="card-desc">' + esc(l.description) + '</div>' +
+        (l.contacts
+          ? '<button type="button" class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
+              'Скопировать ' + esc(l.contact_type || 'контакт') +
+            '</button>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function bindListingCardEvents() {
+    document.querySelectorAll('.copy-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        copyText(btn.getAttribute('data-contacts'));
+      });
+    });
+    document.querySelectorAll('.like-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cardId = btn.id.slice('like-btn-'.length);
+        if (cardId) toggleLike(cardId);
+      });
+    });
+  }
+
+  function renderListingsNavigation(totalCount, currentPage, totalPages) {
+    if (totalCount <= LISTINGS_PER_PAGE) return '';
+    return (
+      '<nav class="navigation_bar" aria-label="Навигация по страницам">' +
+        '<button type="button" class="nav-bar-btn" id="listingsNavPrev"' +
+          (currentPage <= 1 ? ' disabled' : '') + '>Назад</button>' +
+        '<span class="nav-page-circle" aria-label="Страница ' + currentPage + ' из ' + totalPages + '">' +
+          currentPage +
+        '</span>' +
+        '<button type="button" class="nav-bar-btn" id="listingsNavNext"' +
+          (currentPage >= totalPages ? ' disabled' : '') + '>Далее</button>' +
+      '</nav>'
+    );
+  }
+
+  function showListingsPage(page) {
+    var listingsContainer = document.getElementById('listingsContainer');
+    var total = _categoryListings.length;
+    var totalPages = Math.max(1, Math.ceil(total / LISTINGS_PER_PAGE));
+    _listingsCurrentPage = Math.max(1, Math.min(page, totalPages));
+    var start = (_listingsCurrentPage - 1) * LISTINGS_PER_PAGE;
+    var slice = _categoryListings.slice(start, start + LISTINGS_PER_PAGE);
+
+    var html = '<div class="listings-wrap">';
+    slice.forEach(function (l, i) {
+      html += buildListingCardHtml(l, i);
+    });
+    html += '</div>';
+    html += renderListingsNavigation(total, _listingsCurrentPage, totalPages);
+
+    listingsContainer.innerHTML = html;
+    bindListingCardEvents();
+    initLikes();
+
+    var prevBtn = document.getElementById('listingsNavPrev');
+    var nextBtn = document.getElementById('listingsNavNext');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', function () {
+        showListingsPage(_listingsCurrentPage - 1);
+        window.scrollTo(0, 0);
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', function () {
+        showListingsPage(_listingsCurrentPage + 1);
+        window.scrollTo(0, 0);
+      });
+    }
+  }
+
   function openListings(category, icon) {
     document.getElementById('listingsCatTitle').textContent = icon + '\u00a0' + category;
     var listingsContainer = document.getElementById('listingsContainer');
@@ -1345,54 +1489,9 @@
           return;
         }
 
-        var html = '<div class="listings-wrap">';
-        listings.forEach(function (l, i) {
-          var cardId = String(l.listing_id || '').trim();
-          var likeBtn = cardId
-            ? '<button type="button" id="like-btn-' + cardId + '" class="like-btn" aria-label="Лайк">' +
-                '♡ <span id="like-count-' + cardId + '">0</span>' +
-              '</button>'
-            : '';
-          var expBlock = l.experience
-            ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
-            : '';
-          html +=
-            '<div class="listing-card" style="animation-delay:' + (i * 0.055) + 's">' +
-              '<div class="card-head">' +
-                '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
-                '<div>' +
-                  '<div class="card-name">' + esc(l.display_name) + '</div>' +
-                  '<div class="card-cat">' + esc(l.category) + '</div>' +
-                '</div>' +
-                likeBtn +
-              '</div>' +
-              expBlock +
-              '<div class="card-desc">' + esc(l.description) + '</div>' +
-              (l.contacts
-                ? '<button type="button" class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
-                    'Скопировать ' + esc(l.contact_type || 'контакт') +
-                  '</button>'
-                : '') +
-            '</div>';
-        });
-        html += '</div>';
-
-        document.getElementById('listingsContainer').innerHTML = html;
-
-        document.querySelectorAll('.copy-btn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            copyText(btn.getAttribute('data-contacts'));
-          });
-        });
-
-        document.querySelectorAll('.like-btn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            var cardId = btn.id.slice('like-btn-'.length);
-            if (cardId) toggleLike(cardId);
-          });
-        });
-
-        initLikes();
+        _categoryListings = listings;
+        _listingsCurrentPage = 1;
+        showListingsPage(1);
       })
       .catch(function (err) {
         clearLoaderTimer();
