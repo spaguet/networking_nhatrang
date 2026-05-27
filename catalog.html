@@ -375,7 +375,7 @@
     .copy-btn {
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
       background: var(--cream);
       border: 1.5px solid var(--border);
       border-radius: 11px;
@@ -386,10 +386,7 @@
       font-family: inherit;
       font-weight: 600;
       width: 100%;
-      text-align: left;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      text-align: center;
       transition: background .15s, border-color .15s;
     }
     .copy-btn:active {
@@ -764,7 +761,7 @@
 </head>
 <body>
 
-<!-- app build: 2026-05-26 contact_type -->
+<!-- app build: 2026-05-27 copy-contact-btn -->
 
 <!-- ═══ SCREEN 1: MAIN ═══ -->
 <div id="screenMain" class="screen">
@@ -1279,9 +1276,11 @@
               '</div>' +
               expBlock +
               '<div class="card-desc">' + esc(l.description) + '</div>' +
-              '<button class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
-                '📋\u00a0' + (l.contact_type ? esc(l.contact_type) + ': ' : '') + esc(l.contacts) +
-              '</button>' +
+              (l.contacts
+                ? '<button type="button" class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
+                    'Скопировать ' + esc(l.contact_type || 'контакт') +
+                  '</button>'
+                : '') +
             '</div>';
         });
         html += '</div>';
