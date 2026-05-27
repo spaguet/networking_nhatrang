@@ -355,6 +355,23 @@
       margin-bottom: 12px;
     }
 
+    .like-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #999;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 12px;
+      transition: all 0.2s;
+      margin-left: auto;
+      flex-shrink: 0;
+      font-family: inherit;
+      line-height: 1.2;
+    }
+    .like-btn.liked { color: #e74c3c; }
+    .like-btn:active { transform: scale(0.9); }
+
     .copy-btn {
       display: flex;
       align-items: center;
@@ -1241,6 +1258,12 @@
 
         var html = '<div class="listings-wrap">';
         listings.forEach(function (l, i) {
+          var cardId = String(l.listing_id || '').trim();
+          var likeBtn = cardId
+            ? '<button type="button" id="like-btn-' + cardId + '" class="like-btn" aria-label="Лайк">' +
+                '♡ <span id="like-count-' + cardId + '">0</span>' +
+              '</button>'
+            : '';
           var expBlock = l.experience
             ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
             : '';
@@ -1252,6 +1275,7 @@
                   '<div class="card-name">' + esc(l.display_name) + '</div>' +
                   '<div class="card-cat">' + esc(l.category) + '</div>' +
                 '</div>' +
+                likeBtn +
               '</div>' +
               expBlock +
               '<div class="card-desc">' + esc(l.description) + '</div>' +
@@ -1269,12 +1293,139 @@
             copyText(btn.getAttribute('data-contacts'));
           });
         });
+
+        document.querySelectorAll('.like-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var cardId = btn.id.slice('like-btn-'.length);
+            if (cardId) toggleLike(cardId);
+          });
+        });
+
+        initLikes();
       })
       .catch(function (err) {
         clearLoaderTimer();
         document.getElementById('listingsContainer').innerHTML =
           emptyState('📡', 'Нет связи с сервером', apiErrorMessage(err));
       });
+  }
+
+  /* ─────────────────────────────────────
+     LIKES MODULE (УЗЕЛ 5 — initLikes; УЗЕЛ 6 — toggleLike; УЗЕЛ 7 — sendLike ✓)
+  ───────────────────────────────────── */
+  var LIKES_ENABLED = true;
+  var myLikes = new Set();
+  var likeCountState = {};
+  var debounceTimers = {};
+
+  function fetchWithTimeout(url, ms) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, ms);
+    return fetch(url, { signal: controller.signal }).finally(function () {
+      clearTimeout(timer);
+    });
+  }
+
+  function renderLikeButton(cardId, isLiked, count) {
+    var btn = document.getElementById('like-btn-' + cardId);
+    var countEl = document.getElementById('like-count-' + cardId);
+    if (!btn || !countEl) return;
+    if (isLiked) btn.classList.add('liked');
+    else btn.classList.remove('liked');
+    countEl.textContent = String(count);
+  }
+
+  function updateLikeUI(cardId, total, likedByMe) {
+    likeCountState[cardId] = total;
+    if (likedByMe) myLikes.add(cardId);
+    else myLikes.delete(cardId);
+    renderLikeButton(cardId, likedByMe, total);
+  }
+
+  async function initLikes() {
+    if (!LIKES_ENABLED) return;
+
+    var userId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
+    if (!userId) return;
+
+    if (!tg || !tg.initData) return;
+
+    try {
+      var res = await fetchWithTimeout(
+        GAS_URL + '?action=getLikes&initData=' + encodeURIComponent(tg.initData),
+        5000
+      );
+      var data = await res.json();
+      if (!data.success || !data.likes) return;
+
+      data.likes.forEach(function (item) {
+        updateLikeUI(item.cardId, item.total, item.likedByMe);
+      });
+    } catch (e) {
+      console.warn('Likes load failed:', e);
+    }
+  }
+
+  function toggleLike(cardId) {
+    if (!LIKES_ENABLED) return;
+
+    if (!tg || !tg.initDataUnsafe || !tg.initDataUnsafe.user || !tg.initDataUnsafe.user.id) {
+      if (tg && tg.showAlert) {
+        tg.showAlert('Войдите через Telegram для лайков');
+      }
+      return;
+    }
+
+    var previousLiked = myLikes.has(cardId);
+    var previousCount = likeCountState[cardId] != null ? likeCountState[cardId] : 0;
+
+    if (previousLiked) {
+      myLikes.delete(cardId);
+      likeCountState[cardId] = previousCount - 1;
+    } else {
+      myLikes.add(cardId);
+      likeCountState[cardId] = previousCount + 1;
+    }
+    renderLikeButton(cardId, myLikes.has(cardId), likeCountState[cardId]);
+
+    clearTimeout(debounceTimers[cardId]);
+    debounceTimers[cardId] = setTimeout(function () {
+      var finalAction = myLikes.has(cardId) ? 'like' : 'unlike';
+      sendLike(cardId, finalAction, previousLiked, previousCount);
+    }, 1200);
+  }
+
+  async function sendLike(cardId, action, previousLiked, previousCount) {
+    try {
+      var res = await fetchWithTimeout(
+        GAS_URL + '?action=toggleLike' +
+          '&initData=' + encodeURIComponent(tg.initData) +
+          '&cardId=' + encodeURIComponent(cardId) +
+          '&type=' + action,
+        8000
+      );
+      var data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'backend_error');
+      }
+
+      likeCountState[cardId] = data.newCount;
+      renderLikeButton(cardId, myLikes.has(cardId), data.newCount);
+    } catch (err) {
+      console.error('Like failed:', err);
+      if (tg && tg.showAlert) {
+        tg.showAlert('Не удалось сохранить. Попробуйте снова.');
+      }
+
+      if (previousLiked) {
+        myLikes.add(cardId);
+      } else {
+        myLikes.delete(cardId);
+      }
+      likeCountState[cardId] = previousCount;
+      renderLikeButton(cardId, previousLiked, previousCount);
+    }
   }
 
   /* ─────────────────────────────────────
