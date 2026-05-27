@@ -1169,9 +1169,16 @@
   });
   document.getElementById('listingsSortSelect').addEventListener('change', function () {
     _listingsSortMode = this.value;
-    applyListingsSort();
-    showListingsPage(1);
-    window.scrollTo(0, 0);
+    function refreshSortedListings() {
+      applyListingsSort();
+      showListingsPage(1, { skipLikesInit: _listingsSortMode === 'likes' });
+      window.scrollTo(0, 0);
+    }
+    if (_listingsSortMode === 'likes') {
+      initLikes().then(refreshSortedListings);
+    } else {
+      refreshSortedListings();
+    }
   });
   document.getElementById('backFromProfile').addEventListener('click', function () {
     showScreen('main');
@@ -1513,11 +1520,13 @@
 
     listingsContainer.innerHTML = html;
     bindListingCardEvents();
+    syncLikeButtonsFromState();
     if (!opts.skipLikesInit) {
       initLikes().then(function () {
+        syncLikeButtonsFromState();
         if (_listingsSortMode === 'likes' && !opts.skipResort) {
           applyListingsSort();
-          showListingsPage(_listingsCurrentPage, { skipLikesInit: true, skipResort: true });
+          showListingsPage(1, { skipLikesInit: true, skipResort: true });
         }
       });
     }
@@ -1617,6 +1626,15 @@
     countEl.textContent = String(count);
   }
 
+  function syncLikeButtonsFromState() {
+    document.querySelectorAll('.like-btn').forEach(function (btn) {
+      var cardId = btn.id.slice('like-btn-'.length);
+      if (!cardId) return;
+      var count = likeCountState[cardId] != null ? likeCountState[cardId] : 0;
+      renderLikeButton(cardId, myLikes.has(cardId), count);
+    });
+  }
+
   function updateLikeUI(cardId, total, likedByMe) {
     likeCountState[cardId] = total;
     if (likedByMe) myLikes.add(cardId);
@@ -1626,9 +1644,6 @@
 
   async function initLikes() {
     if (!LIKES_ENABLED) return;
-
-    var userId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
-    if (!userId) return;
 
     if (!tg || !tg.initData) return;
 
@@ -1641,7 +1656,11 @@
       if (!data.success || !data.likes) return;
 
       data.likes.forEach(function (item) {
-        updateLikeUI(item.cardId, item.total, item.likedByMe);
+        var cardId = String(item.cardId || '').trim();
+        if (!cardId) return;
+        likeCountState[cardId] = item.total;
+        if (item.likedByMe) myLikes.add(cardId);
+        else myLikes.delete(cardId);
       });
     } catch (e) {
       console.warn('Likes load failed:', e);
