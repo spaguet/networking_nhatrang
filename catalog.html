@@ -264,17 +264,18 @@
     .back-btn {
       width: 36px; height: 36px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: rgba(255,255,255,0.9);
+      background: var(--orange);
+      border: none;
+      color: #fff;
       font-size: 1.1rem;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
       font-family: inherit;
+      box-shadow: 0 3px 12px var(--orange-glow);
       transition: background .15s;
     }
-    .back-btn:active { background: rgba(255,255,255,0.18); }
+    .back-btn:active { filter: brightness(0.92); }
 
     .screen-title {
       font-size: 1rem;
