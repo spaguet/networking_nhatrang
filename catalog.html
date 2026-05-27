@@ -1511,6 +1511,9 @@
           var expBlock = l.experience
             ? '<div class="p-exp"><span class="p-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
             : '';
+          var contactBlock = (l.contact_type && l.contacts)
+            ? '<div class="p-exp"><span class="p-exp-label">' + esc(l.contact_type) + ':</span> ' + esc(l.contacts) + '</div>'
+            : '';
 
           html +=
             '<div class="profile-card s-' + meta.cls + '" style="animation-delay:' + (i * 0.055) + 's">' +
@@ -1519,6 +1522,7 @@
               '<div class="p-cat">'  + esc(l.category)     + '</div>' +
               expBlock +
               '<div class="p-desc">' + esc(l.description)  + '</div>' +
+              contactBlock +
               (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
               actions +
             '</div>';
