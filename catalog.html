@@ -290,6 +290,42 @@
     /* ══════════════════════════════════════════
        SCREEN 2 — LISTING CARDS
     ══════════════════════════════════════════ */
+    .listings-sort-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px 0;
+    }
+    .listings-sort-bar label {
+      font-size: 0.71rem;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex-shrink: 0;
+    }
+    .listings-sort-bar select {
+      flex: 1;
+      font-size: 0.9rem;
+      padding: 10px 38px 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background: var(--cream-card);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239A8E87' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      color: var(--text);
+      font-family: 'Onest', inherit;
+      font-weight: 600;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      box-shadow: var(--shadow);
+    }
+    .listings-sort-bar select:focus {
+      border-color: var(--orange);
+    }
+
     .listings-wrap {
       padding: 14px 16px;
       display: flex;
@@ -866,6 +902,14 @@
     <button class="back-btn" id="backFromListings">←</button>
     <span class="screen-title" id="listingsCatTitle"></span>
   </div>
+  <div class="listings-sort-bar" id="listingsSortBar" hidden>
+    <label for="listingsSortSelect">Сортировка</label>
+    <select id="listingsSortSelect">
+      <option value="newest">Сначала новые</option>
+      <option value="oldest">Сначала старые</option>
+      <option value="likes">По лайкам</option>
+    </select>
+  </div>
   <div id="listingsContainer"></div>
 </div>
 
@@ -1074,8 +1118,10 @@
   var _formReturnScreen = 'main';
   var _formPrefill = null;
   var LISTINGS_PER_PAGE = 20;
+  var _categoryListingsRaw = [];
   var _categoryListings = [];
   var _listingsCurrentPage = 1;
+  var _listingsSortMode = 'newest';
 
   /* ─────────────────────────────────────
      TELEGRAM INIT
@@ -1120,6 +1166,12 @@
 
   document.getElementById('backFromListings').addEventListener('click', function () {
     showScreen('main');
+  });
+  document.getElementById('listingsSortSelect').addEventListener('change', function () {
+    _listingsSortMode = this.value;
+    applyListingsSort();
+    showListingsPage(1);
+    window.scrollTo(0, 0);
   });
   document.getElementById('backFromProfile').addEventListener('click', function () {
     showScreen('main');
@@ -1420,7 +1472,31 @@
     );
   }
 
-  function showListingsPage(page) {
+  function applyListingsSort() {
+    var sorted = _categoryListingsRaw.slice();
+    if (_listingsSortMode === 'oldest') {
+      sorted.sort(function (a, b) {
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
+    } else if (_listingsSortMode === 'likes') {
+      sorted.sort(function (a, b) {
+        var idA = String(a.listing_id || '').trim();
+        var idB = String(b.listing_id || '').trim();
+        var likesA = likeCountState[idA] != null ? likeCountState[idA] : 0;
+        var likesB = likeCountState[idB] != null ? likeCountState[idB] : 0;
+        if (likesB !== likesA) return likesB - likesA;
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+    } else {
+      sorted.sort(function (a, b) {
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+    }
+    _categoryListings = sorted;
+  }
+
+  function showListingsPage(page, opts) {
+    opts = opts || {};
     var listingsContainer = document.getElementById('listingsContainer');
     var total = _categoryListings.length;
     var totalPages = Math.max(1, Math.ceil(total / LISTINGS_PER_PAGE));
@@ -1437,7 +1513,14 @@
 
     listingsContainer.innerHTML = html;
     bindListingCardEvents();
-    initLikes();
+    if (!opts.skipLikesInit) {
+      initLikes().then(function () {
+        if (_listingsSortMode === 'likes' && !opts.skipResort) {
+          applyListingsSort();
+          showListingsPage(_listingsCurrentPage, { skipLikesInit: true, skipResort: true });
+        }
+      });
+    }
 
     var prevBtn = document.getElementById('listingsNavPrev');
     var nextBtn = document.getElementById('listingsNavNext');
@@ -1458,6 +1541,11 @@
   function openListings(category, icon) {
     document.getElementById('listingsCatTitle').textContent = icon + '\u00a0' + category;
     var listingsContainer = document.getElementById('listingsContainer');
+    var sortBar = document.getElementById('listingsSortBar');
+    var sortSelect = document.getElementById('listingsSortSelect');
+    _listingsSortMode = 'newest';
+    if (sortSelect) sortSelect.value = 'newest';
+    if (sortBar) sortBar.hidden = true;
     showLoaderIn(listingsContainer);
     showScreen('listings');
 
@@ -1485,12 +1573,15 @@
 
         var listings = data.listings || [];
         if (!listings.length) {
+          document.getElementById('listingsSortBar').hidden = true;
           document.getElementById('listingsContainer').innerHTML =
             emptyState('🔍', 'Пока пусто', 'В этой категории ещё нет специалистов');
           return;
         }
 
-        _categoryListings = listings;
+        _categoryListingsRaw = listings;
+        applyListingsSort();
+        document.getElementById('listingsSortBar').hidden = false;
         _listingsCurrentPage = 1;
         showListingsPage(1);
       })
