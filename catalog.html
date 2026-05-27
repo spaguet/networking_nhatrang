@@ -653,6 +653,26 @@
       resize: vertical;
       line-height: 1.5;
     }
+
+    .textarea-wrap {
+      position: relative;
+    }
+    .textarea-wrap textarea {
+      padding-bottom: 30px;
+    }
+    .char-counter {
+      position: absolute;
+      right: 14px;
+      bottom: 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-sub);
+      pointer-events: none;
+      line-height: 1;
+    }
+    .char-counter.at-limit {
+      color: var(--c-err);
+    }
     .field-item input:focus,
     .field-item select:focus,
     .field-item textarea:focus {
@@ -834,7 +854,7 @@
 
         <div class="field-item">
           <label for="display_name">Имя для каталога</label>
-          <input id="display_name" name="display_name" required maxlength="80" placeholder="Как вас показывать в витрине" />
+          <input id="display_name" name="display_name" required maxlength="20" placeholder="Как вас показывать в витрине" />
         </div>
 
         <div class="field-item field-avatar">
@@ -851,12 +871,15 @@
 
         <div class="field-item">
           <label for="experience">Опыт/стаж</label>
-          <input id="experience" name="experience" required maxlength="200" placeholder="Например: 5 лет в разработке, 3 года фриланса" />
+          <input id="experience" name="experience" required maxlength="15" placeholder="Например: 5 лет в разработке, 3 года фриланса" />
         </div>
 
         <div class="field-item">
           <label for="description">О себе и услугах</label>
-          <textarea id="description" name="description" required maxlength="2000" placeholder="Специализация, чем можете быть полезны"></textarea>
+          <div class="textarea-wrap">
+            <textarea id="description" name="description" required maxlength="500" placeholder="Специализация, чем можете быть полезны"></textarea>
+            <span class="char-counter" id="descriptionCounter">0/500</span>
+          </div>
           <span class="field-hint">Без запрещённого контента и объявлений о найме.</span>
         </div>
 
@@ -1074,6 +1097,75 @@
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
   }
+
+  var FIELD_CHAR_LIMITS = {
+    display_name: { max: 20, label: 'Имя для каталога' },
+    experience:   { max: 15, label: 'Опыт/стаж' },
+    description:  { max: 500, label: 'О себе и услугах' }
+  };
+
+  function updateDescriptionCounter() {
+    var textarea = document.getElementById('description');
+    var counter = document.getElementById('descriptionCounter');
+    if (!textarea || !counter) return;
+    var len = textarea.value.length;
+    var max = FIELD_CHAR_LIMITS.description.max;
+    counter.textContent = len + '/' + max;
+    counter.classList.toggle('at-limit', len >= max);
+  }
+
+  function truncateField(fieldId) {
+    var cfg = FIELD_CHAR_LIMITS[fieldId];
+    var input = document.getElementById(fieldId);
+    if (cfg && input && input.value.length > cfg.max) {
+      input.value = input.value.slice(0, cfg.max);
+    }
+  }
+
+  function setupCharLimit(fieldId) {
+    var cfg = FIELD_CHAR_LIMITS[fieldId];
+    if (!cfg) return;
+    var input = document.getElementById(fieldId);
+    if (!input) return;
+
+    function notifyLimit() {
+      showToast('«' + cfg.label + '»: не более ' + cfg.max + ' символов');
+    }
+
+    function enforceLimit() {
+      if (input.value.length > cfg.max) {
+        input.value = input.value.slice(0, cfg.max);
+        notifyLimit();
+      }
+      if (fieldId === 'description') updateDescriptionCounter();
+    }
+
+    input.addEventListener('beforeinput', function (e) {
+      if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward' ||
+          e.inputType === 'deleteByCut' || e.inputType === 'deleteWordBackward' ||
+          e.inputType === 'deleteWordForward' || e.inputType === 'deleteSoftLineBackward' ||
+          e.inputType === 'deleteSoftLineForward' || e.inputType === 'deleteHardLineBackward' ||
+          e.inputType === 'deleteHardLineForward' || e.inputType === 'deleteContent') {
+        return;
+      }
+      var start = input.selectionStart != null ? input.selectionStart : input.value.length;
+      var end = input.selectionEnd != null ? input.selectionEnd : input.value.length;
+      var insertLen = (e.data != null) ? e.data.length : (e.inputType === 'insertFromPaste' ? 1 : 0);
+      var nextLen = input.value.length - (end - start) + insertLen;
+      if (nextLen > cfg.max) {
+        e.preventDefault();
+        notifyLimit();
+      }
+    });
+
+    input.addEventListener('input', enforceLimit);
+    input.addEventListener('paste', function () {
+      setTimeout(enforceLimit, 0);
+    });
+  }
+
+  Object.keys(FIELD_CHAR_LIMITS).forEach(setupCharLimit);
+  updateDescriptionCounter();
 
   /* ─────────────────────────────────────
      API HELPERS
@@ -1608,6 +1700,8 @@
         var nameInput = document.getElementById('display_name');
         if (!nameInput.value) nameInput.value = user.first_name;
       }
+      truncateField('display_name');
+      updateDescriptionCounter();
       return;
     }
 
@@ -1640,6 +1734,9 @@
         }
       }
     }
+
+    Object.keys(FIELD_CHAR_LIMITS).forEach(truncateField);
+    updateDescriptionCounter();
   }
 
   /* ─────────────────────────────────────
@@ -1761,6 +1858,7 @@
           showStatus(statusEl, data.message || 'Анкета отправлена на модерацию', 'ok');
           form.reset();
           document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
+          updateDescriptionCounter();
           setTimeout(function () { showScreen('main'); }, 1500);
         } else {
           var key = (data.error || '').replace(/\s/g, '_');
