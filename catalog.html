@@ -431,6 +431,17 @@
       color: var(--orange);
       white-space: nowrap;
       margin-left: 12px;
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+      line-height: 1.3;
+    }
+    .pin-choice-price-crypto {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-mid);
     }
 
     @keyframes cardIn {
@@ -2417,16 +2428,16 @@
     _pinListingId = listingId;
     _pinDuration = null;
 
-    if (!_pinPrices.week) {
+    if (!_pinPrices.week || !_pinPrices.week.vnd) {
       var payload = buildPayload('get_pin_prices');
       if (payload) {
         apiPost(payload)
           .then(function (data) {
             if (data.ok) {
               _pinPrices = {
-                week: data.week,
-                month: data.month,
-                lifetime: data.lifetime
+                week: data.week || {},
+                month: data.month || {},
+                lifetime: data.lifetime || {}
               };
               updatePinPriceDisplay();
             }
@@ -2440,13 +2451,25 @@
     showScreen('pinChoice');
   }
 
+  function formatPinPriceHtml(priceObj) {
+    if (!priceObj || (!priceObj.vnd && !priceObj.crypto)) return '—';
+    var html = '';
+    if (priceObj.vnd) {
+      html += '<div>' + esc(priceObj.vnd) + '</div>';
+    }
+    if (priceObj.crypto) {
+      html += '<div class="pin-choice-price-crypto">' + esc(priceObj.crypto) + '</div>';
+    }
+    return html;
+  }
+
   function updatePinPriceDisplay() {
     var weekEl = document.getElementById('pinPriceWeek');
     var monthEl = document.getElementById('pinPriceMonth');
     var lifetimeEl = document.getElementById('pinPriceLifetime');
-    if (weekEl && _pinPrices.week) weekEl.textContent = _pinPrices.week;
-    if (monthEl && _pinPrices.month) monthEl.textContent = _pinPrices.month;
-    if (lifetimeEl && _pinPrices.lifetime) lifetimeEl.textContent = _pinPrices.lifetime;
+    if (weekEl && _pinPrices.week) weekEl.innerHTML = formatPinPriceHtml(_pinPrices.week);
+    if (monthEl && _pinPrices.month) monthEl.innerHTML = formatPinPriceHtml(_pinPrices.month);
+    if (lifetimeEl && _pinPrices.lifetime) lifetimeEl.innerHTML = formatPinPriceHtml(_pinPrices.lifetime);
   }
 
   function selectPinDuration(duration) {
@@ -2456,16 +2479,22 @@
       month: 'Месяц (30 дней)',
       lifetime: 'Пожизненно ♾️'
     };
-    var prices = {
-      week: _pinPrices.week,
-      month: _pinPrices.month,
-      lifetime: _pinPrices.lifetime
-    };
+    var prices = _pinPrices[duration] || {};
     var summaryEl = document.getElementById('pinPaymentSummary');
     if (summaryEl) {
+      var priceLine = '';
+      if (prices.vnd && prices.crypto) {
+        priceLine = prices.vnd + ' / ' + prices.crypto;
+      } else if (prices.vnd) {
+        priceLine = prices.vnd;
+      } else if (prices.crypto) {
+        priceLine = prices.crypto;
+      } else {
+        priceLine = '—';
+      }
       summaryEl.textContent =
         'Срок: ' + (labels[duration] || duration) +
-        ' · Стоимость: ' + (prices[duration] || '—');
+        ' · Стоимость: ' + priceLine;
     }
     document.getElementById('pinPaymentStatus').textContent = '';
     document.getElementById('pinPaymentStatus').className = 'status';
