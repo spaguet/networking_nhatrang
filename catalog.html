@@ -341,6 +341,98 @@
       box-shadow: var(--shadow);
       animation: cardIn 0.3s cubic-bezier(.22,.68,0,1.1) both;
     }
+
+    /* ── PINNED CARD ───────────────────────────── */
+    .listing-card.is-pinned,
+    .profile-card.is-pinned {
+      box-shadow:
+        0 2px 12px rgba(29, 25, 22, 0.09),
+        0 1px 3px  rgba(29, 25, 22, 0.06),
+        0 0  18px  rgba(224, 90, 40, 0.32),
+        0 4px 20px rgba(224, 90, 40, 0.18);
+      position: relative;
+      overflow: visible;
+    }
+
+    .listing-card.is-pinned::before,
+    .profile-card.is-pinned::before {
+      content: '📌';
+      position: absolute;
+      top: -8px;
+      right: -4px;
+      font-size: 1.35rem;
+      line-height: 1;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .pin-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 11px 16px;
+      border: none;
+      border-radius: var(--r-btn);
+      background: linear-gradient(135deg, var(--orange) 0%, #C8401A 100%);
+      color: #fff;
+      font-family: 'Onest', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .pin-btn:active { opacity: 0.82; }
+    .pin-btn:disabled,
+    .pin-btn.is-pinned-state {
+      background: #9A8E87;
+      cursor: default;
+      opacity: 1;
+    }
+
+    .p-pin-meta {
+      font-size: 0.78rem;
+      color: var(--orange);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .pin-choice-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-radius: var(--r-card);
+      border: 1.5px solid var(--border);
+      background: var(--cream-card);
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      width: 100%;
+      font-family: 'Onest', sans-serif;
+    }
+    .pin-choice-card:hover,
+    .pin-choice-card:active {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 2px var(--orange-dim);
+    }
+    .pin-choice-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .pin-choice-desc {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+    .pin-choice-price {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--orange);
+      white-space: nowrap;
+      margin-left: 12px;
+    }
+
     @keyframes cardIn {
       from { opacity: 0; transform: translateY(10px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -1058,6 +1150,104 @@
   </div>
 </div>
 
+<!-- SCREEN: PIN CHOICE -->
+<div class="screen" id="screenPinChoice" hidden>
+  <div class="main-hero" style="padding-bottom:20px">
+    <div class="hero-top">
+      <div>
+        <div class="logo-badge">Закрепление</div>
+        <div class="logo-title">📌 Закрепить<br><span>карточку</span></div>
+      </div>
+    </div>
+    <p class="hero-desc">Закреплённая карточка всегда отображается первой в категории,
+      выделена визуально и остаётся на первой странице при любой сортировке.</p>
+  </div>
+
+  <div class="section" style="padding:20px">
+    <p style="color:var(--text-mid);font-size:0.88rem;margin-bottom:20px">
+      Выберите срок закрепления:
+    </p>
+
+    <div id="pinChoiceCards" style="display:flex;flex-direction:column;gap:12px">
+
+      <button type="button" class="pin-choice-card" data-duration="week">
+        <div>
+          <div class="pin-choice-title">📅 Неделя</div>
+          <div class="pin-choice-desc">7 дней</div>
+        </div>
+        <div class="pin-choice-price" id="pinPriceWeek">—</div>
+      </button>
+
+      <button type="button" class="pin-choice-card" data-duration="month">
+        <div>
+          <div class="pin-choice-title">📆 Месяц</div>
+          <div class="pin-choice-desc">30 дней</div>
+        </div>
+        <div class="pin-choice-price" id="pinPriceMonth">—</div>
+      </button>
+
+      <button type="button" class="pin-choice-card" data-duration="lifetime">
+        <div>
+          <div class="pin-choice-title">♾️ Пожизненно</div>
+          <div class="pin-choice-desc">Бессрочное закрепление</div>
+        </div>
+        <div class="pin-choice-price" id="pinPriceLifetime">—</div>
+      </button>
+
+    </div>
+
+    <div id="pinChoiceStatus" class="status" style="margin-top:16px"></div>
+
+    <button type="button" class="btn" id="pinChoiceBackBtn"
+      style="margin-top:16px;background:transparent;color:var(--text-mid);
+             border:1px solid var(--border);width:100%">
+      ← Назад
+    </button>
+  </div>
+</div>
+
+<!-- SCREEN: PIN PAYMENT -->
+<div class="screen" id="screenPinPayment" hidden>
+  <div class="main-hero" style="padding-bottom:20px">
+    <div class="hero-top">
+      <div>
+        <div class="logo-badge">Оплата</div>
+        <div class="logo-title">💳 Оплатить<br><span>закрепление</span></div>
+      </div>
+    </div>
+    <p class="hero-desc" id="pinPaymentSummary">Выбранный срок: —</p>
+  </div>
+
+  <div class="section" style="padding:20px">
+    <p style="color:var(--text-mid);font-size:0.88rem;margin-bottom:16px">
+      Выберите способ оплаты. QR-код будет отправлен в чат с ботом:
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button type="button" class="btn pay-pin-method" data-pin-method="vnd">
+        🇻🇳 Оплата VND (банк / QR)
+      </button>
+      <button type="button" class="btn pay-pin-method" data-pin-method="trc20">
+        💎 USDT — сеть TRC20
+      </button>
+      <button type="button" class="btn pay-pin-method" data-pin-method="bybit">
+        💎 USDT — Bybit
+      </button>
+      <button type="button" class="btn pay-pin-method" data-pin-method="solana">
+        💎 USDT — Solana
+      </button>
+    </div>
+
+    <div id="pinPaymentStatus" class="status" style="margin-top:16px"></div>
+
+    <button type="button" id="pinPaymentBackBtn" class="btn"
+      style="margin-top:16px;background:transparent;color:var(--text-mid);
+             border:1px solid var(--border);width:100%">
+      ← Назад
+    </button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1122,6 +1312,9 @@
   var _categoryListings = [];
   var _listingsCurrentPage = 1;
   var _listingsSortMode = 'newest';
+  var _pinListingId = null;
+  var _pinDuration = null;
+  var _pinPrices = {};
 
   /* ─────────────────────────────────────
      TELEGRAM INIT
@@ -1187,12 +1380,32 @@
     showScreen(_formReturnScreen);
   });
 
+  document.querySelectorAll('.pin-choice-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      selectPinDuration(card.getAttribute('data-duration'));
+    });
+  });
+  document.getElementById('pinChoiceBackBtn').addEventListener('click', function () {
+    showScreen('profile');
+  });
+  document.querySelectorAll('.pay-pin-method').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      handlePinPaymentMethod(btn.getAttribute('data-pin-method'));
+    });
+  });
+  document.getElementById('pinPaymentBackBtn').addEventListener('click', function () {
+    showScreen('pinChoice');
+    document.getElementById('pinPaymentStatus').textContent = '';
+  });
+
   function showScreen(name) {
     document.getElementById('screenMain').hidden     = (name !== 'main');
     document.getElementById('screenListings').hidden = (name !== 'listings');
     document.getElementById('screenProfile').hidden  = (name !== 'profile');
     document.getElementById('screenForm').hidden     = (name !== 'form');
     document.getElementById('screenPayment').hidden  = (name !== 'payment');
+    document.getElementById('screenPinChoice').hidden  = (name !== 'pinChoice');
+    document.getElementById('screenPinPayment').hidden = (name !== 'pinPayment');
   }
 
   /* ─────────────────────────────────────
@@ -1421,6 +1634,7 @@
   ───────────────────────────────────── */
   function buildListingCardHtml(l, animIndex) {
     var cardId = String(l.listing_id || '').trim();
+    var isPinned = l.pin_status === 'pinned';
     var likeBtn = cardId
       ? '<button type="button" id="like-btn-' + cardId + '" class="like-btn" aria-label="Лайк">' +
           '♡ <span id="like-count-' + cardId + '">0</span>' +
@@ -1429,8 +1643,9 @@
     var expBlock = l.experience
       ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
       : '';
+    var cardClass = 'listing-card' + (isPinned ? ' is-pinned' : '');
     return (
-      '<div class="listing-card" style="animation-delay:' + (animIndex * 0.055) + 's">' +
+      '<div class="' + cardClass + '" style="animation-delay:' + (animIndex * 0.055) + 's">' +
         '<div class="card-head">' +
           '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
           '<div>' +
@@ -1480,7 +1695,14 @@
   }
 
   function applyListingsSort() {
-    var sorted = _categoryListingsRaw.slice();
+    var pinned = _categoryListingsRaw.filter(function (l) { return l.pin_status === 'pinned'; });
+    var regular = _categoryListingsRaw.filter(function (l) { return l.pin_status !== 'pinned'; });
+
+    pinned.sort(function (a, b) {
+      return (b.pinned_at || '').localeCompare(a.pinned_at || '');
+    });
+
+    var sorted = regular.slice();
     if (_listingsSortMode === 'oldest') {
       sorted.sort(function (a, b) {
         return (a.created_at || '').localeCompare(b.created_at || '');
@@ -1499,18 +1721,33 @@
         return (b.created_at || '').localeCompare(a.created_at || '');
       });
     }
-    _categoryListings = sorted;
+
+    _categoryListings = pinned.concat(sorted);
   }
 
   function showListingsPage(page, opts) {
     opts = opts || {};
     var listingsContainer = document.getElementById('listingsContainer');
-    var total = _categoryListings.length;
-    var totalPages = Math.max(1, Math.ceil(total / LISTINGS_PER_PAGE));
-    _listingsCurrentPage = Math.max(1, Math.min(page, totalPages));
-    var start = (_listingsCurrentPage - 1) * LISTINGS_PER_PAGE;
-    var slice = _categoryListings.slice(start, start + LISTINGS_PER_PAGE);
 
+    var pinned = _categoryListings.filter(function (l) { return l.pin_status === 'pinned'; });
+    var regular = _categoryListings.filter(function (l) { return l.pin_status !== 'pinned'; });
+
+    var totalPages = Math.max(1, Math.ceil(regular.length / LISTINGS_PER_PAGE));
+    _listingsCurrentPage = Math.max(1, Math.min(page, totalPages));
+
+    var slice;
+    if (_listingsCurrentPage === 1) {
+      var regularSlice = regular.slice(0, LISTINGS_PER_PAGE - pinned.length);
+      if (pinned.length >= LISTINGS_PER_PAGE) {
+        regularSlice = [];
+      }
+      slice = pinned.concat(regularSlice);
+    } else {
+      var regStart = (_listingsCurrentPage - 1) * LISTINGS_PER_PAGE - pinned.length;
+      slice = regular.slice(regStart, regStart + LISTINGS_PER_PAGE);
+    }
+
+    var total = regular.length;
     var html = '<div class="listings-wrap">';
     slice.forEach(function (l, i) {
       html += buildListingCardHtml(l, i);
@@ -1784,6 +2021,37 @@
           if (l.created_at)              dates.push('Размещено: '  + fmtDate(l.created_at));
           if (l.expires_at && isActive)  dates.push('До: '         + fmtDate(l.expires_at));
 
+          var pinDatesHtml = '';
+          if (isActive && l.pin_status === 'pinned') {
+            var pinnedAtStr = l.pinned_at ? 'Закреплено: ' + fmtDate(l.pinned_at) : '';
+            var pinExpiresStr = '';
+            if (l.pin_expires_at === 'lifetime') {
+              pinExpiresStr = 'Срок: Пожизненно ♾️';
+            } else if (l.pin_expires_at) {
+              pinExpiresStr = 'Закрепление до: ' + fmtDate(l.pin_expires_at);
+            }
+            var pinLines = [pinnedAtStr, pinExpiresStr].filter(Boolean);
+            if (pinLines.length) {
+              pinDatesHtml = '<div class="p-pin-meta">' + pinLines.join('<br>') + '</div>';
+            }
+          }
+
+          var pinBtnHtml = '';
+          if (isActive) {
+            var isPinnedNow = l.pin_status === 'pinned';
+            if (isPinnedNow) {
+              pinBtnHtml =
+                '<button class="pin-btn is-pinned-state" disabled>' +
+                  '📌 Закреплено' +
+                '</button>';
+            } else {
+              pinBtnHtml =
+                '<button class="pin-btn" data-action="pin" data-id="' + esc(l.listing_id) + '">' +
+                  '📌 Закрепить' +
+                '</button>';
+            }
+          }
+
           var actions = '';
           if (isActive) {
             actions =
@@ -1817,8 +2085,10 @@
             ? '<div class="p-exp"><span class="p-exp-label">' + esc(l.contact_type) + ':</span> ' + esc(l.contacts) + '</div>'
             : '';
 
+          var profileCardClass = 'profile-card s-' + meta.cls + (l.pin_status === 'pinned' ? ' is-pinned' : '');
+
           html +=
-            '<div class="profile-card s-' + meta.cls + '" style="animation-delay:' + (i * 0.055) + 's">' +
+            '<div class="' + profileCardClass + '" style="animation-delay:' + (i * 0.055) + 's">' +
               '<span class="status-badge sb-' + meta.cls + '">' + meta.text + '</span>' +
               '<div class="p-name">' + esc(l.display_name) + '</div>' +
               '<div class="p-cat">'  + esc(l.category)     + '</div>' +
@@ -1826,7 +2096,9 @@
               '<div class="p-desc">' + esc(l.description)  + '</div>' +
               contactBlock +
               (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
+              pinDatesHtml +
               actions +
+              pinBtnHtml +
             '</div>';
         });
         html += '</div>';
@@ -1850,6 +2122,12 @@
               contact_type: btn.getAttribute('data-contact-type'),
               contacts:     btn.getAttribute('data-contacts')
             });
+          });
+        });
+
+        document.querySelectorAll('[data-action="pin"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            openPinChoice(btn.getAttribute('data-id'));
           });
         });
       })
@@ -2131,6 +2409,112 @@
         });
     });
   });
+
+  /* ─────────────────────────────────────
+     PIN FLOW
+  ───────────────────────────────────── */
+  function openPinChoice(listingId) {
+    _pinListingId = listingId;
+    _pinDuration = null;
+
+    if (!_pinPrices.week) {
+      var payload = buildPayload('get_pin_prices');
+      if (payload) {
+        apiPost(payload)
+          .then(function (data) {
+            if (data.ok) {
+              _pinPrices = {
+                week: data.week,
+                month: data.month,
+                lifetime: data.lifetime
+              };
+              updatePinPriceDisplay();
+            }
+          })
+          .catch(function () {});
+      }
+    } else {
+      updatePinPriceDisplay();
+    }
+
+    showScreen('pinChoice');
+  }
+
+  function updatePinPriceDisplay() {
+    var weekEl = document.getElementById('pinPriceWeek');
+    var monthEl = document.getElementById('pinPriceMonth');
+    var lifetimeEl = document.getElementById('pinPriceLifetime');
+    if (weekEl && _pinPrices.week) weekEl.textContent = _pinPrices.week;
+    if (monthEl && _pinPrices.month) monthEl.textContent = _pinPrices.month;
+    if (lifetimeEl && _pinPrices.lifetime) lifetimeEl.textContent = _pinPrices.lifetime;
+  }
+
+  function selectPinDuration(duration) {
+    _pinDuration = duration;
+    var labels = {
+      week: 'Неделя (7 дней)',
+      month: 'Месяц (30 дней)',
+      lifetime: 'Пожизненно ♾️'
+    };
+    var prices = {
+      week: _pinPrices.week,
+      month: _pinPrices.month,
+      lifetime: _pinPrices.lifetime
+    };
+    var summaryEl = document.getElementById('pinPaymentSummary');
+    if (summaryEl) {
+      summaryEl.textContent =
+        'Срок: ' + (labels[duration] || duration) +
+        ' · Стоимость: ' + (prices[duration] || '—');
+    }
+    document.getElementById('pinPaymentStatus').textContent = '';
+    document.getElementById('pinPaymentStatus').className = 'status';
+    showScreen('pinPayment');
+  }
+
+  function handlePinPaymentMethod(method) {
+    if (!_pinListingId || !_pinDuration) return;
+
+    var statusEl = document.getElementById('pinPaymentStatus');
+    statusEl.textContent = '…';
+    statusEl.className = 'status';
+
+    var payload = buildPayload('select_pin_payment_method', {
+      listing_id: _pinListingId,
+      pin_duration: _pinDuration,
+      payment_method: method
+    });
+    if (!payload) {
+      statusEl.textContent = ERRORS.Invalid_initData || 'Ошибка авторизации';
+      statusEl.className = 'status err';
+      return;
+    }
+
+    document.querySelectorAll('.pay-pin-method').forEach(function (b) { b.disabled = true; });
+
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok) {
+          statusEl.textContent =
+            data.message || 'QR отправлен в чат с ботом. Пришлите скриншот оплаты боту.';
+          statusEl.className = 'status ok';
+          setTimeout(function () {
+            if (tg && tg.close) tg.close();
+          }, 2500);
+        } else {
+          var key = (data.error || '').replace(/\s/g, '_');
+          statusEl.textContent = data.message || ERRORS[key] || 'Ошибка. Попробуйте позже.';
+          statusEl.className = 'status err';
+        }
+      })
+      .catch(function (err) {
+        statusEl.textContent = apiErrorMessage(err);
+        statusEl.className = 'status err';
+      })
+      .finally(function () {
+        document.querySelectorAll('.pay-pin-method').forEach(function (b) { b.disabled = false; });
+      });
+  }
 
   /* ─────────────────────────────────────
      INIT — open form via ?form=1
