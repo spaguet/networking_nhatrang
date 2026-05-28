@@ -1573,6 +1573,22 @@
       .replace(/'/g, '&#39;');
   }
 
+  /* В Sheets переносы хранятся как литерал \n (два символа). */
+  function normalizeDescription(str) {
+    return String(str || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\\n/g, '\n');
+  }
+
+  function formatDescriptionHtml(str) {
+    return esc(normalizeDescription(str)).replace(/\n/g, '<br>');
+  }
+
+  function encodeDescriptionAttr(str) {
+    return esc(normalizeDescription(str)).replace(/\n/g, '\\n');
+  }
+
   function avatarLetter(name) {
     return String(name || '?').trim().charAt(0).toUpperCase();
   }
@@ -1666,7 +1682,7 @@
           likeBtn +
         '</div>' +
         expBlock +
-        '<div class="card-desc">' + esc(l.description) + '</div>' +
+        '<div class="card-desc">' + formatDescriptionHtml(l.description) + '</div>' +
         (l.contacts
           ? '<button type="button" class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
               'Скопировать ' + esc(l.contact_type || 'контакт') +
@@ -2081,7 +2097,7 @@
                   'data-cat="'      + esc(l.category)     + '" ' +
                   'data-avatar="'   + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '" ' +
                   'data-exp="'      + esc(l.experience)   + '" ' +
-                  'data-desc="'     + esc(l.description)  + '" ' +
+                  'data-desc="'     + encodeDescriptionAttr(l.description) + '" ' +
                   'data-contact-type="' + esc(l.contact_type) + '" ' +
                   'data-contacts="' + esc(l.contacts)     + '">' +
                   'Разместить' +
@@ -2104,7 +2120,7 @@
               '<div class="p-name">' + esc(l.display_name) + '</div>' +
               '<div class="p-cat">'  + esc(l.category)     + '</div>' +
               expBlock +
-              '<div class="p-desc">' + esc(l.description)  + '</div>' +
+              '<div class="p-desc">' + formatDescriptionHtml(l.description) + '</div>' +
               contactBlock +
               (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
               pinDatesHtml +
@@ -2129,7 +2145,7 @@
               category:     btn.getAttribute('data-cat'),
               avatar_emoji: btn.getAttribute('data-avatar'),
               experience:   btn.getAttribute('data-exp'),
-              description:  btn.getAttribute('data-desc'),
+              description:  normalizeDescription(btn.getAttribute('data-desc')),
               contact_type: btn.getAttribute('data-contact-type'),
               contacts:     btn.getAttribute('data-contacts')
             });
@@ -2211,7 +2227,7 @@
     if (prefill.experience)
       document.getElementById('experience').value = prefill.experience;
     if (prefill.description)
-      document.getElementById('description').value = prefill.description;
+      document.getElementById('description').value = normalizeDescription(prefill.description);
     if (prefill.contact_type) {
       var contactTypeSel = document.getElementById('contact_type');
       for (var j = 0; j < contactTypeSel.options.length; j++) {
@@ -2279,7 +2295,7 @@
       avatar_emoji: form.avatar_emoji.value,
       category:     form.category.value,
       experience:   form.experience.value.trim(),
-      description:  form.description.value.trim(),
+      description:  normalizeDescription(form.description.value).trim(),
       contact_type: form.contact_type.value,
       contacts:     form.contacts.value.trim()
     };
