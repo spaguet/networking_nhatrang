@@ -2029,7 +2029,11 @@
   }
 
   function apiPost(payload) {
-    return fetch(API_URL + '/api', { method: 'POST', body: JSON.stringify(payload) })
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 60000) : null;
+    var opts = { method: 'POST', body: JSON.stringify(payload) };
+    if (controller) opts.signal = controller.signal;
+    return fetch(API_URL + '/api', opts)
       .then(function (r) {
         return r.text().then(function (t) {
           if (!r.ok) {
@@ -2046,11 +2050,18 @@
             throw jsonErr;
           }
         });
+      })
+      .finally(function () {
+        if (timeoutId) clearTimeout(timeoutId);
       });
   }
 
   function apiPostMultipart(formData) {
-    return fetch(API_URL + '/api', { method: 'POST', body: formData })
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 120000) : null;
+    var opts = { method: 'POST', body: formData };
+    if (controller) opts.signal = controller.signal;
+    return fetch(API_URL + '/api', opts)
       .then(function (r) {
         return r.text().then(function (t) {
           if (!r.ok) {
@@ -2067,16 +2078,25 @@
             throw jsonErr;
           }
         });
+      })
+      .finally(function () {
+        if (timeoutId) clearTimeout(timeoutId);
       });
   }
 
   function apiErrorMessage(err) {
     if (!err) {
-      return 'Проверьте интернет и попробуйте снова';
+      return 'Не удалось связаться с сервером. Попробуйте снова.';
     }
     if (err.message === 'http_error') {
       if (err.httpStatus === 404) {
         return 'Сервер не найден (404). Проверьте API_URL в catalog.html.';
+      }
+      if (err.httpStatus === 413) {
+        return 'Файлы слишком большие для загрузки. Добавьте меньше фото.';
+      }
+      if (err.httpStatus >= 500) {
+        return 'Ошибка сервера (HTTP ' + err.httpStatus + '). Попробуйте позже.';
       }
       return 'Ошибка сервера (HTTP ' + err.httpStatus + ').';
     }
@@ -2087,7 +2107,14 @@
       }
       return 'Сервер вернул некорректный ответ. Обновите URL деплоя GAS /exec в catalog.html.';
     }
-    return 'Проверьте интернет и попробуйте снова';
+    if (err.name === 'AbortError') {
+      return 'Превышено время ожидания при загрузке. Попробуйте меньше фото или повторите позже.';
+    }
+    var low = String(err.message || '').toLowerCase();
+    if (low.indexOf('failed to fetch') >= 0 || low.indexOf('networkerror') >= 0 || err.name === 'TypeError') {
+      return 'Не удалось связаться с сервером. При загрузке фото попробуйте 1–2 снимка или перезапустите Mini App.';
+    }
+    return 'Не удалось связаться с сервером. Попробуйте снова.';
   }
 
   /* ─────────────────────────────────────
@@ -3126,11 +3153,12 @@
     }
     var position = nextPortfolioPosition();
     if (!position) return false;
-    var slot = { position: position, file: file, previewUrl: null };
+    var uploadFile = clonePortfolioUploadFile(file);
+    var slot = { position: position, file: uploadFile, previewUrl: null };
     _portfolioSlots.push(slot);
     clearStatus(document.getElementById('status'));
     appendPortfolioSlotDom(slot);
-    buildPortfolioPreview(file, function (previewUrl) {
+    buildPortfolioPreview(uploadFile, function (previewUrl) {
       var stillThere = false;
       for (var i = 0; i < _portfolioSlots.length; i++) {
         if (_portfolioSlots[i].position === position) {
@@ -3163,8 +3191,71 @@
     return true;
   }
 
+  function clonePortfolioUploadFile(file) {
+    try {
+      return file.slice(0, file.size, file.type || 'application/octet-stream');
+    } catch (e) {
+      return file;
+    }
+  }
+
+  function compressPortfolioFileForUpload(file) {
+    return new Promise(function (resolve) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var dataUrl = reader.result;
+        if (typeof dataUrl !== 'string') {
+          resolve(file);
+          return;
+        }
+        var img = new Image();
+        img.onload = function () {
+          var maxEdge = 1920;
+          var w = img.naturalWidth;
+          var h = img.naturalHeight;
+          var longEdge = Math.max(w, h);
+          if (longEdge <= maxEdge && file.size <= 600 * 1024) {
+            resolve(file);
+            return;
+          }
+          var scale = Math.min(1, maxEdge / longEdge);
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = cw;
+          canvas.height = ch;
+          var ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, cw, ch);
+          canvas.toBlob(function (blob) {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            var baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+            resolve(new File([blob], baseName + '.jpg', {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            }));
+          }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function () {
+          resolve(file);
+        };
+        img.src = dataUrl;
+      };
+      reader.onerror = function () {
+        resolve(file);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   function buildPortfolioFormData(action, listingId) {
-    if (!tg || !tg.initData) return null;
+    if (!tg || !tg.initData) return Promise.resolve(null);
     var fd = new FormData();
     var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
     fd.append('action', action);
@@ -3175,10 +3266,19 @@
       fd.append('listing_id', listingId);
     }
     var files = getPortfolioFiles();
-    files.forEach(function (slot) {
-      fd.append('photo_' + slot.position, slot.file, slot.file.name || 'photo.webp');
+    if (!files.length) {
+      return Promise.resolve(fd);
+    }
+    return Promise.all(files.map(function (slot) {
+      return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
+        return { position: slot.position, file: compressed };
+      });
+    })).then(function (compressedFiles) {
+      compressedFiles.forEach(function (item) {
+        fd.append('photo_' + item.position, item.file, item.file.name || 'photo.jpg');
+      });
+      return fd;
     });
-    return fd;
   }
 
   function portfolioErrorMessage(data) {
@@ -3187,19 +3287,21 @@
   }
 
   function uploadPortfolio(listingId) {
-    var fd = buildPortfolioFormData('upload_portfolio', listingId);
-    if (!fd) {
-      return Promise.resolve({ ok: false, error: 'Invalid_initData' });
-    }
-    return apiPostMultipart(fd);
+    return buildPortfolioFormData('upload_portfolio', listingId).then(function (fd) {
+      if (!fd) {
+        return { ok: false, error: 'Invalid_initData' };
+      }
+      return apiPostMultipart(fd);
+    });
   }
 
   function uploadPortfolioStaging() {
-    var fd = buildPortfolioFormData('upload_portfolio_staging', null);
-    if (!fd) {
-      return Promise.resolve({ ok: false, error: 'Invalid_initData' });
-    }
-    return apiPostMultipart(fd);
+    return buildPortfolioFormData('upload_portfolio_staging', null).then(function (fd) {
+      if (!fd) {
+        return { ok: false, error: 'Invalid_initData' };
+      }
+      return apiPostMultipart(fd);
+    });
   }
 
   function shouldUploadPortfolio() {
@@ -3284,7 +3386,7 @@
     }
     submitBtn.disabled = true;
     clearStatus(statusEl);
-    showStatus(statusEl, 'Загрузка фото…', 'info');
+    showStatus(statusEl, 'Подготовка фото…', 'info');
     var listingId = _pendingPortfolioListingId;
     return uploadPortfolio(listingId)
       .then(function (uploadData) {
@@ -3347,7 +3449,7 @@
         }
 
         _pendingPortfolioListingId = listingId;
-        showStatus(statusEl, 'Загрузка фото…', 'info');
+        showStatus(statusEl, 'Подготовка фото…', 'info');
         return uploadPortfolio(listingId).then(function (uploadData) {
           handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
             setTimeout(function () { showScreen('main'); }, 1500);
@@ -3594,7 +3696,7 @@
         return;
       }
 
-      showStatus(paymentStatusEl, 'Загрузка фото…', 'info');
+      showStatus(paymentStatusEl, 'Подготовка фото…', 'info');
       uploadPortfolioStaging()
         .then(function (stagingData) {
           if (!stagingData.ok) {
