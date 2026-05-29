@@ -681,7 +681,7 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 | 2 | API upload/get | ✅ | 29.05.2026 | Промпт 2: см. ниже |
 | 3 | Форма catalog | ✅ | 29.05.2026 | Промпт 3: см. ниже |
 | 4 | Popup + portfolio.html | ✅ | 29.05.2026 | Промпт 4: см. ниже |
-| 5 | Admin + cron + rules | ⬜ | | |
+| 5 | Admin + cron + rules | ✅ | 29.05.2026 | Промпт 5: см. ниже |
 | 6 | E2E + docs | ⬜ | | |
 
 ### Фаза 1 — журнал (Промпт 1, 29.05.2026)
@@ -780,6 +780,31 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 - Worker: без изменений кода в фазе 4; API `get_portfolio` задеплоен ранее (фазы 2–3).
 
 **Проверки:** кнопка «Портфолио» только при `has_portfolio`; popup загружает signed URLs; `portfolio.html?listing_id=…&view=admin&token=…&exp=…` для админа.
+
+---
+
+### Фаза 5 — журнал (Промпт 5, 29.05.2026)
+
+**Сделано:**
+
+- `worker/src/services/telegram-api.ts` — `moderationKeyboard(listingId, portfolioCount, env)`: второй ряд Web App «🖼 Просмотреть портфолио» при `count > 0` (admin token 24 ч, `getMiniAppPortfolioUrl`).
+- `worker/src/handlers/portfolio.ts`, `listings.ts`, `telegram.ts` — все вызовы с актуальным `portfolioCount` (`includePending` для модерации).
+- `worker/src/handlers/telegram.ts` — `handlePaymentProofPhoto`: `insertPaidListing` → `promoteStaging` → `moderationKeyboard` с count; `approveListing` — текст §11 (+ фраза про портфолио при count > 0); `rejectListing` — `cleanupPortfolioOnReject` (R2 + `listing_media` + staging).
+- `worker/src/services/portfolio-db.ts` — `cleanupPortfolioOnReject` §8.4.
+- `worker/src/handlers/listings.ts` — `handleArchiveListing`: `archived_at = datetime('now')`.
+- `worker/src/handlers/maintenance.ts` — cron archive с `archived_at`; `purgeArchivedListings` (>90 дней → `purgeListing`); `cleanupStaleStaging(7d)`.
+- `rules.md`, `rules.html` — опциональное портфолио (до 5 фото); архив 90 дней → безвозвратное удаление.
+
+**Не изменялось (по ТЗ):** `formatListingAdminText`, первый ряд кнопок «Разместить»/«Отклонить».
+
+**Проверки:**
+
+- `npx tsc --noEmit` в `worker/` — ✅ без ошибок.
+
+**Деплой (29.05.2026):**
+
+- Worker: `wrangler deploy` → Version `6c734dd8-2d31-4903-b27d-2e59f988fe60` (`https://tg-networking-nhatrang.albertkoall.workers.dev`); cron `0 0 * * *`.
+- GitHub Pages: push `main` (rules.html) — см. commit ниже.
 
 ---
 

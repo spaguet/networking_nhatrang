@@ -121,6 +121,16 @@ function collectR2Keys(rows: ListingMediaRow[]): string[] {
   return keys;
 }
 
+/** Reject flow §8.4 — remove listing_media + R2 keys and any staging for tg_id. */
+export async function cleanupPortfolioOnReject(
+  listingId: string,
+  tgId: number,
+  env: Env,
+): Promise<void> {
+  await deleteMediaByListing(listingId, env.DB, env.PORTFOLIO);
+  await deleteStagingForTgId(env.PORTFOLIO, tgId);
+}
+
 export async function deleteMediaByListing(
   listingId: string,
   db: D1Database,

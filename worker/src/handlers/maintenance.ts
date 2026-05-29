@@ -1,4 +1,5 @@
 import type { Env } from '../env';
+import { cleanupStaleStaging, purgeListing } from '../services/portfolio-db';
 import { sendMessage } from '../services/telegram-api';
 import { formatDateRu, logAction } from '../utils/helpers';
 
@@ -73,7 +74,7 @@ export async function dailyMaintenance(env: Env): Promise<void> {
         const expiresAt = parseStoredDate(row.expires_at);
         if (expiresAt && expiresAt <= now) {
           await env.DB.prepare(
-            "UPDATE listings SET status = 'archived' WHERE listing_id = ?",
+            "UPDATE listings SET status = 'archived', archived_at = datetime('now') WHERE listing_id = ?",
           )
             .bind(listingId)
             .run();
@@ -167,4 +168,47 @@ export async function dailyMaintenance(env: Env): Promise<void> {
     warningsSent +
     ' }';
   await logAction(0, 'daily_maintenance', summary, env.DB);
+
+  await purgeArchivedListings(env);
+  await cleanupStaleStaging(env, 7);
+}
+
+interface ArchivedListingRow {
+  listing_id: string;
+}
+
+async function purgeArchivedListings(env: Env): Promise<void> {
+  let purged = 0;
+
+  try {
+    const result = await env.DB.prepare(
+      `SELECT listing_id FROM listings
+       WHERE status = 'archived'
+         AND archived_at IS NOT NULL
+         AND archived_at <= datetime('now', '-90 days')`,
+    ).all<ArchivedListingRow>();
+
+    const rows = result.results ?? [];
+    for (const row of rows) {
+      try {
+        await purgeListing(String(row.listing_id), env);
+        purged++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await logAction(
+          0,
+          'error',
+          `purgeArchivedListings ${row.listing_id}: ${msg}`,
+          env.DB,
+        );
+      }
+    }
+
+    if (purged > 0) {
+      await logAction(0, 'purge_archived', `{ purged: ${purged} }`, env.DB);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logAction(0, 'error', `purgeArchivedListings fetch: ${msg}`, env.DB);
+  }
 }

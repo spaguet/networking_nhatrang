@@ -1,4 +1,6 @@
+import { getConfig } from '../config';
 import type { Env } from '../env';
+import { createAdminPortfolioToken, getMiniAppPortfolioUrl } from '../utils/portfolio-auth';
 import { logAction } from '../utils/helpers';
 
 export interface InlineKeyboardButton {
@@ -67,15 +69,31 @@ async function notifyAdminDebug(text: string, env: Env): Promise<void> {
   }
 }
 
-export function moderationKeyboard(listingId: string): TelegramReplyMarkup {
-  return {
-    inline_keyboard: [
-      [
-        { text: '✅ Разместить', callback_data: `approve_${listingId}` },
-        { text: '❌ Отклонить', callback_data: `reject_${listingId}` },
-      ],
+export async function moderationKeyboard(
+  listingId: string,
+  portfolioCount: number,
+  env: Env,
+): Promise<TelegramReplyMarkup> {
+  const rows: InlineKeyboardButton[][] = [
+    [
+      { text: '✅ Разместить', callback_data: `approve_${listingId}` },
+      { text: '❌ Отклонить', callback_data: `reject_${listingId}` },
     ],
-  };
+  ];
+
+  if (portfolioCount > 0) {
+    const config = getConfig(env);
+    const { token, exp } = await createAdminPortfolioToken(listingId, env);
+    const url = getMiniAppPortfolioUrl(config.miniAppUrl, listingId, token, exp);
+    rows.push([
+      {
+        text: '🖼 Просмотреть портфолио',
+        web_app: { url },
+      },
+    ]);
+  }
+
+  return { inline_keyboard: rows };
 }
 
 export function pinModerationKeyboard(

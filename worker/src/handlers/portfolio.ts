@@ -267,10 +267,11 @@ async function sendDeferredFreeNotify(
   }
 
   const adminText = buildFreeModerationAdminText(listingId, tgId, listing);
+  const portfolioCount = await getPortfolioCount(listingId, env.DB, { includePending: true });
   const adminMsgId = await sendMessage(
     env.ADMIN_TG_ID,
     adminText,
-    moderationKeyboard(listingId),
+    await moderationKeyboard(listingId, portfolioCount, env),
     env,
   );
   if (adminMsgId) {

@@ -6,6 +6,11 @@ import {
   getConfig,
 } from '../config';
 import type { Env } from '../env';
+import {
+  cleanupPortfolioOnReject,
+  getPortfolioCount,
+  promoteStaging,
+} from '../services/portfolio-db';
 import type { AdminLink } from '../types';
 import {
   answerCallbackQuery,
@@ -642,6 +647,10 @@ async function handlePaymentProofPhoto(
   if (draft.type === 'paid_listing') {
     const listingId = draft.listing_id;
     await insertPaidListing(draft, tgId, user, env);
+    await promoteStaging(tgId, listingId, env);
+    const portfolioCount = await getPortfolioCount(listingId, env.DB, {
+      includePending: true,
+    });
 
     await sendMessage(
       config.adminTgId,
@@ -660,7 +669,7 @@ async function handlePaymentProofPhoto(
       config.adminTgId,
       fileId,
       photoCaption,
-      moderationKeyboard(listingId),
+      await moderationKeyboard(listingId, portfolioCount, env),
       env,
     );
     if (adminMsgId) {
@@ -682,6 +691,9 @@ async function handlePaymentProofPhoto(
 
   const listingId = draft.listing_id;
   const listingData = await getListingData(listingId, env);
+  const portfolioCount = await getPortfolioCount(listingId, env.DB, {
+    includePending: true,
+  });
   if (listingData) {
     await sendMessage(
       config.adminTgId,
@@ -706,7 +718,7 @@ async function handlePaymentProofPhoto(
     config.adminTgId,
     fileId,
     caption,
-    moderationKeyboard(listingId),
+    await moderationKeyboard(listingId, portfolioCount, env),
     env,
   );
   if (adminMsgId) {
@@ -812,6 +824,10 @@ async function approveListing(
     .bind(today.toISOString(), expires.toISOString(), listingId)
     .run();
 
+  const portfolioCount = await getPortfolioCount(listingId, env.DB, {
+    includePending: true,
+  });
+
   await env.DB.prepare(
     `UPDATE listing_media SET status = 'active' WHERE listing_id = ? AND status = 'pending'`,
   )
@@ -822,9 +838,18 @@ async function approveListing(
     await setUserFreeUsed(listing.tg_id, true, env.DB);
   }
 
+  let approveText =
+    '🎉 Ваше размещение успешно опубликовано в каталоге!\n' +
+    'Оно будет активно 30 дней.\n\n' +
+    '📦 После окончания срока анкета перейдёт в архив. В архиве данные хранятся 3 месяца, затем удаляются безвозвратно.';
+  if (portfolioCount > 0) {
+    approveText +=
+      '\n\n🖼 Фото портфолио также будут удалены. Для повторной публикации загрузите анкету и фото заново.';
+  }
+
   await sendMessage(
     listing.tg_id,
-    '🎉 Ваше размещение успешно опубликовано в каталоге!\nОно будет активно 30 дней.',
+    approveText,
     null,
     env,
   );
@@ -850,6 +875,8 @@ async function rejectListing(
     await answerCallbackQuery(callbackQueryId, 'Анкета не найдена', env);
     return;
   }
+
+  await cleanupPortfolioOnReject(listingId, listing.tg_id, env);
 
   await env.DB.prepare(
     `UPDATE listings SET status = 'rejected' WHERE listing_id = ?`,

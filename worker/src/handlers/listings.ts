@@ -299,7 +299,7 @@ export async function handleSubmitListing(
       const adminMsgId = await sendMessage(
         env.ADMIN_TG_ID,
         adminText,
-        moderationKeyboard(listingId),
+        await moderationKeyboard(listingId, 0, env),
         env,
       );
       if (adminMsgId) {
@@ -390,7 +390,8 @@ export async function handleArchiveListing(
     }
 
     await env.DB.prepare(
-      `UPDATE listings SET status = 'archived' WHERE listing_id = ? AND tg_id = ? AND status = 'active'`,
+      `UPDATE listings SET status = 'archived', archived_at = datetime('now')
+       WHERE listing_id = ? AND tg_id = ? AND status = 'active'`,
     )
       .bind(listingId, tgId)
       .run();
