@@ -28,6 +28,7 @@ jobs:
           mkdir site
           cp catalog.html site/
           cp catalog.html site/index.html
+          cp rules.html site/
           touch site/.nojekyll
           ls -la site
 
