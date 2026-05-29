@@ -216,7 +216,7 @@ export function getPinDurationLabel(duration: string): string {
     return 'Месяц (30 дней)';
   }
   if (duration === 'lifetime') {
-    return 'Пожизненно ♾️';
+    return 'Бессрочно с авто-размещением';
   }
   return duration;
 }
@@ -229,7 +229,7 @@ export function getPinDurationShortLabel(duration: string): string {
     return 'Месяц';
   }
   if (duration === 'lifetime') {
-    return 'Пожизненно';
+    return 'Бессрочно с авто-размещением';
   }
   return duration;
 }

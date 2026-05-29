@@ -66,6 +66,10 @@ export async function dailyMaintenance(env: Env): Promise<void> {
       const status = String(row.status || '');
 
       if (status === 'active') {
+        const expiresRaw = String(row.expires_at || '').trim();
+        if (expiresRaw === 'lifetime') {
+          continue;
+        }
         const expiresAt = parseStoredDate(row.expires_at);
         if (expiresAt && expiresAt <= now) {
           await env.DB.prepare(

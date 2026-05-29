@@ -525,13 +525,16 @@
     .card-cat-row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-top: 2px;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 2px 0 10px;
+      width: 100%;
     }
     .card-cat-row .card-cat {
       margin-top: 0;
       flex: 1;
       min-width: 0;
+      padding-left: 58px;
     }
     .like-btn {
       display: inline-flex;
@@ -1303,8 +1306,8 @@
 
       <button type="button" class="pin-choice-card" data-duration="lifetime">
         <div>
-          <div class="pin-choice-title">♾️ Пожизненно</div>
-          <div class="pin-choice-desc">Бессрочное закрепление</div>
+          <div class="pin-choice-title">♾️ Бессрочно с авто-размещением</div>
+          <div class="pin-choice-desc">Закрепление и публикация без срока</div>
         </div>
         <div class="pin-choice-price" id="pinPriceLifetime">—</div>
       </button>
@@ -1854,13 +1857,11 @@
       '<div class="' + cardClass + '" style="animation-delay:' + (animIndex * 0.055) + 's">' +
         '<div class="card-head">' +
           '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
-          '<div>' +
-            '<div class="card-name">' + esc(l.display_name) + '</div>' +
-            '<div class="card-cat-row">' +
-              '<div class="card-cat">' + esc(l.category) + '</div>' +
-              likeBtn +
-            '</div>' +
-          '</div>' +
+          '<div class="card-name">' + esc(l.display_name) + '</div>' +
+        '</div>' +
+        '<div class="card-cat-row">' +
+          '<div class="card-cat">' + esc(l.category) + '</div>' +
+          likeBtn +
         '</div>' +
         expBlock +
         '<div class="card-desc-wrap">' +
@@ -2272,14 +2273,20 @@
           var dates = [];
           if (l.submitted_at)            dates.push('Отправлено: ' + fmtDate(l.submitted_at));
           if (l.created_at)              dates.push('Размещено: '  + fmtDate(l.created_at));
-          if (l.expires_at && isActive)  dates.push('До: '         + fmtDate(l.expires_at));
+          if (l.expires_at && isActive) {
+            dates.push(
+              l.expires_at === 'lifetime'
+                ? 'До: бессрочно'
+                : 'До: ' + fmtDate(l.expires_at)
+            );
+          }
 
           var pinDatesHtml = '';
           if (isActive && l.pin_status === 'pinned') {
             var pinnedAtStr = l.pinned_at ? 'Закреплено: ' + fmtDate(l.pinned_at) : '';
             var pinExpiresStr = '';
             if (l.pin_expires_at === 'lifetime') {
-              pinExpiresStr = 'Срок: Пожизненно ♾️';
+              pinExpiresStr = 'Срок: бессрочно с авто-размещением';
             } else if (l.pin_expires_at) {
               pinExpiresStr = 'Закрепление до: ' + fmtDate(l.pin_expires_at);
             }
@@ -2726,7 +2733,7 @@
     var labels = {
       week: 'Неделя (7 дней)',
       month: 'Месяц (30 дней)',
-      lifetime: 'Пожизненно ♾️'
+      lifetime: 'Бессрочно с авто-размещением'
     };
     var prices = _pinPrices[duration] || {};
     var summaryEl = document.getElementById('pinPaymentSummary');

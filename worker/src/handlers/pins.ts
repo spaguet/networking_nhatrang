@@ -220,18 +220,28 @@ export async function pinApproveListing(
     const today = new Date().toISOString();
     const pinExpiresAt = getPinExpiresDate(pinDuration);
 
-    await env.DB.prepare(
-      `UPDATE listings
-       SET pin_status = 'pinned', pinned_at = ?, pin_expires_at = ?
-       WHERE listing_id = ?`,
-    )
-      .bind(today, pinExpiresAt, listingId)
-      .run();
+    if (pinDuration === 'lifetime') {
+      await env.DB.prepare(
+        `UPDATE listings
+         SET pin_status = 'pinned', pinned_at = ?, pin_expires_at = ?, expires_at = 'lifetime'
+         WHERE listing_id = ?`,
+      )
+        .bind(today, pinExpiresAt, listingId)
+        .run();
+    } else {
+      await env.DB.prepare(
+        `UPDATE listings
+         SET pin_status = 'pinned', pinned_at = ?, pin_expires_at = ?
+         WHERE listing_id = ?`,
+      )
+        .bind(today, pinExpiresAt, listingId)
+        .run();
+    }
 
     const label = getPinDurationLabel(pinDuration);
     let userText = '📌 Ваша карточка закреплена в каталоге!\nСрок: ' + label;
     if (pinDuration === 'lifetime') {
-      userText += '\nЗакрепление бессрочное ♾️';
+      userText += '\nРазмещение бессрочное — анкета не будет снята через 30 дней.';
     } else {
       userText += '\nДействует до: ' + formatDateRu(pinExpiresAt);
     }
