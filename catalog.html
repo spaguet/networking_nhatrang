@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Место Встречи — Нячанг</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1414,7 +1417,7 @@
           <p class="field-hint">Необязательно. Фото работ, примеров услуг или вашего профиля. Без ссылок и запрещённого контента.</p>
           <div id="portfolioUploadBlock" hidden>
             <div id="portfolioSlots"></div>
-            <input type="file" id="portfolioFileInput" accept="image/jpeg,image/png,image/webp" hidden />
+            <input type="file" id="portfolioFileInput" accept="image/jpeg,image/jpg,image/png,image/webp,image/*" hidden />
             <button type="button" class="btn btn-outline" id="portfolioAddBtn">Добавить фото</button>
             <span class="field-hint" id="portfolioCountHint">0 / 5</span>
           </div>
@@ -2898,10 +2901,13 @@
   /* ─────────────────────────────────────
      PORTFOLIO (форма)
   ───────────────────────────────────── */
+  function releasePortfolioPreviewUrl(url) {
+    if (!url || url.indexOf('blob:') !== 0) return;
+    try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+  }
+
   function revokePortfolioUrls() {
-    _portfolioObjectUrls.forEach(function (url) {
-      try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
-    });
+    _portfolioObjectUrls.forEach(releasePortfolioPreviewUrl);
     _portfolioObjectUrls = [];
   }
 
@@ -2998,35 +3004,48 @@
   function buildPortfolioPreview(file, done) {
     var previewMaxBytes = 512 * 1024;
     var previewMaxEdge = 384;
-    if (file.size <= previewMaxBytes) {
-      done(URL.createObjectURL(file));
-      return;
-    }
-    var objectUrl = URL.createObjectURL(file);
-    var img = new Image();
-    img.onload = function () {
-      try { URL.revokeObjectURL(objectUrl); } catch (e) { /* ignore */ }
-      var w = img.naturalWidth;
-      var h = img.naturalHeight;
-      var scale = Math.min(1, previewMaxEdge / Math.max(w, h));
-      var cw = Math.max(1, Math.round(w * scale));
-      var ch = Math.max(1, Math.round(h * scale));
-      var canvas = document.createElement('canvas');
-      canvas.width = cw;
-      canvas.height = ch;
-      canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
-      canvas.toBlob(function (blob) {
-        if (blob) {
-          done(URL.createObjectURL(blob));
-        } else {
-          done(URL.createObjectURL(file));
+    var reader = new FileReader();
+    reader.onload = function () {
+      var dataUrl = reader.result;
+      if (typeof dataUrl !== 'string') {
+        done(URL.createObjectURL(file));
+        return;
+      }
+      if (file.size <= previewMaxBytes) {
+        done(dataUrl);
+        return;
+      }
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var w = img.naturalWidth;
+          var h = img.naturalHeight;
+          var scale = Math.min(1, previewMaxEdge / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = cw;
+          canvas.height = ch;
+          var ctx = canvas.getContext('2d');
+          if (!ctx) {
+            done(dataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, cw, ch);
+          done(canvas.toDataURL('image/jpeg', 0.85) || dataUrl);
+        } catch (e) {
+          done(dataUrl);
         }
-      }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () {
+        done(dataUrl);
+      };
+      img.src = dataUrl;
     };
-    img.onerror = function () {
-      done(objectUrl);
+    reader.onerror = function () {
+      done(URL.createObjectURL(file));
     };
-    img.src = objectUrl;
+    reader.readAsDataURL(file);
   }
 
   function setPortfolioSlotPreview(position, previewUrl) {
@@ -3058,7 +3077,7 @@
     }
     if (idx < 0) return;
     var slot = _portfolioSlots[idx];
-    try { URL.revokeObjectURL(slot.previewUrl); } catch (e) { /* ignore */ }
+    releasePortfolioPreviewUrl(slot.previewUrl);
     var urlIdx = _portfolioObjectUrls.indexOf(slot.previewUrl);
     if (urlIdx >= 0) _portfolioObjectUrls.splice(urlIdx, 1);
     _portfolioSlots.splice(idx, 1);
@@ -3067,6 +3086,7 @@
   }
 
   function portfolioFileMimeOk(file) {
+    if (!file || !file.size) return false;
     var mime = (file.type || '').toLowerCase();
     var allowed = [
       'image/jpeg', 'image/jpg', 'image/pjpeg',
@@ -3077,9 +3097,12 @@
     if (mime.indexOf('image/') === 0) return true;
 
     var name = (file.name || '').toLowerCase();
-    if (/\.(jpe?g|png|webp)$/.test(name)) {
-      return !mime || mime === 'application/octet-stream';
-    }
+    if (/\.(heic|heif|gif|bmp|svg)$/.test(name)) return false;
+    if (/\.(jpe?g|png|webp)$/.test(name)) return true;
+
+    // Telegram Android: пустой MIME / octet-stream, часто без расширения в имени
+    if (!mime || mime === 'application/octet-stream') return true;
+
     return false;
   }
 
@@ -3117,7 +3140,7 @@
         }
       }
       if (!stillThere) {
-        try { URL.revokeObjectURL(previewUrl); } catch (e) { /* ignore */ }
+        releasePortfolioPreviewUrl(previewUrl);
         return;
       }
       _portfolioObjectUrls.push(previewUrl);
@@ -3349,8 +3372,19 @@
 
   (function initPortfolioUi() {
     var chk = document.getElementById('portfolio_enabled');
-    var fileInput = document.getElementById('portfolioFileInput');
     var addBtn = document.getElementById('portfolioAddBtn');
+
+    function bindPortfolioFileInput(input) {
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (file) addPortfolioFile(file);
+        var parent = input.parentNode;
+        if (!parent) return;
+        var fresh = input.cloneNode(false);
+        parent.replaceChild(fresh, input);
+        bindPortfolioFileInput(fresh);
+      });
+    }
 
     if (chk) {
       syncPortfolioCheckboxVisual();
@@ -3367,16 +3401,18 @@
       });
     }
 
-    if (addBtn && fileInput) {
+    var fileInput = document.getElementById('portfolioFileInput');
+    if (fileInput) {
+      bindPortfolioFileInput(fileInput);
+    }
+
+    if (addBtn) {
       addBtn.addEventListener('click', function () {
         if (_portfolioSlots.length >= PORTFOLIO_MAX_FILES) return;
-        fileInput.value = '';
-        fileInput.click();
-      });
-      fileInput.addEventListener('change', function () {
-        var file = fileInput.files && fileInput.files[0];
-        if (file) addPortfolioFile(file);
-        fileInput.value = '';
+        var input = document.getElementById('portfolioFileInput');
+        if (!input) return;
+        input.value = '';
+        input.click();
       });
     }
   })();
