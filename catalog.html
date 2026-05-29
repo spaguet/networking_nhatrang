@@ -1697,10 +1697,14 @@
   var PORTFOLIO_MAX_FILES = 5;
   var PORTFOLIO_MAX_BYTES = 8 * 1024 * 1024;
   var PORTFOLIO_UPLOAD_MAX_EDGE = 1280;
+  var PORTFOLIO_UPLOAD_RETRY_MAX_EDGE = 960;
   var PORTFOLIO_SKIP_CANVAS_BELOW = 300 * 1024;
   var PORTFOLIO_CANVAS_TIMEOUT_MS = 5000;
+  var PORTFOLIO_UPLOAD_CANVAS_TIMEOUT_MS = 15000;
+  var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
+  var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v79earlyread';
+  var PORTFOLIO_CLIENT_VERSION = 'v80uploadcompress';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3466,6 +3470,18 @@
       });
   }
 
+  function portfolioServerRejectRisk(file, width, height) {
+    if (!file || !file.size) return true;
+    if (file.size > PORTFOLIO_MAX_BYTES) return true;
+    if (width > 0 && height > 0) {
+      var longEdge = Math.max(width, height);
+      if (longEdge > PORTFOLIO_SERVER_MAX_LONG_EDGE) return true;
+      if (width * height > PORTFOLIO_SERVER_MAX_LONG_EDGE * 1920) return true;
+      return false;
+    }
+    return file.size > PORTFOLIO_SERVER_LARGE_BYTES;
+  }
+
   function compressPortfolioFileForUpload(file) {
     if (!file || !file.size) {
       return Promise.resolve(file);
@@ -3475,76 +3491,105 @@
       return Promise.resolve(file);
     }
 
-    return new Promise(function (resolve) {
-      var settled = false;
-      var objectUrl = URL.createObjectURL(file);
+    function tryCompress(maxEdge, timeoutMs) {
+      return new Promise(function (resolve, reject) {
+        var settled = false;
+        var objectUrl = URL.createObjectURL(file);
+        var imgW = 0;
+        var imgH = 0;
 
-      function finish(result, reason) {
-        if (settled) return;
-        settled = true;
-        clearTimeout(canvasTimeout);
-        releasePortfolioPreviewUrl(objectUrl);
-        if (reason) portfolioTwlog(reason + ' ' + (file.name || '') + ' ' + file.size);
-        resolve(result || file);
-      }
-
-      var canvasTimeout = setTimeout(function () {
-        finish(file, 'compress timeout');
-      }, PORTFOLIO_CANVAS_TIMEOUT_MS);
-
-      var img = new Image();
-      img.onload = function () {
-        var maxEdge = PORTFOLIO_UPLOAD_MAX_EDGE;
-        var w = img.naturalWidth;
-        var h = img.naturalHeight;
-        var longEdge = Math.max(w, h);
-        if (longEdge <= maxEdge && file.size <= 600 * 1024) {
-          finish(file, 'compress keep ' + w + 'x' + h);
-          return;
+        function cleanup() {
+          clearTimeout(canvasTimeout);
+          releasePortfolioPreviewUrl(objectUrl);
         }
-        var scale = Math.min(1, maxEdge / longEdge);
-        var cw = Math.max(1, Math.round(w * scale));
-        var ch = Math.max(1, Math.round(h * scale));
-        var canvas = document.createElement('canvas');
-        canvas.width = cw;
-        canvas.height = ch;
-        var ctx = canvas.getContext('2d');
-        if (!ctx) {
-          finish(file, 'compress no ctx');
-          return;
+
+        function fail(reason) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          portfolioTwlog(reason + ' ' + (file.name || '') + ' ' + file.size);
+          reject(new Error(reason));
         }
-        ctx.drawImage(img, 0, 0, cw, ch);
-        var blobSettled = false;
-        var blobTimeout = setTimeout(function () {
-          if (blobSettled) return;
-          blobSettled = true;
-          finish(file, 'compress toBlob timeout');
-        }, 3000);
-        canvas.toBlob(function (blob) {
-          if (blobSettled) return;
-          blobSettled = true;
-          clearTimeout(blobTimeout);
-          if (!blob || !blob.size) {
-            finish(file, 'compress blob null');
+
+        function succeed(result, reason) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (reason) portfolioTwlog(reason + ' ' + (file.name || '') + ' ' + file.size);
+          if (portfolioServerRejectRisk(result, imgW, imgH)) {
+            reject(new Error('compress unsafe'));
             return;
           }
-          portfolioTwlog('compress ok ' + (file.name || '') + ' ' + file.size + '→' + blob.size);
-          var baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
-          try {
-            finish(new File([blob], baseName + '.jpg', {
-              type: 'image/jpeg',
-              lastModified: Date.now()
-            }));
-          } catch (e) {
-            finish(blob);
+          resolve(result);
+        }
+
+        var canvasTimeout = setTimeout(function () {
+          fail('compress timeout');
+        }, timeoutMs);
+
+        var img = new Image();
+        img.onload = function () {
+          imgW = img.naturalWidth;
+          imgH = img.naturalHeight;
+          var longEdge = Math.max(imgW, imgH);
+          if (longEdge <= maxEdge && file.size <= 600 * 1024 && !portfolioServerRejectRisk(file, imgW, imgH)) {
+            succeed(file, 'compress keep ' + imgW + 'x' + imgH);
+            return;
           }
-        }, 'image/jpeg', 0.75);
-      };
-      img.onerror = function () {
-        finish(file, 'compress img error');
-      };
-      img.src = objectUrl;
-    });
+          var scale = Math.min(1, maxEdge / longEdge);
+          var cw = Math.max(1, Math.round(imgW * scale));
+          var ch = Math.max(1, Math.round(imgH * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = cw;
+          canvas.height = ch;
+          var ctx = canvas.getContext('2d');
+          if (!ctx) {
+            fail('compress no ctx');
+            return;
+          }
+          ctx.drawImage(img, 0, 0, cw, ch);
+          var blobSettled = false;
+          var blobTimeout = setTimeout(function () {
+            if (blobSettled) return;
+            blobSettled = true;
+            fail('compress toBlob timeout');
+          }, 3000);
+          canvas.toBlob(function (blob) {
+            if (blobSettled) return;
+            blobSettled = true;
+            clearTimeout(blobTimeout);
+            if (!blob || !blob.size) {
+              fail('compress blob null');
+              return;
+            }
+            portfolioTwlog('compress ok ' + (file.name || '') + ' ' + file.size + '→' + blob.size + ' ' + cw + 'x' + ch);
+            var baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+            try {
+              succeed(new File([blob], baseName + '.jpg', {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              }));
+            } catch (e) {
+              succeed(blob);
+            }
+          }, 'image/jpeg', 0.75);
+        };
+        img.onerror = function () {
+          fail('compress img error');
+        };
+        img.src = objectUrl;
+      });
+    }
+
+    return tryCompress(PORTFOLIO_UPLOAD_MAX_EDGE, PORTFOLIO_UPLOAD_CANVAS_TIMEOUT_MS)
+      .catch(function () {
+        portfolioTwlog('compress retry ' + (file.name || '') + ' ' + PORTFOLIO_UPLOAD_RETRY_MAX_EDGE);
+        return tryCompress(PORTFOLIO_UPLOAD_RETRY_MAX_EDGE, PORTFOLIO_UPLOAD_CANVAS_TIMEOUT_MS + 5000);
+      })
+      .catch(function () {
+        portfolioTwlog('compress fail all ' + (file.name || '') + ' ' + file.size);
+        return Promise.reject(new Error('portfolio_compress_failed'));
+      });
   }
 
   function appendPortfolioAuthFields(fd, action, listingId) {
@@ -3590,8 +3635,13 @@
             }
           });
         }).catch(function (err) {
-          portfolioTwlog('upload err ' + slot.position + ' ' + (err && err.message ? err.message : err));
-          throw err;
+          var errMsg = err && err.message ? err.message : String(err);
+          portfolioTwlog('upload err ' + slot.position + ' ' + errMsg);
+          if (errMsg === 'portfolio_compress_failed' || errMsg.indexOf('compress') >= 0) {
+            lastResult = { ok: false, error: 'portfolio_compress_failed' };
+          } else {
+            lastResult = { ok: false, error: 'portfolio_upload_failed' };
+          }
         });
       });
     });
