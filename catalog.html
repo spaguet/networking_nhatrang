@@ -522,22 +522,53 @@
       display: inline-block;
     }
 
+    .card-cat-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .card-cat-row .card-cat {
+      margin-top: 0;
+      flex: 1;
+      min-width: 0;
+    }
     .like-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       background: none;
       border: none;
       cursor: pointer;
-      color: #999;
-      font-size: 14px;
-      padding: 4px 8px;
-      border-radius: 12px;
-      transition: all 0.2s;
-      margin-left: auto;
+      padding: 0;
       flex-shrink: 0;
       font-family: inherit;
       line-height: 1.2;
     }
-    .like-btn.liked { color: #e74c3c; }
-    .like-btn:active { transform: scale(0.9); }
+    .like-btn:active { transform: scale(0.95); }
+    .like-checkbox {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #b8b0a8;
+      border-radius: 3px;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .like-btn.liked .like-checkbox {
+      border-color: var(--c-ok);
+      background: var(--c-ok);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2l2.4 2.4 4.6-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 11px 11px;
+    }
+    .like-label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
 
     .copy-btn {
       display: flex;
@@ -659,10 +690,8 @@
       font-size: 0.85rem;
       line-height: 1.5;
       color: var(--text-mid);
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      white-space: pre-wrap;
+      word-break: break-word;
       margin-bottom: 9px;
     }
     .p-dates {
@@ -1812,8 +1841,9 @@
     var cardId = String(l.listing_id || '').trim();
     var isPinned = l.pin_status === 'pinned';
     var likeBtn = cardId
-      ? '<button type="button" id="like-btn-' + cardId + '" class="like-btn" aria-label="Лайк">' +
-          '♡ <span id="like-count-' + cardId + '">0</span>' +
+      ? '<button type="button" id="like-btn-' + cardId + '" class="like-btn" aria-label="Рекомендовать">' +
+          '<span class="like-checkbox" aria-hidden="true"></span>' +
+          '<span class="like-label">Рекомендуют: <span id="like-count-' + cardId + '">0</span></span>' +
         '</button>'
       : '';
     var expBlock = l.experience
@@ -1826,9 +1856,11 @@
           '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
           '<div>' +
             '<div class="card-name">' + esc(l.display_name) + '</div>' +
-            '<div class="card-cat">' + esc(l.category) + '</div>' +
+            '<div class="card-cat-row">' +
+              '<div class="card-cat">' + esc(l.category) + '</div>' +
+              likeBtn +
+            '</div>' +
           '</div>' +
-          likeBtn +
         '</div>' +
         expBlock +
         '<div class="card-desc-wrap">' +

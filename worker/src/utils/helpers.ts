@@ -65,7 +65,7 @@ export function buildPaidModeBanner(
   freeUsed: boolean,
 ): string {
   const suffix =
-    ' Второе и следующее размещение — после окончания срока (30 дней со дня размещения) или платно.';
+    ' Второе размещение ПЛАТНО или бесплатно после окончания срока (30 дней со дня размещения).';
 
   if (blocking && blocking.status === 'active') {
     const until = blocking.expires_at ? formatDateRu(blocking.expires_at) : '';
