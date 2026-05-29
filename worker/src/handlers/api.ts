@@ -6,7 +6,7 @@ import {
   handleGetMyListings,
   handleSubmitListing,
 } from './listings';
-import { handleGetPortfolio } from './portfolio';
+import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStagingB64 } from './portfolio';
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
 
@@ -39,6 +39,10 @@ export async function routeApiAction(
       return handleSelectPinPaymentMethod(body, env);
     case 'get_portfolio':
       return handleGetPortfolio(body, env, workerOrigin);
+    case 'upload_portfolio_staging_b64':
+      return handleUploadPortfolioStagingB64(body, env);
+    case 'upload_portfolio_b64':
+      return handleUploadPortfolioB64(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }

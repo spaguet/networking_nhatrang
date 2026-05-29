@@ -1704,7 +1704,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v82dimcheck';
+  var PORTFOLIO_CLIENT_VERSION = 'v83b64upload';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -2052,10 +2052,15 @@
     return payload;
   }
 
-  function apiPost(payload) {
+  function apiPost(payload, timeoutMs) {
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 60000) : null;
-    var opts = { method: 'POST', body: JSON.stringify(payload) };
+    var waitMs = timeoutMs || 60000;
+    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, waitMs) : null;
+    var opts = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    };
     if (controller) opts.signal = controller.signal;
     return fetch(API_URL + '/api', opts)
       .then(function (r) {
@@ -3606,6 +3611,49 @@
       });
   }
 
+  function blobToBytes(blob) {
+    if (typeof blob.arrayBuffer === 'function') {
+      return blob.arrayBuffer().then(function (ab) {
+        return new Uint8Array(ab);
+      });
+    }
+    return Promise.reject(new Error('no arrayBuffer'));
+  }
+
+  function bytesToBase64(bytes) {
+    var chunkSize = 0x8000;
+    var parts = [];
+    for (var i = 0; i < bytes.length; i += chunkSize) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(parts.join(''));
+  }
+
+  function portfolioB64Action(action) {
+    if (action === 'upload_portfolio_staging') return 'upload_portfolio_staging_b64';
+    if (action === 'upload_portfolio') return 'upload_portfolio_b64';
+    return action;
+  }
+
+  function uploadPortfolioPhotoB64(action, slot, compressed, listingId) {
+    return blobToBytes(compressed).then(function (bytes) {
+      if (bytes.length >= 2) {
+        portfolioTwlog('upload b64 magic ' + bytes[0] + ',' + bytes[1] + ' len=' + bytes.length);
+      }
+      var extra = {
+        position: slot.position,
+        name: compressed.name || slot.file.name || ('photo_' + slot.position + '.jpg'),
+        data: bytesToBase64(bytes)
+      };
+      if (listingId) extra.listing_id = listingId;
+      var payload = buildPayload(portfolioB64Action(action), extra);
+      if (!payload) {
+        return { ok: false, error: 'Invalid_initData' };
+      }
+      return apiPost(payload, 120000);
+    });
+  }
+
   function appendPortfolioAuthFields(fd, action, listingId) {
     var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
     fd.append('action', action);
@@ -3638,6 +3686,14 @@
         return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
           var uploadSize = compressed.size || compressed.byteLength || 0;
           portfolioTwlog('upload slot ' + slot.position + ' ' + uploadSize + ' ' + (compressed.name || ''));
+          if (tg && tg.initData) {
+            return uploadPortfolioPhotoB64(action, slot, compressed, listingId).then(function (data) {
+              if (!data.ok) {
+                portfolioTwlog('upload fail ' + slot.position + ' ' + (data.error || ''));
+                lastResult = data;
+              }
+            });
+          }
           var fd = new FormData();
           appendPortfolioAuthFields(fd, action, listingId);
           var uploadName = compressed.name || slot.file.name || ('photo_' + slot.position + '.jpg');
