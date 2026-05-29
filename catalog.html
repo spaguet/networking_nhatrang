@@ -2996,14 +2996,22 @@
     renderPortfolioSlots();
   }
 
+  function portfolioFileMimeOk(file) {
+    var allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    var mime = (file.type || '').toLowerCase();
+    if (allowed.indexOf(mime) >= 0) return true;
+    if (mime && mime !== 'application/octet-stream') return false;
+    var name = (file.name || '').toLowerCase();
+    return /\.(jpe?g|png|webp)$/.test(name);
+  }
+
   function addPortfolioFile(file) {
     if (!file) return false;
     if (_portfolioSlots.length >= PORTFOLIO_MAX_FILES) {
       showToast('Можно добавить не более ' + PORTFOLIO_MAX_FILES + ' фото');
       return false;
     }
-    var allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowed.indexOf(file.type) < 0) {
+    if (!portfolioFileMimeOk(file)) {
       showStatus(document.getElementById('status'), ERRORS.portfolio_invalid_type, 'err');
       return false;
     }
@@ -3016,6 +3024,7 @@
     var previewUrl = URL.createObjectURL(file);
     _portfolioObjectUrls.push(previewUrl);
     _portfolioSlots.push({ position: position, file: file, previewUrl: previewUrl });
+    clearStatus(document.getElementById('status'));
     renderPortfolioSlots();
     return true;
   }
