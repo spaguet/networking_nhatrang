@@ -560,7 +560,8 @@
       box-sizing: border-box;
       transition: border-color 0.15s, background 0.15s;
     }
-    .like-btn.liked .like-checkbox {
+    .like-btn.liked .like-checkbox,
+    .portfolio-toggle.is-checked .like-checkbox {
       border-color: #43a315;
       background: #43a315;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2l2.4 2.4 4.6-5'/%3E%3C/svg%3E");
@@ -1006,12 +1007,30 @@
       color: var(--text);
       line-height: 1.35;
     }
-    .portfolio-toggle input {
-      width: 18px;
-      height: 18px;
-      margin-top: 2px;
+    .portfolio-check-wrap {
+      position: relative;
+      width: 16px;
+      height: 16px;
       flex-shrink: 0;
-      accent-color: var(--orange);
+      margin-top: 2px;
+    }
+    .portfolio-check-native {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .portfolio-toggle .like-checkbox {
+      display: block;
+      pointer-events: none;
+    }
+    .portfolio-toggle-text {
+      flex: 1;
+      min-width: 0;
     }
     #portfolioUploadBlock {
       display: flex;
@@ -1283,9 +1302,12 @@
         </div>
 
         <div class="field-item field-portfolio">
-          <label class="portfolio-toggle">
-            <input type="checkbox" id="portfolio_enabled" name="portfolio_enabled" />
-            <span>Добавить портфолио (до 5 фото)</span>
+          <label class="portfolio-toggle" id="portfolioToggleLabel">
+            <span class="portfolio-check-wrap">
+              <input type="checkbox" id="portfolio_enabled" name="portfolio_enabled" class="portfolio-check-native" />
+              <span class="like-checkbox" aria-hidden="true"></span>
+            </span>
+            <span class="portfolio-toggle-text">Добавить портфолио (до 5 фото)</span>
           </label>
           <p class="field-hint">Необязательно. Фото работ, примеров услуг или вашего профиля. Без ссылок и запрещённого контента.</p>
           <div id="portfolioUploadBlock" hidden>
@@ -2598,6 +2620,7 @@
     goToForm(null, true);
     var chk = document.getElementById('portfolio_enabled');
     chk.checked = true;
+    syncPortfolioCheckboxVisual();
     setPortfolioBlockVisible(true);
     showStatus(
       document.getElementById('status'),
@@ -2616,6 +2639,7 @@
     resetPortfolioState();
     if (keepRetry) {
       document.getElementById('portfolio_enabled').checked = true;
+      syncPortfolioCheckboxVisual();
       setPortfolioBlockVisible(true);
     }
 
@@ -2677,11 +2701,20 @@
     _portfolioObjectUrls = [];
   }
 
+  function syncPortfolioCheckboxVisual() {
+    var chk = document.getElementById('portfolio_enabled');
+    var label = document.getElementById('portfolioToggleLabel');
+    if (label && chk) {
+      label.classList.toggle('is-checked', chk.checked);
+    }
+  }
+
   function resetPortfolioState() {
     revokePortfolioUrls();
     _portfolioSlots = [];
     var chk = document.getElementById('portfolio_enabled');
     if (chk) chk.checked = false;
+    syncPortfolioCheckboxVisual();
     setPortfolioBlockVisible(false);
     renderPortfolioSlots();
   }
@@ -2861,6 +2894,7 @@
         var chk = document.getElementById('portfolio_enabled');
         if (chk) {
           chk.checked = true;
+          syncPortfolioCheckboxVisual();
           setPortfolioBlockVisible(true);
         }
         updateSubmitBtnLabel();
@@ -3012,11 +3046,16 @@
     var addBtn = document.getElementById('portfolioAddBtn');
 
     if (chk) {
+      syncPortfolioCheckboxVisual();
       chk.addEventListener('change', function () {
+        syncPortfolioCheckboxVisual();
         if (chk.checked) {
           setPortfolioBlockVisible(true);
         } else {
-          resetPortfolioState();
+          revokePortfolioUrls();
+          _portfolioSlots = [];
+          renderPortfolioSlots();
+          setPortfolioBlockVisible(false);
         }
       });
     }
