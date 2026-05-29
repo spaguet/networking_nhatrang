@@ -1,0 +1,41 @@
+import type { Env } from '../env';
+import { jsonResponse } from '../utils/response';
+import {
+  handleArchiveListing,
+  handleGetListings,
+  handleGetMyListings,
+  handleSubmitListing,
+} from './listings';
+import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
+import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
+
+export async function routeApiAction(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const action = body.action;
+  if (typeof action !== 'string' || !action) {
+    return jsonResponse({ ok: false, error: 'unknown_action' });
+  }
+
+  switch (action) {
+    case 'get_listings':
+      return handleGetListings(body, env);
+    case 'get_my_listings':
+      return handleGetMyListings(body, env);
+    case 'submit_listing':
+      return handleSubmitListing(body, env);
+    case 'archive_listing':
+      return handleArchiveListing(body, env);
+    case 'check_listing_status':
+      return handleCheckListingStatus(body, env);
+    case 'select_payment_method':
+      return handleSelectPaymentMethod(body, env);
+    case 'get_pin_prices':
+      return handleGetPinPrices(body, env);
+    case 'select_pin_payment_method':
+      return handleSelectPinPaymentMethod(body, env);
+    default:
+      return jsonResponse({ ok: false, error: 'unknown_action' });
+  }
+}

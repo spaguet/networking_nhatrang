@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Правила — Место Встречи</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --cream:       #EDE8DF;
+      --cream-card:  #F5F1EA;
+      --dark:        #1D1916;
+      --orange:      #E05A28;
+      --orange-dim:  rgba(224, 90, 40, 0.12);
+      --text:        #1D1916;
+      --text-mid:    #5C5048;
+      --text-sub:    #9A8E87;
+      --border:      rgba(29, 25, 22, 0.09);
+      --r-card: 18px;
+      --shadow: 0 2px 12px rgba(29, 25, 22, 0.09), 0 1px 3px rgba(29, 25, 22, 0.06);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { background: var(--cream); }
+
+    body {
+      font-family: 'Onest', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--cream);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .hero {
+      background: var(--dark);
+      padding: 48px 20px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(224, 90, 40, 0.28) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 5px 11px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    .hero-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .hero-title span { color: var(--orange); }
+
+    .hero-desc {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.62);
+      line-height: 1.55;
+      max-width: 340px;
+    }
+
+    .content {
+      padding: 20px 16px 40px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .section {
+      background: var(--cream-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-card);
+      box-shadow: var(--shadow);
+      padding: 18px 16px;
+      margin-bottom: 14px;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--orange-dim);
+    }
+
+    .rule-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rule-list li {
+      display: flex;
+      gap: 10px;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      color: var(--text-mid);
+    }
+
+    .rule-num {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      background: var(--orange-dim);
+      color: var(--orange);
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .rule-list li strong { color: var(--text); font-weight: 600; }
+
+    .sub-list {
+      margin: 6px 0 0 0;
+      padding-left: 16px;
+      list-style: disc;
+    }
+    .sub-list li {
+      display: list-item;
+      font-size: 0.84rem;
+      color: var(--text-sub);
+      margin-bottom: 3px;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      padding: 8px 0 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="logo-badge">Нячанг · Вьетнам</div>
+    <h1 class="hero-title">Правила<br><span>сервиса</span></h1>
+    <p class="hero-desc">Кратко и понятно — что можно, что нельзя и как пользоваться «Местом Встречи».</p>
+  </header>
+
+  <main class="content" id="rulesContent"></main>
+
+  <p class="footer-note">Место Встречи · Нячанг</p>
+
+  <script>
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    var SECTIONS = [
+      {
+        title: '1. О сервисе',
+        rules: [
+          '<strong>«Место Встречи»</strong> — каталог специалистов и фрилансеров в Нячанге (Вьетнам).',
+          'Сервис предназначен для <strong>поиска экспертов</strong> и <strong>размещения мини-резюме</strong> о своих услугах.'
+        ]
+      },
+      {
+        title: '2. Кто может размещать анкету',
+        rules: [
+          'Размещать анкету могут <strong>специалисты и фрилансеры</strong>, которые предлагают свои услуги.',
+          '<strong>Нельзя</strong> публиковать вакансии, объявления о найме сотрудников и предложения от работодателей.',
+          'Анкета — это <strong>профиль специалиста</strong>, а не объявление «ищем в команду» или «требуется сотрудник».'
+        ]
+      },
+      {
+        title: '3. Как заполнить анкету',
+        rules: [
+          '<strong>Все поля обязательны</strong> — без пропусков анкету отправить нельзя.',
+          '<strong>Имя для каталога</strong> — до 20 символов.',
+          '<strong>Аватар</strong> — выберите эмодзи из предложенного списка.',
+          '<strong>Категория</strong> — выберите одну из профессиональных категорий.',
+          '<strong>Опыт/стаж</strong> — до 15 символов.',
+          '<strong>О себе и услугах</strong> — до 500 символов.',
+          '<strong>Контакт</strong> — Telegram, WhatsApp или Email и сам контакт.',
+          'Открывать и отправлять форму нужно <strong>из Telegram</strong>.'
+        ]
+      },
+      {
+        title: '4. Запрещённый контент',
+        rules: [
+          'В описании <strong>нельзя</strong> размещать запрещённый контент, азартные игры, скам, финансовые «схемы» и объявления о найме.',
+          'В полях <strong>«Имя для каталога»</strong> и <strong>«О себе и услугах»</strong> <strong>запрещены ссылки</strong> (сайты, t.me, домены).',
+          'Контакт указывается <strong>отдельным полем</strong> — не вставляйте ссылки в имя и описание.'
+        ]
+      },
+      {
+        title: '5. Модерация',
+        rules: [
+          'Каждая анкета проходит <strong>ручную модерацию</strong> — обычно в течение <strong>24 часов</strong>.',
+          'До одобрения анкета не появится в каталоге.',
+          'Модератор может <strong>одобрить</strong> или <strong>отклонить</strong> анкету.',
+          'При отклонении администратор свяжется с вами в течение <strong>24 часов</strong>.',
+          'Если анкета не прошла проверку — исправьте текст и отправьте заново.'
+        ]
+      },
+      {
+        title: '6. Размещение: бесплатно и платно',
+        rules: [
+          '<strong>Одно размещение — бесплатно</strong> (один раз на аккаунт Telegram).',
+          '<strong>Второе и каждое следующее размещение</strong> — платно в любой момент или бесплатно после окончания срока предыдущей активной анкеты (<strong>30 дней</strong>).',
+          'Пока есть <strong>активная</strong> или <strong>на модерации</strong> анкета — новую бесплатную отправить нельзя.',
+          'Если бесплатное размещение уже использовано — выберите <strong>«Разместить платно»</strong>.'
+        ]
+      },
+      {
+        title: '7. Оплата размещения',
+        rules: [
+          'После выбора способа оплаты <strong>QR-код придёт в чат с ботом</strong>.',
+          '<strong>Обязательно отправьте скриншот чека</strong> боту в ответ на сообщение с QR.',
+          'После проверки чека анкета активируется <strong>в течение часа</strong> (при успешной модерации).',
+          'Если QR недоступен — напишите администратору через <strong>/start</strong>.'
+        ]
+      },
+      {
+        title: '8. Срок публикации анкеты',
+        rules: [
+          'Одобренная анкета публикуется на <strong>30 дней</strong>.',
+          'По истечении срока анкета <strong>автоматически уходит в архив</strong>.',
+          'Из архива или после отклонения можно <strong>разместить анкету заново</strong>.',
+          'Активную анкету можно <strong>самостоятельно убрать в архив</strong> через «Мой профиль».'
+        ]
+      },
+      {
+        title: '9. Закрепление карточки',
+        rules: [
+          '<strong>Закрепление</strong> — платная опция: карточка показывается <strong>первой в категории</strong>.',
+          'Закрепить можно только <strong>свою активную</strong> анкету.',
+          'Одну карточку нельзя закрепить <strong>дважды</strong>.',
+          'Сроки: <strong>неделя</strong>, <strong>месяц</strong> или <strong>навсегда</strong>.',
+          'QR приходит в чат с ботом — <strong>отправьте скриншот оплаты</strong>.',
+          'Закрепление активируют <strong>в течение 24 часов</strong> после проверки.',
+          'За сутки до окончания срока (кроме «навсегда») придёт предупреждение.',
+          'При отклонении запроса — для возврата обратитесь к администратору.'
+        ]
+      },
+      {
+        title: '10. Каталог и поиск',
+        rules: [
+          'Специалистов можно искать <strong>по категориям</strong>.',
+          'Каталог предназначен для <strong>личного контакта</strong> — договорённости между сторонами сервис не контролирует.'
+        ]
+      },
+      {
+        title: '11. Лайки',
+        rules: [
+          'Лайки доступны только <strong>авторизованным пользователям Telegram</strong>.',
+          'Один пользователь — <strong>один лайк</strong> на карточку; повторное нажатие снимает лайк.',
+          'Накручивать лайки обходными способами <strong>нельзя</strong>.'
+        ]
+      },
+      {
+        title: '12. Профиль',
+        rules: [
+          'В <strong>«Мой профиль»</strong> видны все ваши анкеты и их статусы.',
+          '<strong>Архивировать</strong> можно только <strong>активную</strong> анкету.',
+          '<strong>Повторно разместить</strong> можно анкету из архива или отклонённую.',
+          '<strong>Закрепить</strong> можно только <strong>активную</strong> незакреплённую карточку.'
+        ]
+      },
+      {
+        title: '13. Связь с администратором',
+        rules: [
+          'Написать администратору — кнопка в меню бота (<strong>/start</strong>).',
+          'Отправьте <strong>одно сообщение</strong> — текст или фото. Для отмены — снова <strong>/start</strong>.',
+          'Администратор ответит <strong>в течение 24 часов</strong>.',
+          'По вопросам возврата, продления закрепления и повторной публикации — обращайтесь к администратору.'
+        ]
+      },
+      {
+        title: '14. Общие правила',
+        rules: [
+          'Размещайте <strong>достоверную информацию</strong> о себе и своих услугах.',
+          'Не используйте сервис для <strong>мошенничества</strong>, <strong>спама</strong> и <strong>обхода модерации</strong>.',
+          'Сервис может <strong>отклонить, снять или заархивировать</strong> любую анкету при нарушении правил.',
+          'Используя сервис, вы соглашаетесь с <strong>модерацией контента</strong> и <strong>условиями платных услуг</strong>.'
+        ]
+      }
+    ];
+
+    var num = 0;
+    var html = '';
+
+    SECTIONS.forEach(function (sec, si) {
+      html += '<section class="section" style="animation-delay:' + (si * 0.04) + 's">';
+      html += '<h2 class="section-title">' + sec.title + '</h2><ol class="rule-list">';
+      sec.rules.forEach(function (text) {
+        num++;
+        html += '<li><span class="rule-num">' + num + '</span><span>' + text + '</span></li>';
+      });
+      html += '</ol></section>';
+    });
+
+    document.getElementById('rulesContent').innerHTML = html;
+  </script>
+</body>
+</html>

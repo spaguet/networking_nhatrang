@@ -484,15 +484,42 @@
       margin-bottom: 4px;
     }
 
+    .card-desc-wrap {
+      margin-bottom: 12px;
+    }
+
     .card-desc {
       font-size: 0.86rem;
       line-height: 1.55;
       color: var(--text-mid);
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 5;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      margin-bottom: 12px;
+    }
+
+    .card-desc.is-expanded {
+      display: block;
+      -webkit-line-clamp: unset;
+      overflow: visible;
+    }
+
+    .card-desc-toggle {
+      display: none;
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: 6px;
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--orange);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .card-desc-toggle.is-visible {
+      display: inline-block;
     }
 
     .like-btn {
@@ -750,6 +777,54 @@
     .toast.show {
       transform: translateX(-50%) translateY(0);
       opacity: 1;
+    }
+
+    /* ══════════════════════════════════════════
+       LINK POPUP
+    ══════════════════════════════════════════ */
+    .popup-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 400;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(29, 25, 22, 0.52);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    .popup-overlay[hidden] { display: none; }
+
+    .popup {
+      width: min(100%, 340px);
+      background: var(--cream-card);
+      border-radius: var(--r-card);
+      padding: 24px 22px 20px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+      animation: fadeUp 0.22s cubic-bezier(.22,.68,0,1.2) both;
+    }
+    .popup-icon {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+    .popup-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .popup-text {
+      font-size: 0.9rem;
+      line-height: 1.45;
+      color: var(--text-mid);
+      margin-bottom: 18px;
+    }
+    .popup .btn {
+      width: 100%;
+      flex: none;
     }
 
     /* ══════════════════════════════════════════
@@ -1259,6 +1334,16 @@
   </div>
 </div>
 
+<!-- LINK POPUP -->
+<div id="linkPopup" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="linkPopupTitle" aria-modal="true">
+    <div class="popup-icon">🔗</div>
+    <h3 class="popup-title" id="linkPopupTitle">Ссылки запрещены</h3>
+    <p class="popup-text">Ссылки не разрешены к использованию в полях «Имя для каталога» и «О себе и услугах».</p>
+    <button type="button" id="linkPopupOk" class="btn btn-primary">Понятно</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1302,6 +1387,7 @@
 
   var ERRORS = {
     stop_words:             'Текст содержит запрещённые слова. Измените описание.',
+    links_forbidden:        'Ссылки не разрешены к использованию.',
     use_paid_flow:          'Используйте платное размещение.',
     Invalid_initData:       'Ошибка авторизации Telegram. Перезапустите Mini App.',
     invalid_category:       'Выберите категорию из списка.',
@@ -1429,6 +1515,69 @@
     el.classList.add('show');
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+  }
+
+  var LINK_PATTERNS = [
+    /https?:\/\//i,
+    /ftp:\/\//i,
+    /\bwww\./i,
+    /\bt\.me\//i,
+    /\btelegram\.me\//i,
+    /\b[a-z0-9][-a-z0-9]{0,62}\.(?:com|ru|net|org|io|dev|me|link|site|xyz|info|biz|co|uk|ua|by|kz|pro|online|store|shop|app|tech|cloud|space|live|work|top|click|pw|cc|tv|gg|ly|to|be|de|fr|pl|cz|eu|su|рф|рус|онлайн|сайт)(?:\/[^\s]*)?\b/i
+  ];
+
+  function containsLink(text) {
+    if (!text) return false;
+    var value = String(text).trim();
+    for (var i = 0; i < LINK_PATTERNS.length; i++) {
+      if (LINK_PATTERNS[i].test(value)) return true;
+    }
+    return false;
+  }
+
+  function showLinkPopup() {
+    document.getElementById('linkPopup').hidden = false;
+  }
+
+  function hideLinkPopup() {
+    document.getElementById('linkPopup').hidden = true;
+  }
+
+  document.getElementById('linkPopupOk').addEventListener('click', hideLinkPopup);
+  document.getElementById('linkPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideLinkPopup();
+  });
+
+  var LINK_GUARD_FIELDS = ['display_name', 'description'];
+  var _linkFieldPrev = {};
+
+  function setupLinkGuard(fieldId) {
+    var input = document.getElementById(fieldId);
+    if (!input) return;
+    _linkFieldPrev[fieldId] = input.value;
+
+    function check() {
+      if (containsLink(input.value)) {
+        input.value = _linkFieldPrev[fieldId];
+        showLinkPopup();
+      } else {
+        _linkFieldPrev[fieldId] = input.value;
+      }
+    }
+
+    input.addEventListener('input', check);
+    input.addEventListener('paste', function () {
+      setTimeout(check, 0);
+    });
+  }
+
+  LINK_GUARD_FIELDS.forEach(setupLinkGuard);
+
+  function syncLinkFieldPrev() {
+    LINK_GUARD_FIELDS.forEach(function (fieldId) {
+      var input = document.getElementById(fieldId);
+      if (input) _linkFieldPrev[fieldId] = input.value;
+    });
   }
 
   var FIELD_CHAR_LIMITS = {
@@ -1682,7 +1831,10 @@
           likeBtn +
         '</div>' +
         expBlock +
-        '<div class="card-desc">' + formatDescriptionHtml(l.description) + '</div>' +
+        '<div class="card-desc-wrap">' +
+          '<div class="card-desc">' + formatDescriptionHtml(l.description) + '</div>' +
+          '<button type="button" class="card-desc-toggle">Развернуть текст</button>' +
+        '</div>' +
         (l.contacts
           ? '<button type="button" class="copy-btn" data-contacts="' + esc(l.contacts) + '">' +
               'Скопировать ' + esc(l.contact_type || 'контакт') +
@@ -1690,6 +1842,36 @@
           : '') +
       '</div>'
     );
+  }
+
+  function isCardDescOverflowing(descEl) {
+    return descEl.scrollHeight > descEl.clientHeight + 1;
+  }
+
+  function updateCardDescToggle(wrap) {
+    var desc = wrap.querySelector('.card-desc');
+    var toggle = wrap.querySelector('.card-desc-toggle');
+    if (!desc || !toggle) return;
+
+    if (desc.classList.contains('is-expanded')) {
+      toggle.textContent = 'Свернуть текст';
+      toggle.classList.add('is-visible');
+      return;
+    }
+
+    if (isCardDescOverflowing(desc)) {
+      toggle.textContent = 'Развернуть текст';
+      toggle.classList.add('is-visible');
+    } else {
+      toggle.classList.remove('is-visible');
+    }
+  }
+
+  function initCardDescToggles(root) {
+    var scope = root || document;
+    scope.querySelectorAll('.card-desc-wrap').forEach(function (wrap) {
+      updateCardDescToggle(wrap);
+    });
   }
 
   function bindListingCardEvents() {
@@ -1702,6 +1884,15 @@
       btn.addEventListener('click', function () {
         var cardId = btn.id.slice('like-btn-'.length);
         if (cardId) toggleLike(cardId);
+      });
+    });
+    document.querySelectorAll('.card-desc-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var wrap = btn.closest('.card-desc-wrap');
+        var desc = wrap && wrap.querySelector('.card-desc');
+        if (!desc) return;
+        desc.classList.toggle('is-expanded');
+        updateCardDescToggle(wrap);
       });
     });
   }
@@ -1784,6 +1975,9 @@
 
     listingsContainer.innerHTML = html;
     bindListingCardEvents();
+    requestAnimationFrame(function () {
+      initCardDescToggles(listingsContainer);
+    });
     syncLikeButtonsFromState();
     if (!opts.skipLikesInit) {
       initLikes().then(function () {
@@ -2217,6 +2411,7 @@
       }
       truncateField('display_name');
       updateDescriptionCounter();
+      syncLinkFieldPrev();
       return;
     }
 
@@ -2252,6 +2447,7 @@
 
     Object.keys(FIELD_CHAR_LIMITS).forEach(truncateField);
     updateDescriptionCounter();
+    syncLinkFieldPrev();
   }
 
   /* ─────────────────────────────────────
@@ -2306,6 +2502,11 @@
     var data = getFormData();
     if (!data.display_name || !data.avatar_emoji || !data.category || !data.experience || !data.description || !data.contact_type || !data.contacts) {
       showStatus(statusEl, ERRORS.validation, 'err');
+      return null;
+    }
+    if (containsLink(data.display_name) || containsLink(data.description)) {
+      showLinkPopup();
+      showStatus(statusEl, ERRORS.links_forbidden, 'err');
       return null;
     }
     return data;
