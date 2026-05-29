@@ -226,7 +226,21 @@ export async function compressToWebp(
 
   const image = await decodeImage(bytes, mime);
   if (!image) {
-    return { ok: false, code: 'portfolio_invalid_type' };
+    const len = bytes.byteLength;
+    const tailStart = Math.max(0, len - 8);
+    console.log(
+      '[media] decode fail',
+      mime,
+      len,
+      'head=',
+      bytes[0],
+      bytes[1],
+      bytes[2],
+      bytes[3],
+      'tail=',
+      ...Array.from(bytes.subarray(tailStart)),
+    );
+    return { ok: false, code: 'portfolio_compress_failed' };
   }
 
   const target = calcResizeDimensions(image.width, image.height);

@@ -102,13 +102,26 @@ async function processPhotoBytes(
   | { ok: true; photo: ProcessedPhoto }
   | { ok: false; code: string }
 > {
-  console.log('[portfolio] processPhoto', position, bytes.byteLength);
+  const len = bytes.byteLength;
+  const tailStart = Math.max(0, len - 8);
+  console.log(
+    '[portfolio] processPhoto',
+    position,
+    len,
+    'head=',
+    bytes[0],
+    bytes[1],
+    bytes[2],
+    bytes[3],
+    'tail=',
+    ...Array.from(bytes.subarray(tailStart)),
+  );
   const validated = await validateImageBytes(bytes);
   if (!validated.ok) {
     console.log(
       '[portfolio] validate fail',
       validated.code,
-      bytes.byteLength,
+      len,
       bytes[0],
       bytes[1],
       bytes[2],
@@ -119,7 +132,14 @@ async function processPhotoBytes(
 
   const compressed = await compressToWebp(bytes, validated.mime);
   if (!compressed.ok) {
-    console.log('[portfolio] compress fail', compressed.code, validated.mime, bytes.byteLength);
+    console.log(
+      '[portfolio] compress fail',
+      compressed.code,
+      validated.mime,
+      len,
+      'tail=',
+      ...Array.from(bytes.subarray(tailStart)),
+    );
     return { ok: false, code: compressed.code };
   }
 
@@ -151,17 +171,74 @@ async function processPhotoFile(
   return processPhotoBytes(bytes, position, r2Key, existingKey);
 }
 
+function base64DecodedLength(b64: string): number {
+  const padding = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+  return Math.floor(b64.length * 3 / 4) - padding;
+}
+
+function logDecodedImageIntegrity(bytes: Uint8Array, b64Len: number): void {
+  const len = bytes.byteLength;
+  if (len < 4) {
+    console.log('[portfolio] b64 decoded too short', b64Len, len);
+    return;
+  }
+
+  const tailStart = Math.max(0, len - 8);
+  console.log(
+    '[portfolio] b64 decoded',
+    'b64Len=',
+    b64Len,
+    'bytes=',
+    len,
+    'head=',
+    bytes[0],
+    bytes[1],
+    bytes[2],
+    bytes[3],
+    'tail=',
+    ...Array.from(bytes.subarray(tailStart)),
+  );
+
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const hasIend =
+      len >= 12 &&
+      bytes[len - 8] === 0x49 &&
+      bytes[len - 7] === 0x45 &&
+      bytes[len - 6] === 0x4e &&
+      bytes[len - 5] === 0x44;
+    if (!hasIend) {
+      console.log('[portfolio] png missing IEND chunk at tail');
+    }
+  }
+}
+
 function base64ToBytes(data: string): Uint8Array | null {
   const trimmed = data.replace(/\s/g, '');
   if (!trimmed) {
     return null;
   }
+
+  const expectedLen = base64DecodedLength(trimmed);
   try {
     const binary = atob(trimmed);
+    if (binary.length !== expectedLen) {
+      console.log(
+        '[portfolio] b64 length mismatch',
+        'expected=',
+        expectedLen,
+        'got=',
+        binary.length,
+        'b64Chars=',
+        trimmed.length,
+      );
+    }
+
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+      bytes[i] = binary.charCodeAt(i) & 0xff;
     }
+
+    logDecodedImageIntegrity(bytes, trimmed.length);
     return bytes;
   } catch {
     return null;
