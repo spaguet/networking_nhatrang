@@ -754,7 +754,12 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 
 **Не изменялось (по ТЗ):** кнопка «Портфолио» в каталоге, `portfolio.html`, `moderationKeyboard` — Фазы 4–5.
 
-**Проверки:** ручной smoke в Telegram Mini App после деплоя `catalog.html` на Pages (промпт 6).
+**Деплой (29.05.2026):**
+
+- Worker: `wrangler deploy` → Version `9429f710-1ec5-4a95-bec9-a33ab87b2165` (`https://tg-networking-nhatrang.albertkoall.workers.dev`).
+- GitHub Pages: push `main` `d58cfd6` → Actions run `26628022875` ✅ (`https://spaguet.github.io/networking_nhatrang/`).
+
+**Проверки:** smoke в Telegram Mini App (форма + upload).
 
 ---
 
