@@ -832,7 +832,7 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 **Деплой (29.05.2026):**
 
 - Worker: `wrangler deploy` → Version `b6db5d6e-4b38-4d88-adf5-87de7ac921f4` (`https://tg-networking-nhatrang.albertkoall.workers.dev`); bindings: `PORTFOLIO`, `DB`, `CACHE`, cron `0 0 * * *`.
-- Git: commit docs + push `main`.
+- Git: commit `cb7d441` + push `main` → origin.
 
 ---
 
