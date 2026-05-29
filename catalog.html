@@ -3177,7 +3177,7 @@
     return false;
   }
 
-  function addPortfolioFile(file) {
+  function addPortfolioFile(file, onMaterialized) {
     if (!file) return false;
     if (_portfolioSlots.length >= PORTFOLIO_MAX_FILES) {
       showToast('Можно добавить не более ' + PORTFOLIO_MAX_FILES + ' фото');
@@ -3202,6 +3202,10 @@
     clearStatus(document.getElementById('status'));
     appendPortfolioSlotDom(slot);
 
+    function finishMaterialize() {
+      if (typeof onMaterialized === 'function') onMaterialized();
+    }
+
     materializePortfolioFile(file, function (uploadFile) {
       var slotIdx = -1;
       for (var i = 0; i < _portfolioSlots.length; i++) {
@@ -3210,14 +3214,19 @@
           break;
         }
       }
-      if (slotIdx < 0) return;
+      if (slotIdx < 0) {
+        finishMaterialize();
+        return;
+      }
       if (!uploadFile || !uploadFile.size) {
         removePortfolioSlot(position);
         showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
+        finishMaterialize();
         return;
       }
       _portfolioSlots[slotIdx].file = uploadFile;
       _portfolioSlots[slotIdx].pending = false;
+      finishMaterialize();
       buildPortfolioPreview(uploadFile, function (previewUrl) {
         var stillThere = false;
         for (var j = 0; j < _portfolioSlots.length; j++) {
@@ -3265,34 +3274,136 @@
     return 'image/jpeg';
   }
 
-  function materializePortfolioFile(file, done) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      var buf = reader.result;
-      if (!buf || !buf.byteLength) {
-        portfolioTwlog('materialize empty ' + (file.name || '') + ' size=' + (file.size || 0));
-        done(null);
+  function portfolioFileFromBuffer(buf, file) {
+    var type = portfolioGuessMime(file);
+    var name = file.name || 'photo.jpg';
+    try {
+      return new File([buf], name, { type: type, lastModified: Date.now() });
+    } catch (e) {
+      try {
+        return new Blob([buf], { type: type });
+      } catch (e2) {
+        return null;
+      }
+    }
+  }
+
+  function readPortfolioFileViaFetch(file) {
+    return new Promise(function (resolve, reject) {
+      var objectUrl;
+      try {
+        objectUrl = URL.createObjectURL(file);
+      } catch (e) {
+        reject(e);
         return;
       }
-      portfolioTwlog('materialize ' + (file.name || '') + ' ' + file.size + '→' + buf.byteLength);
-      var type = portfolioGuessMime(file);
-      var name = file.name || 'photo.jpg';
+      fetch(objectUrl)
+        .then(function (r) {
+          if (!r.ok) throw new Error('fetch ' + r.status);
+          return r.arrayBuffer();
+        })
+        .then(function (buf) {
+          releasePortfolioPreviewUrl(objectUrl);
+          if (buf && buf.byteLength) resolve(buf);
+          else reject(new Error('empty'));
+        })
+        .catch(function (err) {
+          releasePortfolioPreviewUrl(objectUrl);
+          reject(err);
+        });
+    });
+  }
+
+  function readPortfolioFileViaReader(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var buf = reader.result;
+        if (buf && buf.byteLength) resolve(buf);
+        else reject(new Error('empty'));
+      };
+      reader.onerror = function () {
+        reject(new Error('reader'));
+      };
       try {
-        done(new File([buf], name, { type: type, lastModified: Date.now() }));
+        reader.readAsArrayBuffer(file);
       } catch (e) {
-        try {
-          done(new Blob([buf], { type: type }));
-        } catch (e2) {
-          portfolioTwlog('materialize fail ' + (file.name || ''));
-          done(null);
-        }
+        reject(e);
       }
-    };
-    reader.onerror = function () {
-      portfolioTwlog('materialize read error ' + (file.name || '') + ' ' + file.size);
-      done(null);
-    };
-    reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function readPortfolioFileBuffer(file, attempt) {
+    attempt = attempt || 0;
+    if (!file || !file.size) {
+      return Promise.reject(new Error('empty'));
+    }
+
+    function checkBuf(buf) {
+      if (buf && buf.byteLength) return buf;
+      throw new Error('empty');
+    }
+
+    function tryAll() {
+      var chain = Promise.reject(new Error('skip'));
+      if (typeof file.arrayBuffer === 'function') {
+        chain = file.arrayBuffer().then(checkBuf).then(function (buf) {
+          portfolioTwlog('read arrayBuffer ' + (file.name || '') + ' ' + file.size);
+          return buf;
+        });
+      }
+      return chain
+        .catch(function () {
+          return readPortfolioFileViaFetch(file).then(checkBuf).then(function (buf) {
+            portfolioTwlog('read fetch ' + (file.name || '') + ' ' + file.size);
+            return buf;
+          });
+        })
+        .catch(function () {
+          return readPortfolioFileViaReader(file).then(checkBuf).then(function (buf) {
+            portfolioTwlog('read reader ' + (file.name || '') + ' ' + file.size);
+            return buf;
+          });
+        });
+    }
+
+    return tryAll().catch(function (err) {
+      if (attempt < 2) {
+        return new Promise(function (resolve, reject) {
+          setTimeout(function () {
+            readPortfolioFileBuffer(file, attempt + 1).then(resolve).catch(reject);
+          }, 150 * (attempt + 1));
+        });
+      }
+      throw err;
+    });
+  }
+
+  function materializePortfolioFile(file, done) {
+    readPortfolioFileBuffer(file)
+      .then(function (buf) {
+        if (buf.byteLength !== file.size) {
+          portfolioTwlog('materialize size mismatch ' + (file.name || '') + ' ' + file.size + '→' + buf.byteLength);
+        } else {
+          portfolioTwlog('materialize ' + (file.name || '') + ' ' + file.size + '→' + buf.byteLength);
+        }
+        var uploadFile = portfolioFileFromBuffer(buf, file);
+        if (!uploadFile || !uploadFile.size) {
+          portfolioTwlog('materialize fail wrap ' + (file.name || ''));
+          done(file);
+          return;
+        }
+        done(uploadFile);
+      })
+      .catch(function () {
+        portfolioTwlog('materialize read error ' + (file.name || '') + ' ' + file.size);
+        if (file && file.size) {
+          portfolioTwlog('materialize fallback original ' + (file.name || '') + ' ' + file.size);
+          done(file);
+          return;
+        }
+        done(null);
+      });
   }
 
   function compressPortfolioFileForUpload(file) {
@@ -3614,15 +3725,24 @@
     var chk = document.getElementById('portfolio_enabled');
     var addBtn = document.getElementById('portfolioAddBtn');
 
+    function resetPortfolioFileInput(input) {
+      var parent = input && input.parentNode;
+      if (!parent) return;
+      var fresh = input.cloneNode(false);
+      parent.replaceChild(fresh, input);
+      bindPortfolioFileInput(fresh);
+    }
+
     function bindPortfolioFileInput(input) {
       input.addEventListener('change', function () {
         var file = input.files && input.files[0];
-        if (file) addPortfolioFile(file);
-        var parent = input.parentNode;
-        if (!parent) return;
-        var fresh = input.cloneNode(false);
-        parent.replaceChild(fresh, input);
-        bindPortfolioFileInput(fresh);
+        if (file) {
+          addPortfolioFile(file, function () {
+            resetPortfolioFileInput(input);
+          });
+        } else {
+          resetPortfolioFileInput(input);
+        }
       });
     }
 
