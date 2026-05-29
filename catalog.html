@@ -451,9 +451,13 @@
 
     .card-head {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 12px;
       margin-bottom: 10px;
+    }
+    .card-head-body {
+      flex: 1;
+      min-width: 0;
     }
     .card-avatar {
       width: 46px; height: 46px;
@@ -527,14 +531,12 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin: 2px 0 10px;
-      width: 100%;
+      margin-top: 2px;
     }
     .card-cat-row .card-cat {
       margin-top: 0;
       flex: 1;
       min-width: 0;
-      padding-left: 58px;
     }
     .like-btn {
       display: inline-flex;
@@ -559,8 +561,8 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .like-btn.liked .like-checkbox {
-      border-color: var(--c-ok);
-      background: var(--c-ok);
+      border-color: rgb(76, 187, 23);
+      background: rgb(76, 187, 23);
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2l2.4 2.4 4.6-5'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: center;
@@ -1857,11 +1859,13 @@
       '<div class="' + cardClass + '" style="animation-delay:' + (animIndex * 0.055) + 's">' +
         '<div class="card-head">' +
           '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
-          '<div class="card-name">' + esc(l.display_name) + '</div>' +
-        '</div>' +
-        '<div class="card-cat-row">' +
-          '<div class="card-cat">' + esc(l.category) + '</div>' +
-          likeBtn +
+          '<div class="card-head-body">' +
+            '<div class="card-name">' + esc(l.display_name) + '</div>' +
+            '<div class="card-cat-row">' +
+              '<div class="card-cat">' + esc(l.category) + '</div>' +
+              likeBtn +
+            '</div>' +
+          '</div>' +
         '</div>' +
         expBlock +
         '<div class="card-desc-wrap">' +
