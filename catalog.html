@@ -1704,7 +1704,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v81dataurl';
+  var PORTFOLIO_CLIENT_VERSION = 'v82dimcheck';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3542,12 +3542,14 @@
           reject(new Error(reason));
         }
 
-        function succeed(result, reason) {
+        function succeed(result, reason, outW, outH) {
           if (settled) return;
           settled = true;
           cleanup();
           if (reason) portfolioTwlog(reason + ' ' + (file.name || '') + ' ' + file.size);
-          if (portfolioServerRejectRisk(result, imgW, imgH)) {
+          var checkW = outW != null ? outW : imgW;
+          var checkH = outH != null ? outH : imgH;
+          if (portfolioServerRejectRisk(result, checkW, checkH)) {
             reject(new Error('compress unsafe'));
             return;
           }
@@ -3584,7 +3586,7 @@
             fail('compress dataURL fail');
             return;
           }
-          succeed(compressed);
+          succeed(compressed, null, cw, ch);
         };
         img.onerror = function () {
           fail('compress img error');
