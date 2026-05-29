@@ -1704,7 +1704,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v83b64upload';
+  var PORTFOLIO_CLIENT_VERSION = 'v84pngupload';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3487,15 +3487,15 @@
     return file.size > PORTFOLIO_SERVER_LARGE_BYTES;
   }
 
-  function canvasToJpegFile(canvas, sourceFile, cw, ch, quality) {
+  function canvasToUploadFile(canvas, sourceFile, cw, ch) {
     var dataUrl;
     try {
-      dataUrl = canvas.toDataURL('image/jpeg', quality);
+      dataUrl = canvas.toDataURL('image/png');
     } catch (e) {
       portfolioTwlog('compress dataURL err ' + (sourceFile.name || '') + ' ' + (e && e.message ? e.message : e));
       return null;
     }
-    if (!dataUrl || dataUrl.indexOf('data:image/jpeg') !== 0) {
+    if (!dataUrl || dataUrl.indexOf('data:image/png') !== 0) {
       portfolioTwlog('compress dataURL bad ' + (sourceFile.name || ''));
       return null;
     }
@@ -3506,15 +3506,15 @@
     for (var i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
-    portfolioTwlog('compress ok dataURL ' + (sourceFile.name || '') + ' ' + sourceFile.size + '→' + bytes.length + ' ' + cw + 'x' + ch);
+    portfolioTwlog('compress ok png ' + (sourceFile.name || '') + ' ' + sourceFile.size + '→' + bytes.length + ' ' + cw + 'x' + ch);
     var baseName = (sourceFile.name || 'photo').replace(/\.[^.]+$/, '');
     try {
-      return new File([bytes], baseName + '.jpg', {
-        type: 'image/jpeg',
+      return new File([bytes], baseName + '.png', {
+        type: 'image/png',
         lastModified: Date.now()
       });
     } catch (e) {
-      return new Blob([bytes], { type: 'image/jpeg' });
+      return new Blob([bytes], { type: 'image/png' });
     }
   }
 
@@ -3586,7 +3586,7 @@
             return;
           }
           ctx.drawImage(img, 0, 0, cw, ch);
-          var compressed = canvasToJpegFile(canvas, file, cw, ch, 0.75);
+          var compressed = canvasToUploadFile(canvas, file, cw, ch);
           if (!compressed || !compressed.size) {
             fail('compress dataURL fail');
             return;
@@ -3637,8 +3637,8 @@
 
   function uploadPortfolioPhotoB64(action, slot, compressed, listingId) {
     return blobToBytes(compressed).then(function (bytes) {
-      if (bytes.length >= 2) {
-        portfolioTwlog('upload b64 magic ' + bytes[0] + ',' + bytes[1] + ' len=' + bytes.length);
+      if (bytes.length >= 4) {
+        portfolioTwlog('upload b64 magic ' + bytes[0] + ',' + bytes[1] + ',' + bytes[2] + ',' + bytes[3] + ' len=' + bytes.length);
       }
       var extra = {
         position: slot.position,

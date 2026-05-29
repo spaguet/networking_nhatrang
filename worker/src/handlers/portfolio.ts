@@ -105,11 +105,21 @@ async function processPhotoBytes(
   console.log('[portfolio] processPhoto', position, bytes.byteLength);
   const validated = await validateImageBytes(bytes);
   if (!validated.ok) {
+    console.log(
+      '[portfolio] validate fail',
+      validated.code,
+      bytes.byteLength,
+      bytes[0],
+      bytes[1],
+      bytes[2],
+      bytes[3],
+    );
     return { ok: false, code: validated.code };
   }
 
   const compressed = await compressToWebp(bytes, validated.mime);
   if (!compressed.ok) {
+    console.log('[portfolio] compress fail', compressed.code, validated.mime, bytes.byteLength);
     return { ok: false, code: compressed.code };
   }
 

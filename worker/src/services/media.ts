@@ -31,12 +31,17 @@ const LARGE_INPUT_FALLBACK_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function detectImageMime(bytes: Uint8Array): string | null {
-  if (bytes.length < 12) {
+  if (bytes.length < 3) {
     return null;
   }
 
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+  // SOI marker only — canvas/WebView JPEG may use FF D8 FF E0 or FF D8 FF E1.
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
     return 'image/jpeg';
+  }
+
+  if (bytes.length < 12) {
+    return null;
   }
 
   if (
