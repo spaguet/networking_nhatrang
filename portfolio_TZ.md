@@ -804,7 +804,7 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 **Деплой (29.05.2026):**
 
 - Worker: `wrangler deploy` → Version `6c734dd8-2d31-4903-b27d-2e59f988fe60` (`https://tg-networking-nhatrang.albertkoall.workers.dev`); cron `0 0 * * *`.
-- GitHub Pages: push `main` (rules.html) — см. commit ниже.
+- GitHub Pages: push `main` `a72e4ff` → Actions (rules.html) (`https://spaguet.github.io/networking_nhatrang/`).
 
 ---
 
