@@ -1700,6 +1700,7 @@
   var PORTFOLIO_SKIP_CANVAS_BELOW = 300 * 1024;
   var PORTFOLIO_CANVAS_TIMEOUT_MS = 5000;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
+  var PORTFOLIO_CLIENT_VERSION = 'v79earlyread';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3177,7 +3178,76 @@
     return false;
   }
 
-  function addPortfolioFile(file, onMaterialized) {
+  function startPortfolioFileRead(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var buf = fr.result;
+        if (buf && buf.byteLength) {
+          portfolioTwlog('read ok ' + (file.name || '') + ' ' + buf.byteLength);
+          resolve(buf);
+        } else {
+          portfolioTwlog('read empty ' + (file.name || '') + ' ' + file.size);
+          reject(new Error('empty'));
+        }
+      };
+      fr.onerror = function () {
+        portfolioTwlog('read fail reader ' + (file.name || '') + ' ' + file.size);
+        reject(new Error('reader'));
+      };
+      try {
+        fr.readAsArrayBuffer(file);
+      } catch (e) {
+        portfolioTwlog('read fail sync ' + (file.name || '') + ' ' + (e && e.message ? e.message : e));
+        reject(e);
+      }
+    });
+  }
+
+  function applyPortfolioMaterializedFile(position, uploadFile, onMaterialized) {
+    function finishMaterialize() {
+      if (typeof onMaterialized === 'function') onMaterialized();
+    }
+
+    var slotIdx = -1;
+    for (var i = 0; i < _portfolioSlots.length; i++) {
+      if (_portfolioSlots[i].position === position) {
+        slotIdx = i;
+        break;
+      }
+    }
+    if (slotIdx < 0) {
+      finishMaterialize();
+      return;
+    }
+    if (!uploadFile || !uploadFile.size) {
+      removePortfolioSlot(position);
+      showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
+      finishMaterialize();
+      return;
+    }
+    _portfolioSlots[slotIdx].file = uploadFile;
+    _portfolioSlots[slotIdx].pending = false;
+    finishMaterialize();
+    buildPortfolioPreview(uploadFile, function (previewUrl) {
+      var stillThere = false;
+      for (var j = 0; j < _portfolioSlots.length; j++) {
+        if (_portfolioSlots[j].position === position) {
+          _portfolioSlots[j].previewUrl = previewUrl;
+          stillThere = true;
+          break;
+        }
+      }
+      if (!stillThere) {
+        releasePortfolioPreviewUrl(previewUrl);
+        return;
+      }
+      _portfolioObjectUrls.push(previewUrl);
+      setPortfolioSlotPreview(position, previewUrl);
+    });
+  }
+
+  function addPortfolioFile(file, onMaterialized, earlyReadPromise) {
     if (!file) return false;
     if (_portfolioSlots.length >= PORTFOLIO_MAX_FILES) {
       showToast('Можно добавить не более ' + PORTFOLIO_MAX_FILES + ' фото');
@@ -3202,48 +3272,38 @@
     clearStatus(document.getElementById('status'));
     appendPortfolioSlotDom(slot);
 
-    function finishMaterialize() {
-      if (typeof onMaterialized === 'function') onMaterialized();
+    function handleUploadFile(uploadFile) {
+      applyPortfolioMaterializedFile(position, uploadFile, onMaterialized);
     }
 
-    materializePortfolioFile(file, function (uploadFile) {
-      var slotIdx = -1;
-      for (var i = 0; i < _portfolioSlots.length; i++) {
-        if (_portfolioSlots[i].position === position) {
-          slotIdx = i;
-          break;
-        }
-      }
-      if (slotIdx < 0) {
-        finishMaterialize();
-        return;
-      }
-      if (!uploadFile || !uploadFile.size) {
-        removePortfolioSlot(position);
-        showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
-        finishMaterialize();
-        return;
-      }
-      _portfolioSlots[slotIdx].file = uploadFile;
-      _portfolioSlots[slotIdx].pending = false;
-      finishMaterialize();
-      buildPortfolioPreview(uploadFile, function (previewUrl) {
-        var stillThere = false;
-        for (var j = 0; j < _portfolioSlots.length; j++) {
-          if (_portfolioSlots[j].position === position) {
-            _portfolioSlots[j].previewUrl = previewUrl;
-            stillThere = true;
-            break;
+    if (earlyReadPromise) {
+      earlyReadPromise
+        .then(function (buf) {
+          if (buf.byteLength !== file.size) {
+            portfolioTwlog('materialize size mismatch ' + (file.name || '') + ' ' + file.size + '→' + buf.byteLength);
+          } else {
+            portfolioTwlog('materialize ' + (file.name || '') + ' ' + file.size + '→' + buf.byteLength);
           }
-        }
-        if (!stillThere) {
-          releasePortfolioPreviewUrl(previewUrl);
-          return;
-        }
-        _portfolioObjectUrls.push(previewUrl);
-        setPortfolioSlotPreview(position, previewUrl);
-      });
-    });
+          var uploadFile = portfolioFileFromBuffer(buf, file);
+          if (!uploadFile || !uploadFile.size) {
+            portfolioTwlog('materialize fail wrap ' + (file.name || ''));
+            handleUploadFile(file);
+            return;
+          }
+          handleUploadFile(uploadFile);
+        })
+        .catch(function () {
+          portfolioTwlog('materialize read error ' + (file.name || '') + ' ' + file.size);
+          if (file && file.size) {
+            portfolioTwlog('materialize fallback original ' + (file.name || '') + ' ' + file.size);
+            handleUploadFile(file);
+            return;
+          }
+          handleUploadFile(null);
+        });
+    } else {
+      materializePortfolioFile(file, handleUploadFile);
+    }
     return true;
   }
 
@@ -3736,11 +3796,17 @@
     function bindPortfolioFileInput(input) {
       input.addEventListener('change', function () {
         var file = input.files && input.files[0];
-        if (file) {
-          addPortfolioFile(file, function () {
-            resetPortfolioFileInput(input);
-          });
-        } else {
+        if (!file) {
+          resetPortfolioFileInput(input);
+          return;
+        }
+
+        // Telegram Android: content:// URI dies after first await/yield — read bytes first.
+        var earlyReadPromise = startPortfolioFileRead(file);
+
+        if (!addPortfolioFile(file, function () {
+          resetPortfolioFileInput(input);
+        }, earlyReadPromise)) {
           resetPortfolioFileInput(input);
         }
       });
@@ -3760,6 +3826,8 @@
         }
       });
     }
+
+    portfolioTwlog('client ' + PORTFOLIO_CLIENT_VERSION + ' ' + String(navigator.userAgent || '').slice(0, 40));
 
     var fileInput = document.getElementById('portfolioFileInput');
     if (fileInput) {
