@@ -776,7 +776,7 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 
 **Деплой (29.05.2026):**
 
-- GitHub Pages: push `main` → Actions (catalog.html + portfolio.html).
+- GitHub Pages: push `main` `b0d8f23` → Actions run `26633250738` ✅ (`https://spaguet.github.io/networking_nhatrang/`).
 - Worker: без изменений кода в фазе 4; API `get_portfolio` задеплоен ранее (фазы 2–3).
 
 **Проверки:** кнопка «Портфолио» только при `has_portfolio`; popup загружает signed URLs; `portfolio.html?listing_id=…&view=admin&token=…&exp=…` для админа.
