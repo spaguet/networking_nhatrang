@@ -103,6 +103,7 @@ async function processPhotoFile(
   | { ok: false; code: string }
 > {
   const bytes = new Uint8Array(await file.arrayBuffer());
+  console.log('[portfolio] processPhoto', position, file.size, file.type || '');
   const validated = await validateImageBytes(bytes);
   if (!validated.ok) {
     return { ok: false, code: validated.code };

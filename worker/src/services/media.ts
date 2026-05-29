@@ -23,6 +23,10 @@ const INPUT_MAX_BYTES = 8 * 1024 * 1024;
 const OUTPUT_TARGET_BYTES = 400 * 1024;
 const OUTPUT_HARD_CAP_BYTES = 600 * 1024;
 const MAX_LONG_EDGE = 1920;
+/** Reject huge decodes before @jsquash allocates full RGBA (Worker isolate OOM). */
+const MAX_INPUT_LONG_EDGE = 2560;
+const MAX_INPUT_PIXELS = 2560 * 1920;
+const LARGE_INPUT_FALLBACK_BYTES = 2 * 1024 * 1024;
 
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -57,6 +61,90 @@ function detectImageMime(bytes: Uint8Array): string | null {
     return 'image/webp';
   }
 
+  return null;
+}
+
+function readJpegDimensions(
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
+  let i = 2;
+  while (i + 9 < bytes.length) {
+    if (bytes[i] !== 0xff) {
+      i += 1;
+      continue;
+    }
+    const marker = bytes[i + 1];
+    if (marker === 0xd9) {
+      break;
+    }
+    if (i + 3 >= bytes.length) {
+      break;
+    }
+    const segmentLen = (bytes[i + 2] << 8) | bytes[i + 3];
+    if (segmentLen < 2) {
+      break;
+    }
+    const isSof =
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf);
+    if (isSof && i + 8 < bytes.length) {
+      const height = (bytes[i + 5] << 8) | bytes[i + 6];
+      const width = (bytes[i + 7] << 8) | bytes[i + 8];
+      if (width > 0 && height > 0) {
+        return { width, height };
+      }
+    }
+    i += 2 + segmentLen;
+  }
+  return null;
+}
+
+function readPngDimensions(
+  bytes: Uint8Array,
+): { width: number; height: number } | null {
+  if (bytes.length < 24) {
+    return null;
+  }
+  const width =
+    (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+  const height =
+    (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+  if (width > 0 && height > 0) {
+    return { width, height };
+  }
+  return null;
+}
+
+function readImageDimensions(
+  bytes: Uint8Array,
+  mime: string,
+): { width: number; height: number } | null {
+  if (mime === 'image/jpeg') {
+    return readJpegDimensions(bytes);
+  }
+  if (mime === 'image/png') {
+    return readPngDimensions(bytes);
+  }
+  return null;
+}
+
+function checkInputDimensions(
+  bytes: Uint8Array,
+  mime: string,
+): MediaErrorCode | null {
+  const dims = readImageDimensions(bytes, mime);
+  if (!dims) {
+    if (bytes.byteLength > LARGE_INPUT_FALLBACK_BYTES) {
+      return 'portfolio_too_large';
+    }
+    return null;
+  }
+  const longEdge = Math.max(dims.width, dims.height);
+  if (longEdge > MAX_INPUT_LONG_EDGE || dims.width * dims.height > MAX_INPUT_PIXELS) {
+    return 'portfolio_too_large';
+  }
   return null;
 }
 
@@ -113,6 +201,11 @@ export async function validateImageBytes(
     return { ok: false, code: 'portfolio_invalid_type' };
   }
 
+  const dimError = checkInputDimensions(bytes, mime);
+  if (dimError) {
+    return { ok: false, code: dimError };
+  }
+
   return { ok: true, mime };
 }
 
@@ -120,6 +213,12 @@ export async function compressToWebp(
   bytes: Uint8Array,
   mime: string,
 ): Promise<CompressWebpResult> {
+  const dimError = checkInputDimensions(bytes, mime);
+  if (dimError) {
+    console.log('[media] reject before decode', mime, bytes.byteLength, dimError);
+    return { ok: false, code: dimError };
+  }
+
   const image = await decodeImage(bytes, mime);
   if (!image) {
     return { ok: false, code: 'portfolio_invalid_type' };
