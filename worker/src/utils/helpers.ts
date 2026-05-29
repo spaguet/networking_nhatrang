@@ -71,7 +71,7 @@ export function buildPaidModeBanner(
     const until = blocking.expires_at ? formatDateRu(blocking.expires_at) : '';
     return (
       `Бесплатная анкета от «${blocking.display_name}» уже была опубликована в каталоге («${blocking.category}»).` +
-      (until ? ` Бесплатное размещение доступно с ${until}.` : '') +
+      (until ? ` Срок размещения бесплатной публикации до ${until}.` : '') +
       suffix
     );
   }
