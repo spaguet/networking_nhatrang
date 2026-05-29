@@ -2997,12 +2997,20 @@
   }
 
   function portfolioFileMimeOk(file) {
-    var allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     var mime = (file.type || '').toLowerCase();
+    var allowed = [
+      'image/jpeg', 'image/jpg', 'image/pjpeg',
+      'image/png', 'image/x-png',
+      'image/webp'
+    ];
     if (allowed.indexOf(mime) >= 0) return true;
-    if (mime && mime !== 'application/octet-stream') return false;
+    if (mime.indexOf('image/') === 0) return true;
+
     var name = (file.name || '').toLowerCase();
-    return /\.(jpe?g|png|webp)$/.test(name);
+    if (/\.(jpe?g|png|webp)$/.test(name)) {
+      return !mime || mime === 'application/octet-stream';
+    }
+    return false;
   }
 
   function addPortfolioFile(file) {
