@@ -1153,6 +1153,9 @@
       border: 1px solid var(--border);
       flex-shrink: 0;
     }
+    .portfolio-slot.is-loading {
+      background: var(--cream-press);
+    }
     .portfolio-slot img {
       width: 100%;
       height: 100%;
@@ -2945,38 +2948,104 @@
     return null;
   }
 
-  function renderPortfolioSlots() {
-    var container = document.getElementById('portfolioSlots');
+  function updatePortfolioChrome() {
     var hint = document.getElementById('portfolioCountHint');
     var addBtn = document.getElementById('portfolioAddBtn');
-    if (!container) return;
-
-    container.innerHTML = '';
-    _portfolioSlots.forEach(function (slot) {
-      var wrap = document.createElement('div');
-      wrap.className = 'portfolio-slot';
-      var img = document.createElement('img');
-      img.src = slot.previewUrl;
-      img.alt = 'Фото ' + slot.position;
-      var rm = document.createElement('button');
-      rm.type = 'button';
-      rm.className = 'portfolio-slot-remove';
-      rm.setAttribute('aria-label', 'Удалить');
-      rm.textContent = '×';
-      rm.addEventListener('click', function () {
-        removePortfolioSlot(slot.position);
-      });
-      wrap.appendChild(img);
-      wrap.appendChild(rm);
-      container.appendChild(wrap);
-    });
-
     if (hint) {
       hint.textContent = _portfolioSlots.length + ' / ' + PORTFOLIO_MAX_FILES;
     }
     if (addBtn) {
       addBtn.disabled = _portfolioSlots.length >= PORTFOLIO_MAX_FILES;
     }
+  }
+
+  function createPortfolioSlotElement(slot) {
+    var wrap = document.createElement('div');
+    wrap.className = 'portfolio-slot' + (slot.previewUrl ? '' : ' is-loading');
+    wrap.setAttribute('data-portfolio-position', String(slot.position));
+    var img = document.createElement('img');
+    img.alt = 'Фото ' + slot.position;
+    if (slot.previewUrl) {
+      img.src = slot.previewUrl;
+    }
+    var rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'portfolio-slot-remove';
+    rm.setAttribute('aria-label', 'Удалить');
+    rm.textContent = '×';
+    rm.addEventListener('click', function () {
+      removePortfolioSlot(slot.position);
+    });
+    wrap.appendChild(img);
+    wrap.appendChild(rm);
+    return wrap;
+  }
+
+  function appendPortfolioSlotDom(slot) {
+    var container = document.getElementById('portfolioSlots');
+    if (!container) return;
+    container.appendChild(createPortfolioSlotElement(slot));
+    updatePortfolioChrome();
+  }
+
+  function removePortfolioSlotDom(position) {
+    var el = document.querySelector('[data-portfolio-position="' + position + '"]');
+    if (el && el.parentNode) {
+      el.parentNode.removeChild(el);
+    }
+  }
+
+  function buildPortfolioPreview(file, done) {
+    var previewMaxBytes = 512 * 1024;
+    var previewMaxEdge = 384;
+    if (file.size <= previewMaxBytes) {
+      done(URL.createObjectURL(file));
+      return;
+    }
+    var objectUrl = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      try { URL.revokeObjectURL(objectUrl); } catch (e) { /* ignore */ }
+      var w = img.naturalWidth;
+      var h = img.naturalHeight;
+      var scale = Math.min(1, previewMaxEdge / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+      canvas.toBlob(function (blob) {
+        if (blob) {
+          done(URL.createObjectURL(blob));
+        } else {
+          done(URL.createObjectURL(file));
+        }
+      }, 'image/jpeg', 0.85);
+    };
+    img.onerror = function () {
+      done(objectUrl);
+    };
+    img.src = objectUrl;
+  }
+
+  function setPortfolioSlotPreview(position, previewUrl) {
+    var wrap = document.querySelector('[data-portfolio-position="' + position + '"]');
+    if (!wrap) return;
+    wrap.classList.remove('is-loading');
+    var img = wrap.querySelector('img');
+    if (img) img.src = previewUrl;
+  }
+
+  function renderPortfolioSlots() {
+    var container = document.getElementById('portfolioSlots');
+    if (!container) return;
+
+    container.innerHTML = '';
+    _portfolioSlots.forEach(function (slot) {
+      container.appendChild(createPortfolioSlotElement(slot));
+    });
+    updatePortfolioChrome();
   }
 
   function removePortfolioSlot(position) {
@@ -2993,7 +3062,8 @@
     var urlIdx = _portfolioObjectUrls.indexOf(slot.previewUrl);
     if (urlIdx >= 0) _portfolioObjectUrls.splice(urlIdx, 1);
     _portfolioSlots.splice(idx, 1);
-    renderPortfolioSlots();
+    removePortfolioSlotDom(position);
+    updatePortfolioChrome();
   }
 
   function portfolioFileMimeOk(file) {
@@ -3027,13 +3097,32 @@
       showStatus(document.getElementById('status'), ERRORS.portfolio_too_large, 'err');
       return false;
     }
+    if (!file.size) {
+      showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
+      return false;
+    }
     var position = nextPortfolioPosition();
     if (!position) return false;
-    var previewUrl = URL.createObjectURL(file);
-    _portfolioObjectUrls.push(previewUrl);
-    _portfolioSlots.push({ position: position, file: file, previewUrl: previewUrl });
+    var slot = { position: position, file: file, previewUrl: null };
+    _portfolioSlots.push(slot);
     clearStatus(document.getElementById('status'));
-    renderPortfolioSlots();
+    appendPortfolioSlotDom(slot);
+    buildPortfolioPreview(file, function (previewUrl) {
+      var stillThere = false;
+      for (var i = 0; i < _portfolioSlots.length; i++) {
+        if (_portfolioSlots[i].position === position) {
+          _portfolioSlots[i].previewUrl = previewUrl;
+          stillThere = true;
+          break;
+        }
+      }
+      if (!stillThere) {
+        try { URL.revokeObjectURL(previewUrl); } catch (e) { /* ignore */ }
+        return;
+      }
+      _portfolioObjectUrls.push(previewUrl);
+      setPortfolioSlotPreview(position, previewUrl);
+    });
     return true;
   }
 

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Portfolio preview test</title>
+  <style>
+    .portfolio-slot { width: 72px; height: 72px; display: inline-block; border: 1px solid #ccc; margin: 4px; overflow: hidden; }
+    .portfolio-slot img { width: 100%; height: 100%; object-fit: cover; }
+    .portfolio-slot.is-error { background: #fcc; }
+    .portfolio-slot.is-loading { background: #eee; }
+    #log { font: 12px monospace; white-space: pre-wrap; max-height: 300px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Portfolio preview test</h1>
+  <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple />
+  <button type="button" id="addSameTwice">Add selected file twice</button>
+  <div id="portfolioSlots"></div>
+  <div id="portfolioCountHint">0 / 5</div>
+  <pre id="log"></pre>
+  <script>
+    var PORTFOLIO_MAX_FILES = 5;
+    var _portfolioSlots = [];
+    var _portfolioObjectUrls = [];
+
+    function log(msg) {
+      var el = document.getElementById('log');
+      el.textContent += msg + '\n';
+    }
+
+    function portfolioFileMimeOk(file) {
+      var mime = (file.type || '').toLowerCase();
+      var allowed = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/webp'];
+      if (allowed.indexOf(mime) >= 0) return true;
+      if (mime.indexOf('image/') === 0) return true;
+      var name = (file.name || '').toLowerCase();
+      if (/\.(jpe?g|png|webp)$/.test(name)) return !mime || mime === 'application/octet-stream';
+      return false;
+    }
+
+    function updatePortfolioChrome() {
+      document.getElementById('portfolioCountHint').textContent = _portfolioSlots.length + ' / ' + PORTFOLIO_MAX_FILES;
+    }
+
+    function createPortfolioSlotElement(slot, loading) {
+      var wrap = document.createElement('div');
+      wrap.className = 'portfolio-slot' + (loading ? ' is-loading' : '');
+      wrap.setAttribute('data-portfolio-position', String(slot.position));
+      var img = document.createElement('img');
+      img.alt = 'Фото ' + slot.position;
+      if (slot.previewUrl) img.src = slot.previewUrl;
+      img.addEventListener('load', function () {
+        wrap.classList.remove('is-loading');
+        wrap.classList.remove('is-error');
+        log('LOAD ok pos=' + slot.position + ' ' + (fileLabel(slot.file)));
+      });
+      img.addEventListener('error', function () {
+        wrap.classList.add('is-error');
+        log('LOAD FAIL pos=' + slot.position + ' ' + (fileLabel(slot.file)));
+      });
+      wrap.appendChild(img);
+      return wrap;
+    }
+
+    function fileLabel(file) {
+      return (file.name || '?') + ' type=' + (file.type || '(empty)') + ' size=' + file.size;
+    }
+
+    function appendPortfolioSlotDom(slot, loading) {
+      document.getElementById('portfolioSlots').appendChild(createPortfolioSlotElement(slot, loading));
+      updatePortfolioChrome();
+    }
+
+    function removePortfolioSlotDom(position) {
+      var el = document.querySelector('[data-portfolio-position="' + position + '"]');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
+    function renderPortfolioSlotsFull() {
+      var container = document.getElementById('portfolioSlots');
+      container.innerHTML = '';
+      _portfolioSlots.forEach(function (slot) {
+        container.appendChild(createPortfolioSlotElement(slot, !slot.previewUrl));
+      });
+      updatePortfolioChrome();
+      log('FULL RERENDER slots=' + _portfolioSlots.length);
+    }
+
+    function buildPortfolioPreview(file, done) {
+      if (file.size <= 512 * 1024) {
+        done(URL.createObjectURL(file));
+        return;
+      }
+      var objectUrl = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(objectUrl);
+        var maxEdge = 384;
+        var w = img.naturalWidth;
+        var h = img.naturalHeight;
+        var scale = Math.min(1, maxEdge / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        canvas.toBlob(function (blob) {
+          done(blob ? URL.createObjectURL(blob) : URL.createObjectURL(file));
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () {
+        done(objectUrl);
+      };
+      img.src = objectUrl;
+    }
+
+    function nextPortfolioPosition() {
+      var used = {};
+      _portfolioSlots.forEach(function (s) { used[s.position] = true; });
+      for (var i = 1; i <= PORTFOLIO_MAX_FILES; i++) {
+        if (!used[i]) return i;
+      }
+      return null;
+    }
+
+    function addPortfolioFile(file, mode) {
+      if (!file) return false;
+      if (!portfolioFileMimeOk(file)) {
+        log('REJECT mime ' + fileLabel(file));
+        return false;
+      }
+      var position = nextPortfolioPosition();
+      if (!position) return false;
+      var slot = { position: position, file: file, previewUrl: null };
+      _portfolioSlots.push(slot);
+      log('ADD pos=' + position + ' mode=' + mode + ' ' + fileLabel(file));
+      appendPortfolioSlotDom(slot, true);
+      buildPortfolioPreview(file, function (previewUrl) {
+        slot.previewUrl = previewUrl;
+        _portfolioObjectUrls.push(previewUrl);
+        var wrap = document.querySelector('[data-portfolio-position="' + position + '"]');
+        if (wrap) wrap.querySelector('img').src = previewUrl;
+      });
+      if (mode === 'full-rerender') renderPortfolioSlotsFull();
+      return true;
+    }
+
+    document.getElementById('addSameTwice').addEventListener('click', function () {
+      var f = document.getElementById('fileInput').files && document.getElementById('fileInput').files[0];
+      if (!f) { log('Pick a file first'); return; }
+      addPortfolioFile(f, 'incremental');
+      addPortfolioFile(f, 'incremental');
+    });
+  </script>
+</body>
+</html>
