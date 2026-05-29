@@ -2967,7 +2967,9 @@
   }
 
   function getPortfolioFiles() {
-    return _portfolioSlots.slice().sort(function (a, b) {
+    return _portfolioSlots.filter(function (s) {
+      return s.file && s.file.size > 0 && !s.pending;
+    }).slice().sort(function (a, b) {
       return a.position - b.position;
     });
   }
@@ -3029,50 +3031,43 @@
   }
 
   function buildPortfolioPreview(file, done) {
-    var previewMaxBytes = 512 * 1024;
-    var previewMaxEdge = 384;
-    var reader = new FileReader();
-    reader.onload = function () {
-      var dataUrl = reader.result;
-      if (typeof dataUrl !== 'string') {
-        done(URL.createObjectURL(file));
-        return;
-      }
-      if (file.size <= previewMaxBytes) {
-        done(dataUrl);
-        return;
-      }
-      var img = new Image();
-      img.onload = function () {
-        try {
-          var w = img.naturalWidth;
-          var h = img.naturalHeight;
-          var scale = Math.min(1, previewMaxEdge / Math.max(w, h));
-          var cw = Math.max(1, Math.round(w * scale));
-          var ch = Math.max(1, Math.round(h * scale));
-          var canvas = document.createElement('canvas');
-          canvas.width = cw;
-          canvas.height = ch;
-          var ctx = canvas.getContext('2d');
-          if (!ctx) {
-            done(dataUrl);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, cw, ch);
-          done(canvas.toDataURL('image/jpeg', 0.85) || dataUrl);
-        } catch (e) {
-          done(dataUrl);
+    var objectUrl = URL.createObjectURL(file);
+    if (file.size <= 512 * 1024) {
+      done(objectUrl);
+      return;
+    }
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var previewMaxEdge = 384;
+        var w = img.naturalWidth;
+        var h = img.naturalHeight;
+        var scale = Math.min(1, previewMaxEdge / Math.max(w, h));
+        if (scale >= 1) {
+          done(objectUrl);
+          return;
         }
-      };
-      img.onerror = function () {
-        done(dataUrl);
-      };
-      img.src = dataUrl;
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) {
+          done(objectUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, cw, ch);
+        releasePortfolioPreviewUrl(objectUrl);
+        done(canvas.toDataURL('image/jpeg', 0.85) || objectUrl);
+      } catch (e) {
+        done(objectUrl);
+      }
     };
-    reader.onerror = function () {
-      done(URL.createObjectURL(file));
+    img.onerror = function () {
+      done(objectUrl);
     };
-    reader.readAsDataURL(file);
+    img.src = objectUrl;
   }
 
   function setPortfolioSlotPreview(position, previewUrl) {
@@ -3153,32 +3148,53 @@
     }
     var position = nextPortfolioPosition();
     if (!position) return false;
-    var uploadFile = clonePortfolioUploadFile(file);
-    var slot = { position: position, file: uploadFile, previewUrl: null };
+    var slot = { position: position, file: null, previewUrl: null, pending: true };
     _portfolioSlots.push(slot);
     clearStatus(document.getElementById('status'));
     appendPortfolioSlotDom(slot);
-    buildPortfolioPreview(uploadFile, function (previewUrl) {
-      var stillThere = false;
+
+    materializePortfolioFile(file, function (uploadFile) {
+      var slotIdx = -1;
       for (var i = 0; i < _portfolioSlots.length; i++) {
         if (_portfolioSlots[i].position === position) {
-          _portfolioSlots[i].previewUrl = previewUrl;
-          stillThere = true;
+          slotIdx = i;
           break;
         }
       }
-      if (!stillThere) {
-        releasePortfolioPreviewUrl(previewUrl);
+      if (slotIdx < 0) return;
+      if (!uploadFile || !uploadFile.size) {
+        removePortfolioSlot(position);
+        showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
         return;
       }
-      _portfolioObjectUrls.push(previewUrl);
-      setPortfolioSlotPreview(position, previewUrl);
+      _portfolioSlots[slotIdx].file = uploadFile;
+      _portfolioSlots[slotIdx].pending = false;
+      buildPortfolioPreview(uploadFile, function (previewUrl) {
+        var stillThere = false;
+        for (var j = 0; j < _portfolioSlots.length; j++) {
+          if (_portfolioSlots[j].position === position) {
+            _portfolioSlots[j].previewUrl = previewUrl;
+            stillThere = true;
+            break;
+          }
+        }
+        if (!stillThere) {
+          releasePortfolioPreviewUrl(previewUrl);
+          return;
+        }
+        _portfolioObjectUrls.push(previewUrl);
+        setPortfolioSlotPreview(position, previewUrl);
+      });
     });
     return true;
   }
 
   function validatePortfolioClient(statusEl) {
     if (!isPortfolioEnabled()) return true;
+    if (_portfolioSlots.some(function (s) { return s.pending; })) {
+      showStatus(statusEl, 'Подождите, фото ещё обрабатывается…', 'err');
+      return false;
+    }
     var files = getPortfolioFiles();
     if (!files.length) {
       showStatus(statusEl, ERRORS.portfolio_required, 'err');
@@ -3191,72 +3207,92 @@
     return true;
   }
 
-  function clonePortfolioUploadFile(file) {
-    try {
-      return file.slice(0, file.size, file.type || 'application/octet-stream');
-    } catch (e) {
-      return file;
-    }
+  function portfolioGuessMime(file) {
+    var mime = (file.type || '').toLowerCase();
+    if (mime && mime.indexOf('image/') === 0) return mime;
+    var name = (file.name || '').toLowerCase();
+    if (/\.png$/.test(name)) return 'image/png';
+    if (/\.webp$/.test(name)) return 'image/webp';
+    return 'image/jpeg';
+  }
+
+  function materializePortfolioFile(file, done) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var buf = reader.result;
+      if (!buf || !buf.byteLength) {
+        done(null);
+        return;
+      }
+      var type = portfolioGuessMime(file);
+      var name = file.name || 'photo.jpg';
+      try {
+        done(new File([buf], name, { type: type, lastModified: Date.now() }));
+      } catch (e) {
+        try {
+          done(new Blob([buf], { type: type }));
+        } catch (e2) {
+          done(null);
+        }
+      }
+    };
+    reader.onerror = function () {
+      done(null);
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   function compressPortfolioFileForUpload(file) {
     return new Promise(function (resolve) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        var dataUrl = reader.result;
-        if (typeof dataUrl !== 'string') {
+      var objectUrl = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var maxEdge = 1920;
+        var w = img.naturalWidth;
+        var h = img.naturalHeight;
+        var longEdge = Math.max(w, h);
+        releasePortfolioPreviewUrl(objectUrl);
+        if (longEdge <= maxEdge && file.size <= 600 * 1024) {
           resolve(file);
           return;
         }
-        var img = new Image();
-        img.onload = function () {
-          var maxEdge = 1920;
-          var w = img.naturalWidth;
-          var h = img.naturalHeight;
-          var longEdge = Math.max(w, h);
-          if (longEdge <= maxEdge && file.size <= 600 * 1024) {
+        var scale = Math.min(1, maxEdge / longEdge);
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, cw, ch);
+        canvas.toBlob(function (blob) {
+          if (!blob) {
             resolve(file);
             return;
           }
-          var scale = Math.min(1, maxEdge / longEdge);
-          var cw = Math.max(1, Math.round(w * scale));
-          var ch = Math.max(1, Math.round(h * scale));
-          var canvas = document.createElement('canvas');
-          canvas.width = cw;
-          canvas.height = ch;
-          var ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(file);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, cw, ch);
-          canvas.toBlob(function (blob) {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
-            var baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+          var baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+          try {
             resolve(new File([blob], baseName + '.jpg', {
               type: 'image/jpeg',
               lastModified: Date.now()
             }));
-          }, 'image/jpeg', 0.82);
-        };
-        img.onerror = function () {
-          resolve(file);
-        };
-        img.src = dataUrl;
+          } catch (e) {
+            resolve(blob);
+          }
+        }, 'image/jpeg', 0.82);
       };
-      reader.onerror = function () {
+      img.onerror = function () {
+        releasePortfolioPreviewUrl(objectUrl);
         resolve(file);
       };
-      reader.readAsDataURL(file);
+      img.src = objectUrl;
     });
   }
 
-  function buildPortfolioFormData(action, listingId) {
-    if (!tg || !tg.initData) return Promise.resolve(null);
-    var fd = new FormData();
+  function appendPortfolioAuthFields(fd, action, listingId) {
     var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
     fd.append('action', action);
     fd.append('initData', tg.initData);
@@ -3265,19 +3301,39 @@
     if (listingId) {
       fd.append('listing_id', listingId);
     }
+  }
+
+  function uploadPortfolioPhotosSequential(action, listingId, statusEl) {
+    if (!tg || !tg.initData) {
+      return Promise.resolve({ ok: false, error: 'Invalid_initData' });
+    }
     var files = getPortfolioFiles();
     if (!files.length) {
-      return Promise.resolve(fd);
+      return Promise.resolve({ ok: false, error: 'portfolio_required' });
     }
-    return Promise.all(files.map(function (slot) {
-      return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
-        return { position: slot.position, file: compressed };
+
+    var lastResult = { ok: true };
+    var total = files.length;
+    var chain = Promise.resolve();
+    files.forEach(function (slot, idx) {
+      chain = chain.then(function () {
+        if (!lastResult.ok) return;
+        if (statusEl) {
+          showStatus(statusEl, 'Загрузка фото ' + (idx + 1) + ' из ' + total + '…', 'info');
+        }
+        return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
+          var fd = new FormData();
+          appendPortfolioAuthFields(fd, action, listingId);
+          var uploadName = compressed.name || slot.file.name || ('photo_' + slot.position + '.jpg');
+          fd.append('photo_' + slot.position, compressed, uploadName);
+          return apiPostMultipart(fd).then(function (data) {
+            if (!data.ok) lastResult = data;
+          });
+        });
       });
-    })).then(function (compressedFiles) {
-      compressedFiles.forEach(function (item) {
-        fd.append('photo_' + item.position, item.file, item.file.name || 'photo.jpg');
-      });
-      return fd;
+    });
+    return chain.then(function () {
+      return lastResult;
     });
   }
 
@@ -3286,22 +3342,12 @@
     return data.message || ERRORS[key] || data.error || ERRORS.portfolio_upload_failed;
   }
 
-  function uploadPortfolio(listingId) {
-    return buildPortfolioFormData('upload_portfolio', listingId).then(function (fd) {
-      if (!fd) {
-        return { ok: false, error: 'Invalid_initData' };
-      }
-      return apiPostMultipart(fd);
-    });
+  function uploadPortfolio(listingId, statusEl) {
+    return uploadPortfolioPhotosSequential('upload_portfolio', listingId, statusEl);
   }
 
-  function uploadPortfolioStaging() {
-    return buildPortfolioFormData('upload_portfolio_staging', null).then(function (fd) {
-      if (!fd) {
-        return { ok: false, error: 'Invalid_initData' };
-      }
-      return apiPostMultipart(fd);
-    });
+  function uploadPortfolioStaging(statusEl) {
+    return uploadPortfolioPhotosSequential('upload_portfolio_staging', null, statusEl);
   }
 
   function shouldUploadPortfolio() {
@@ -3388,7 +3434,7 @@
     clearStatus(statusEl);
     showStatus(statusEl, 'Подготовка фото…', 'info');
     var listingId = _pendingPortfolioListingId;
-    return uploadPortfolio(listingId)
+    return uploadPortfolio(listingId, statusEl)
       .then(function (uploadData) {
         handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
           setTimeout(function () { showScreen(_formReturnScreen || 'main'); }, 1500);
@@ -3450,7 +3496,7 @@
 
         _pendingPortfolioListingId = listingId;
         showStatus(statusEl, 'Подготовка фото…', 'info');
-        return uploadPortfolio(listingId).then(function (uploadData) {
+        return uploadPortfolio(listingId, statusEl).then(function (uploadData) {
           handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
             setTimeout(function () { showScreen('main'); }, 1500);
           });
@@ -3615,6 +3661,7 @@
 
   document.getElementById('paidBtn').addEventListener('click', function () {
     if (!validateFormClient()) return;
+    if (!validatePortfolioClient(statusEl)) return;
     clearStatus(statusEl);
     showScreen('payment');
     clearStatus(paymentStatusEl);
@@ -3644,7 +3691,7 @@
         showScreen('form');
         return;
       }
-      if (!validatePortfolioClient(statusEl)) {
+      if (!validatePortfolioClient(paymentStatusEl)) {
         showScreen('form');
         return;
       }
@@ -3697,7 +3744,7 @@
       }
 
       showStatus(paymentStatusEl, 'Подготовка фото…', 'info');
-      uploadPortfolioStaging()
+      uploadPortfolioStaging(paymentStatusEl)
         .then(function (stagingData) {
           if (!stagingData.ok) {
             showStatus(paymentStatusEl, portfolioErrorMessage(stagingData), 'err');
