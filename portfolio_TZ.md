@@ -682,7 +682,7 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 | 3 | Форма catalog | ✅ | 29.05.2026 | Промпт 3: см. ниже |
 | 4 | Popup + portfolio.html | ✅ | 29.05.2026 | Промпт 4: см. ниже |
 | 5 | Admin + cron + rules | ✅ | 29.05.2026 | Промпт 5: см. ниже |
-| 6 | E2E + docs | ⬜ | | |
+| 6 | E2E + docs | ✅ | 29.05.2026 | Промпт 6: см. ниже |
 
 ### Фаза 1 — журнал (Промпт 1, 29.05.2026)
 
@@ -808,4 +808,32 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 
 ---
 
-*Документ v1.3 — аудит v1.2: отложенный notify, backfill expires_at, multipart, atomic upload; промпты §16 для пошаговой разработки в Cursor.*
+### Фаза 6 — журнал (Промпт 6, 29.05.2026)
+
+**Сделано:**
+
+- `DEPLOY_GUIDE_CF.md` — §A4a R2 bucket `networking-portfolio`; миграции D1 `002_portfolio.sql` + `003_backfill_archived_at.sql`; smoke §D1 (регрессии `get_listings`/`has_portfolio`, `get_pin_prices`, `getLikes`); чеклист портфолио §D2a (`portfolio_TZ.md` §13).
+- `migration_to_cf_d1_TZ.md` v2.5 — контракт `submit_listing` (`listing_id`, `deferred_notify`); actions `upload_portfolio`, `upload_portfolio_staging`, `get_portfolio`; коды ошибок portfolio; R2 в §7; журнал §16 «portfolio v1.3».
+- `portfolio_TZ.md` §17 — все фазы ✅.
+
+**Smoke E2E (автоматически, PowerShell, prod Worker):**
+
+| Тест | Результат |
+|---|---|
+| `GET /` | `200`, body `OK` |
+| `POST /api` `get_listings` category `Другое` + secret | `{ ok: true, listings: [] }` (поля `has_portfolio`/`portfolio_count` в схеме ответа) |
+| `GET /api?action=getLikes` без initData | `{ success: false, error: "unauthorized" }` |
+| `POST /api` `get_pin_prices` | `{ ok: true, week/month/lifetime }` |
+| `POST /` fake update `update_id=999999002` | `200`, `OK` |
+| `npx tsc --noEmit` в `worker/` | ✅ без ошибок |
+
+**Ручной E2E (Telegram):** чеклист §13 / `DEPLOY_GUIDE_CF.md` §D2a — оператором (P1–P8).
+
+**Деплой (29.05.2026):**
+
+- Worker: `wrangler deploy` → Version `b6db5d6e-4b38-4d88-adf5-87de7ac921f4` (`https://tg-networking-nhatrang.albertkoall.workers.dev`); bindings: `PORTFOLIO`, `DB`, `CACHE`, cron `0 0 * * *`.
+- Git: commit docs + push `main`.
+
+---
+
+*Документ v1.3 — аудит v1.2: отложенный notify, backfill expires_at, multipart, atomic upload; промпты §16 для пошаговой разработки в Cursor. **Все фазы 1–6 ✅ (29.05.2026).***
