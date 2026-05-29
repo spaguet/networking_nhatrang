@@ -1,3 +1,5 @@
+-- Base schema (001). Portfolio: archived_at + listing_media — see 002_portfolio.sql, 003_backfill_archived_at.sql.
+
 -- users
 CREATE TABLE IF NOT EXISTS users (
   tg_id       INTEGER PRIMARY KEY,

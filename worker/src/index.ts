@@ -3,6 +3,10 @@ import { routeApiAction } from './handlers/api';
 import { handleGetLikes, handleToggleLike } from './handlers/likes';
 import { dailyMaintenance } from './handlers/maintenance';
 import {
+  handlePortfolioMediaGet,
+  routeMultipartAction,
+} from './handlers/portfolio';
+import {
   handleTelegramUpdate,
   isDuplicateTelegramUpdate,
 } from './handlers/telegram';
@@ -26,6 +30,11 @@ async function parseJsonBody(request: Request): Promise<Record<string, unknown> 
   } catch {
     return null;
   }
+}
+
+function isMultipartRequest(request: Request): boolean {
+  const contentType = request.headers.get('Content-Type') ?? '';
+  return contentType.includes('multipart/form-data');
 }
 
 function isTelegramUpdate(body: Record<string, unknown>): boolean {
@@ -102,12 +111,26 @@ async function handleWebhookPost(
 }
 
 async function handleApiPost(request: Request, env: Env): Promise<Response> {
+  if (isMultipartRequest(request)) {
+    try {
+      const formData = await request.formData();
+      const fields = new Map<string, FormDataEntryValue>();
+      formData.forEach((value, key) => {
+        fields.set(key, value);
+      });
+      return await routeMultipartAction(fields, env);
+    } catch {
+      return jsonResponse({ ok: false, error: 'portfolio_upload_failed' });
+    }
+  }
+
   const body = await parseJsonBody(request);
   if (!body) {
     return jsonResponse({ ok: false, error: 'server_error', message: 'Empty body' });
   }
   try {
-    return await routeApiAction(body, env);
+    const url = new URL(request.url);
+    return await routeApiAction(body, env, url.origin);
   } catch {
     return jsonResponse({ ok: false, error: 'server_error' });
   }
@@ -129,6 +152,10 @@ export default {
 
     if (method === 'GET' && pathname === '/') {
       return textOk();
+    }
+
+    if (method === 'GET' && pathname === '/portfolio-media') {
+      return handlePortfolioMediaGet(request, env);
     }
 
     if (method === 'GET' && pathname === '/api') {

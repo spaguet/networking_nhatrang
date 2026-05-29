@@ -11,6 +11,11 @@ database_id = "da3337f2-02ad-49ef-b577-09916aa08763"
 binding = "CACHE"
 id = "aed391de129a4490a3d390731bd9ae90"
 
+# Create bucket once: wrangler r2 bucket create networking-portfolio
+[[r2_buckets]]
+binding = "PORTFOLIO"
+bucket_name = "networking-portfolio"
+
 [triggers]
 crons = ["0 0 * * *"]
 

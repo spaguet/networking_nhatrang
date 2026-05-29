@@ -6,12 +6,14 @@ import {
   handleGetMyListings,
   handleSubmitListing,
 } from './listings';
+import { handleGetPortfolio } from './portfolio';
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
 
 export async function routeApiAction(
   body: Record<string, unknown>,
   env: Env,
+  workerOrigin = '',
 ): Promise<Response> {
   const action = body.action;
   if (typeof action !== 'string' || !action) {
@@ -35,6 +37,8 @@ export async function routeApiAction(
       return handleGetPinPrices(body, env);
     case 'select_pin_payment_method':
       return handleSelectPinPaymentMethod(body, env);
+    case 'get_portfolio':
+      return handleGetPortfolio(body, env, workerOrigin);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }

@@ -55,9 +55,12 @@ interface CatalogListingRow {
   pin_status: string | null;
   pinned_at: string | null;
   pin_expires_at: string | null;
+  has_portfolio: number;
+  portfolio_count: number;
 }
 
 function mapCatalogListing(row: CatalogListingRow) {
+  const portfolioCount = Number(row.portfolio_count ?? 0);
   return {
     listing_id: row.listing_id,
     display_name: row.display_name,
@@ -72,6 +75,8 @@ function mapCatalogListing(row: CatalogListingRow) {
     pin_status: row.pin_status ? String(row.pin_status) : 'regular',
     pinned_at: row.pinned_at ? String(row.pinned_at) : '',
     pin_expires_at: row.pin_expires_at ? String(row.pin_expires_at) : '',
+    has_portfolio: portfolioCount > 0,
+    portfolio_count: portfolioCount,
   };
 }
 
@@ -116,13 +121,19 @@ export async function handleGetListings(
     }
 
     const { results } = await env.DB.prepare(
-      `SELECT listing_id, display_name, category, description, experience, contact_type, contacts,
-              avatar_emoji, created_at, expires_at, pin_status, pinned_at, pin_expires_at
-       FROM listings
-       WHERE status = 'active' AND category = ?
-       ORDER BY CASE WHEN pin_status = 'pinned' THEN 1 ELSE 0 END DESC,
-                pinned_at DESC,
-                created_at DESC`,
+      `SELECT l.listing_id, l.display_name, l.category, l.description, l.experience, l.contact_type, l.contacts,
+              l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at,
+              EXISTS(
+                SELECT 1 FROM listing_media lm
+                WHERE lm.listing_id = l.listing_id AND lm.status = 'active'
+              ) AS has_portfolio,
+              (SELECT COUNT(*) FROM listing_media lm
+               WHERE lm.listing_id = l.listing_id AND lm.status = 'active') AS portfolio_count
+       FROM listings l
+       WHERE l.status = 'active' AND l.category = ?
+       ORDER BY CASE WHEN l.pin_status = 'pinned' THEN 1 ELSE 0 END DESC,
+                l.pinned_at DESC,
+                l.created_at DESC`,
     )
       .bind(category)
       .all<CatalogListingRow>();
@@ -170,19 +181,25 @@ export async function handleGetMyListings(
     }
 
     const { results } = await env.DB.prepare(
-      `SELECT listing_id, display_name, category, description, experience, contact_type, contacts,
-              avatar_emoji, created_at, expires_at, pin_status, pinned_at, pin_expires_at,
-              status, payment_status, submitted_at
-       FROM listings
-       WHERE tg_id = ?
-       ORDER BY CASE status
+      `SELECT l.listing_id, l.display_name, l.category, l.description, l.experience, l.contact_type, l.contacts,
+              l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at,
+              l.status, l.payment_status, l.submitted_at,
+              EXISTS(
+                SELECT 1 FROM listing_media lm
+                WHERE lm.listing_id = l.listing_id AND lm.status IN ('pending', 'active')
+              ) AS has_portfolio,
+              (SELECT COUNT(*) FROM listing_media lm
+               WHERE lm.listing_id = l.listing_id AND lm.status IN ('pending', 'active')) AS portfolio_count
+       FROM listings l
+       WHERE l.tg_id = ?
+       ORDER BY CASE l.status
          WHEN 'active' THEN 0
          WHEN 'on_moderation' THEN 1
          WHEN 'archived' THEN 2
          WHEN 'rejected' THEN 3
          ELSE 9
        END,
-       submitted_at DESC`,
+       l.submitted_at DESC`,
     )
       .bind(tgId)
       .all<MyListingRow>();
@@ -242,6 +259,7 @@ export async function handleSubmitListing(
 
     const listingId = generateId(tgId);
     const now = new Date().toISOString();
+    const portfolioEnabled = body.portfolio_enabled === true;
 
     await env.DB.prepare(
       `INSERT INTO listings (
@@ -264,40 +282,52 @@ export async function handleSubmitListing(
       )
       .run();
 
-    const adminText =
-      '📋 МОДЕРАЦИЯ АНКЕТЫ\n' +
-      `listing_id: ${listingId}\n` +
-      `Пользователь ID: ${tgId}\n` +
-      'Оплата: Бесплатное (первое)\n\n' +
-      `Имя: ${form.display_name}\n` +
-      `Категория: ${form.category}\n` +
-      `Опыт/стаж: ${form.experience}\n` +
-      `Описание: ${decodeDescriptionNewlines(form.description)}\n` +
-      `Тип контакта: ${form.contact_type}\n` +
-      `Контакты: ${form.contacts}\n\n` +
-      '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.';
+    if (!portfolioEnabled) {
+      const adminText =
+        '📋 МОДЕРАЦИЯ АНКЕТЫ\n' +
+        `listing_id: ${listingId}\n` +
+        `Пользователь ID: ${tgId}\n` +
+        'Оплата: Бесплатное (первое)\n\n' +
+        `Имя: ${form.display_name}\n` +
+        `Категория: ${form.category}\n` +
+        `Опыт/стаж: ${form.experience}\n` +
+        `Описание: ${decodeDescriptionNewlines(form.description)}\n` +
+        `Тип контакта: ${form.contact_type}\n` +
+        `Контакты: ${form.contacts}\n\n` +
+        '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.';
 
-    const adminMsgId = await sendMessage(
-      env.ADMIN_TG_ID,
-      adminText,
-      moderationKeyboard(listingId),
-      env,
-    );
-    if (adminMsgId) {
-      await saveAdminLink(adminMsgId, tgId, 'listing', listingId, env);
+      const adminMsgId = await sendMessage(
+        env.ADMIN_TG_ID,
+        adminText,
+        moderationKeyboard(listingId),
+        env,
+      );
+      if (adminMsgId) {
+        await saveAdminLink(adminMsgId, tgId, 'listing', listingId, env);
+      }
+
+      await sendMessage(
+        tgId,
+        'Ваше мини-резюме будет размещено после проверки модератором.',
+        null,
+        env,
+      );
     }
-
-    await sendMessage(
-      tgId,
-      'Ваше мини-резюме будет размещено после проверки модератором.',
-      null,
-      env,
-    );
 
     await logAction(tgId, 'submit_form', listingId, env.DB);
 
+    if (portfolioEnabled) {
+      return jsonResponse({
+        ok: true,
+        listing_id: listingId,
+        message: 'Загрузка фото…',
+        deferred_notify: true,
+      });
+    }
+
     return jsonResponse({
       ok: true,
+      listing_id: listingId,
       message: 'Анкета отправлена на модерацию',
     });
   } catch (err) {

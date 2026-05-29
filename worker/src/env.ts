@@ -1,6 +1,7 @@
 export interface Env {
   DB: D1Database;
   CACHE: KVNamespace;
+  PORTFOLIO: R2Bucket;
 
   MINI_APP_URL: string;
 

@@ -995,6 +995,87 @@
       padding: 10px 30px 10px 10px;
     }
 
+    .field-portfolio { margin-top: 4px; }
+    .portfolio-toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .portfolio-toggle input {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      accent-color: var(--orange);
+    }
+    #portfolioUploadBlock {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    #portfolioUploadBlock[hidden] { display: none !important; }
+    #portfolioSlots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .portfolio-slot {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--cream-press);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .portfolio-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .portfolio-slot-remove {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(29, 25, 22, 0.72);
+      color: #fff;
+      font-size: 0.85rem;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    #portfolioAddBtn {
+      width: 100%;
+      padding: 12px;
+      font-size: 0.9rem;
+    }
+    .status .status-retry-btn {
+      display: block;
+      margin-top: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      border: none;
+      border-radius: var(--r-btn);
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
     .btn-row {
       display: flex;
       flex-direction: column;
@@ -1199,6 +1280,20 @@
         <div class="field-item">
           <label for="contacts">Контакт</label>
           <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
+        </div>
+
+        <div class="field-item field-portfolio">
+          <label class="portfolio-toggle">
+            <input type="checkbox" id="portfolio_enabled" name="portfolio_enabled" />
+            <span>Добавить портфолио (до 5 фото)</span>
+          </label>
+          <p class="field-hint">Необязательно. Фото работ, примеров услуг или вашего профиля. Без ссылок и запрещённого контента.</p>
+          <div id="portfolioUploadBlock" hidden>
+            <div id="portfolioSlots"></div>
+            <input type="file" id="portfolioFileInput" accept="image/jpeg,image/png,image/webp" hidden />
+            <button type="button" class="btn btn-outline" id="portfolioAddBtn">Добавить фото</button>
+            <span class="field-hint" id="portfolioCountHint">0 / 5</span>
+          </div>
         </div>
 
       </div>
@@ -1432,12 +1527,27 @@
     invalid_payment_method: 'Выберите способ оплаты.',
     qr_not_configured:      'QR для этого способа ещё не настроен.',
     server_error:           'Сервер временно недоступен. Попробуйте позже.',
-    unknown_action:         'На сервере старая версия. Задеплойте новую версию Code.gs.'
+    unknown_action:         'На сервере старая версия. Задеплойте новую версию Code.gs.',
+    portfolio_required:     'Добавьте хотя бы одно фото или снимите галочку «Портфолио».',
+    portfolio_too_many:     'Можно загрузить не более 5 фото.',
+    portfolio_upload_failed:'Не удалось загрузить фото. Попробуйте снова.',
+    portfolio_invalid_type: 'Допустимы только JPEG, PNG или WebP.',
+    portfolio_too_large:    'Файл слишком большой (макс. 8 МБ).',
+    portfolio_compress_failed: 'Не удалось обработать фото. Попробуйте другое изображение.',
+    portfolio_not_owner:    'Нет доступа к этой анкете.',
+    portfolio_listing_not_found: 'Анкета не найдена или уже не на модерации.',
+    portfolio_wrong_status: 'Загрузка фото недоступна для этой анкеты.',
+    portfolio_retry_expired:'Срок повторной загрузки фото истёк (24 часа).'
   };
 
   var appMode = 'free';
   var _formReturnScreen = 'main';
   var _formPrefill = null;
+  var _pendingPortfolioListingId = null;
+  var PORTFOLIO_MAX_FILES = 5;
+  var PORTFOLIO_MAX_BYTES = 8 * 1024 * 1024;
+  var _portfolioSlots = [];
+  var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
   var _categoryListingsRaw = [];
   var _categoryListings = [];
@@ -1705,6 +1815,27 @@
 
   function apiPost(payload) {
     return fetch(API_URL + '/api', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          if (!r.ok) {
+            var httpErr = new Error('http_error');
+            httpErr.httpStatus = r.status;
+            httpErr.body = (t || '').slice(0, 200);
+            throw httpErr;
+          }
+          try {
+            return JSON.parse(t);
+          } catch (parseErr) {
+            var jsonErr = new Error('not_json');
+            jsonErr.body = (t || '').slice(0, 200);
+            throw jsonErr;
+          }
+        });
+      });
+  }
+
+  function apiPostMultipart(formData) {
+    return fetch(API_URL + '/api', { method: 'POST', body: formData })
       .then(function (r) {
         return r.text().then(function (t) {
           if (!r.ok) {
@@ -2317,6 +2448,15 @@
           }
 
           var actions = '';
+          if (l.status === 'on_moderation' && !l.has_portfolio) {
+            actions =
+              '<div class="p-actions">' +
+                '<button class="btn btn-primary" data-action="upload-portfolio" ' +
+                  'data-id="' + esc(l.listing_id) + '">' +
+                  'Отправить фото' +
+                '</button>' +
+              '</div>';
+          }
           if (isActive) {
             actions =
               '<div class="p-actions">' +
@@ -2394,6 +2534,12 @@
             openPinChoice(btn.getAttribute('data-id'));
           });
         });
+
+        document.querySelectorAll('[data-action="upload-portfolio"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            goToFormPortfolioRetry(btn.getAttribute('data-id'));
+          });
+        });
       })
       .catch(function (err) {
         clearLoaderTimer();
@@ -2432,19 +2578,46 @@
   /* ─────────────────────────────────────
      GO TO FORM (with optional prefill)
   ───────────────────────────────────── */
-  function goToForm(prefill) {
+  function goToForm(prefill, keepPortfolioRetry) {
     _formPrefill = prefill || null;
-    _formReturnScreen = document.getElementById('screenProfile').hidden ? 'main' : 'profile';
+    if (!keepPortfolioRetry) {
+      _pendingPortfolioListingId = null;
+    }
+    if (!_pendingPortfolioListingId) {
+      _formReturnScreen = document.getElementById('screenProfile').hidden ? 'main' : 'profile';
+    }
     applyPrefill(prefill);
     checkListingStatus();
+    updateSubmitBtnLabel();
     showScreen('form');
+  }
+
+  function goToFormPortfolioRetry(listingId) {
+    _pendingPortfolioListingId = listingId;
+    _formReturnScreen = 'profile';
+    goToForm(null, true);
+    var chk = document.getElementById('portfolio_enabled');
+    chk.checked = true;
+    setPortfolioBlockVisible(true);
+    showStatus(
+      document.getElementById('status'),
+      'Анкета на модерации без фото. Добавьте 1–5 фото и нажмите «Отправить фото».',
+      'info'
+    );
+    updateSubmitBtnLabel();
   }
 
   function applyPrefill(prefill) {
     var form = document.getElementById('listingForm');
+    var keepRetry = !!_pendingPortfolioListingId;
     form.reset();
     clearStatus(document.getElementById('status'));
     document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
+    resetPortfolioState();
+    if (keepRetry) {
+      document.getElementById('portfolio_enabled').checked = true;
+      setPortfolioBlockVisible(true);
+    }
 
     if (!prefill) {
       var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -2491,7 +2664,376 @@
     Object.keys(FIELD_CHAR_LIMITS).forEach(truncateField);
     updateDescriptionCounter();
     syncLinkFieldPrev();
+    updateSubmitBtnLabel();
   }
+
+  /* ─────────────────────────────────────
+     PORTFOLIO (форма)
+  ───────────────────────────────────── */
+  function revokePortfolioUrls() {
+    _portfolioObjectUrls.forEach(function (url) {
+      try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+    });
+    _portfolioObjectUrls = [];
+  }
+
+  function resetPortfolioState() {
+    revokePortfolioUrls();
+    _portfolioSlots = [];
+    var chk = document.getElementById('portfolio_enabled');
+    if (chk) chk.checked = false;
+    setPortfolioBlockVisible(false);
+    renderPortfolioSlots();
+  }
+
+  function setPortfolioBlockVisible(visible) {
+    var block = document.getElementById('portfolioUploadBlock');
+    if (block) block.hidden = !visible;
+  }
+
+  function isPortfolioEnabled() {
+    var chk = document.getElementById('portfolio_enabled');
+    return chk && chk.checked;
+  }
+
+  function getPortfolioFiles() {
+    return _portfolioSlots.slice().sort(function (a, b) {
+      return a.position - b.position;
+    });
+  }
+
+  function nextPortfolioPosition() {
+    var used = {};
+    _portfolioSlots.forEach(function (s) { used[s.position] = true; });
+    for (var i = 1; i <= PORTFOLIO_MAX_FILES; i++) {
+      if (!used[i]) return i;
+    }
+    return null;
+  }
+
+  function renderPortfolioSlots() {
+    var container = document.getElementById('portfolioSlots');
+    var hint = document.getElementById('portfolioCountHint');
+    var addBtn = document.getElementById('portfolioAddBtn');
+    if (!container) return;
+
+    container.innerHTML = '';
+    _portfolioSlots.forEach(function (slot) {
+      var wrap = document.createElement('div');
+      wrap.className = 'portfolio-slot';
+      var img = document.createElement('img');
+      img.src = slot.previewUrl;
+      img.alt = 'Фото ' + slot.position;
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'portfolio-slot-remove';
+      rm.setAttribute('aria-label', 'Удалить');
+      rm.textContent = '×';
+      rm.addEventListener('click', function () {
+        removePortfolioSlot(slot.position);
+      });
+      wrap.appendChild(img);
+      wrap.appendChild(rm);
+      container.appendChild(wrap);
+    });
+
+    if (hint) {
+      hint.textContent = _portfolioSlots.length + ' / ' + PORTFOLIO_MAX_FILES;
+    }
+    if (addBtn) {
+      addBtn.disabled = _portfolioSlots.length >= PORTFOLIO_MAX_FILES;
+    }
+  }
+
+  function removePortfolioSlot(position) {
+    var idx = -1;
+    for (var i = 0; i < _portfolioSlots.length; i++) {
+      if (_portfolioSlots[i].position === position) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) return;
+    var slot = _portfolioSlots[idx];
+    try { URL.revokeObjectURL(slot.previewUrl); } catch (e) { /* ignore */ }
+    var urlIdx = _portfolioObjectUrls.indexOf(slot.previewUrl);
+    if (urlIdx >= 0) _portfolioObjectUrls.splice(urlIdx, 1);
+    _portfolioSlots.splice(idx, 1);
+    renderPortfolioSlots();
+  }
+
+  function addPortfolioFile(file) {
+    if (!file) return false;
+    if (_portfolioSlots.length >= PORTFOLIO_MAX_FILES) {
+      showToast('Можно добавить не более ' + PORTFOLIO_MAX_FILES + ' фото');
+      return false;
+    }
+    var allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.indexOf(file.type) < 0) {
+      showStatus(document.getElementById('status'), ERRORS.portfolio_invalid_type, 'err');
+      return false;
+    }
+    if (file.size > PORTFOLIO_MAX_BYTES) {
+      showStatus(document.getElementById('status'), ERRORS.portfolio_too_large, 'err');
+      return false;
+    }
+    var position = nextPortfolioPosition();
+    if (!position) return false;
+    var previewUrl = URL.createObjectURL(file);
+    _portfolioObjectUrls.push(previewUrl);
+    _portfolioSlots.push({ position: position, file: file, previewUrl: previewUrl });
+    renderPortfolioSlots();
+    return true;
+  }
+
+  function validatePortfolioClient(statusEl) {
+    if (!isPortfolioEnabled()) return true;
+    var files = getPortfolioFiles();
+    if (!files.length) {
+      showStatus(statusEl, ERRORS.portfolio_required, 'err');
+      return false;
+    }
+    if (files.length > PORTFOLIO_MAX_FILES) {
+      showStatus(statusEl, ERRORS.portfolio_too_many, 'err');
+      return false;
+    }
+    return true;
+  }
+
+  function buildPortfolioFormData(action, listingId) {
+    if (!tg || !tg.initData) return null;
+    var fd = new FormData();
+    var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    fd.append('action', action);
+    fd.append('initData', tg.initData);
+    fd.append('secret', WEBAPP_SECRET);
+    fd.append('tg_id', String(user.id || ''));
+    if (listingId) {
+      fd.append('listing_id', listingId);
+    }
+    var files = getPortfolioFiles();
+    files.forEach(function (slot) {
+      fd.append('photo_' + slot.position, slot.file, slot.file.name || 'photo.webp');
+    });
+    return fd;
+  }
+
+  function portfolioErrorMessage(data) {
+    var key = (data.error || '').replace(/\s/g, '_');
+    return data.message || ERRORS[key] || data.error || ERRORS.portfolio_upload_failed;
+  }
+
+  function uploadPortfolio(listingId) {
+    var fd = buildPortfolioFormData('upload_portfolio', listingId);
+    if (!fd) {
+      return Promise.resolve({ ok: false, error: 'Invalid_initData' });
+    }
+    return apiPostMultipart(fd);
+  }
+
+  function uploadPortfolioStaging() {
+    var fd = buildPortfolioFormData('upload_portfolio_staging', null);
+    if (!fd) {
+      return Promise.resolve({ ok: false, error: 'Invalid_initData' });
+    }
+    return apiPostMultipart(fd);
+  }
+
+  function shouldUploadPortfolio() {
+    return isPortfolioEnabled() && getPortfolioFiles().length > 0;
+  }
+
+  function showStatusWithPortfolioRetry(el, text, listingId) {
+    el.innerHTML = '';
+    el.className = 'status err';
+    el.appendChild(document.createTextNode(text));
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'status-retry-btn';
+    btn.textContent = 'Отправить фото';
+    btn.addEventListener('click', function () {
+      if (listingId) {
+        goToFormPortfolioRetry(listingId);
+      } else if (_pendingPortfolioListingId) {
+        goToFormPortfolioRetry(_pendingPortfolioListingId);
+      } else {
+        showScreen('form');
+        var chk = document.getElementById('portfolio_enabled');
+        if (chk) {
+          chk.checked = true;
+          setPortfolioBlockVisible(true);
+        }
+        updateSubmitBtnLabel();
+      }
+    });
+    el.appendChild(btn);
+  }
+
+  function updateSubmitBtnLabel() {
+    var btn = document.getElementById('submitBtn');
+    if (!btn) return;
+    btn.textContent = _pendingPortfolioListingId
+      ? 'Отправить фото'
+      : 'Отправить на модерацию';
+  }
+
+  function clearPendingPortfolioSuccess() {
+    _pendingPortfolioListingId = null;
+    updateSubmitBtnLabel();
+  }
+
+  function resetFormAfterSuccess() {
+    document.getElementById('listingForm').reset();
+    document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
+    resetPortfolioState();
+    clearPendingPortfolioSuccess();
+    updateDescriptionCounter();
+  }
+
+  function handlePortfolioUploadResult(data, listingId, statusEl, onSuccess) {
+    if (data.ok) {
+      showStatus(
+        statusEl,
+        'Анкета отправлена на модерацию',
+        'ok'
+      );
+      resetFormAfterSuccess();
+      if (onSuccess) onSuccess();
+      return;
+    }
+    var msg = portfolioErrorMessage(data);
+    if (listingId && (data.error === 'portfolio_upload_failed' ||
+        data.error === 'portfolio_retry_expired' ||
+        data.error === 'portfolio_listing_not_found')) {
+      _pendingPortfolioListingId = listingId;
+      showStatusWithPortfolioRetry(statusEl, msg, listingId);
+    } else {
+      showStatus(statusEl, msg, 'err');
+      if (listingId) _pendingPortfolioListingId = listingId;
+    }
+    updateSubmitBtnLabel();
+  }
+
+  function runFreePortfolioRetry(statusEl, submitBtn) {
+    if (!validatePortfolioClient(statusEl)) {
+      return Promise.resolve();
+    }
+    submitBtn.disabled = true;
+    clearStatus(statusEl);
+    showStatus(statusEl, 'Загрузка фото…', 'info');
+    var listingId = _pendingPortfolioListingId;
+    return uploadPortfolio(listingId)
+      .then(function (uploadData) {
+        handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
+          setTimeout(function () { showScreen(_formReturnScreen || 'main'); }, 1500);
+        });
+      })
+      .catch(function (err) {
+        if (listingId) {
+          showStatusWithPortfolioRetry(statusEl, apiErrorMessage(err), listingId);
+        } else {
+          showStatus(statusEl, apiErrorMessage(err), 'err');
+        }
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+      });
+  }
+
+  function runFreeSubmit(formData, statusEl, submitBtn) {
+    var portfolioOn = shouldUploadPortfolio();
+    var payload = buildPayload('submit_listing', Object.assign({}, formData, {
+      portfolio_enabled: portfolioOn
+    }));
+    if (!payload) {
+      showStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return Promise.resolve();
+    }
+
+    submitBtn.disabled = true;
+    clearStatus(statusEl);
+
+    if (portfolioOn) {
+      showStatus(statusEl, 'Отправка анкеты…', 'info');
+    }
+
+    return apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          var key = (data.error || '').replace(/\s/g, '_');
+          var msg = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
+          showStatus(statusEl, msg, 'err');
+          if (data.paid_mode || key === 'use_paid_flow') {
+            setMode('paid', data.message || msg);
+          }
+          return;
+        }
+
+        if (!portfolioOn) {
+          showStatus(statusEl, data.message || 'Анкета отправлена на модерацию', 'ok');
+          resetFormAfterSuccess();
+          setTimeout(function () { showScreen('main'); }, 1500);
+          return;
+        }
+
+        var listingId = data.listing_id;
+        if (!listingId) {
+          showStatus(statusEl, ERRORS.portfolio_upload_failed, 'err');
+          return;
+        }
+
+        _pendingPortfolioListingId = listingId;
+        showStatus(statusEl, 'Загрузка фото…', 'info');
+        return uploadPortfolio(listingId).then(function (uploadData) {
+          handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
+            setTimeout(function () { showScreen('main'); }, 1500);
+          });
+        });
+      })
+      .catch(function (err) {
+        if (_pendingPortfolioListingId) {
+          showStatusWithPortfolioRetry(
+            statusEl,
+            apiErrorMessage(err),
+            _pendingPortfolioListingId
+          );
+        } else {
+          showStatus(statusEl, apiErrorMessage(err), 'err');
+        }
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+      });
+  }
+
+  (function initPortfolioUi() {
+    var chk = document.getElementById('portfolio_enabled');
+    var fileInput = document.getElementById('portfolioFileInput');
+    var addBtn = document.getElementById('portfolioAddBtn');
+
+    if (chk) {
+      chk.addEventListener('change', function () {
+        if (chk.checked) {
+          setPortfolioBlockVisible(true);
+        } else {
+          resetPortfolioState();
+        }
+      });
+    }
+
+    if (addBtn && fileInput) {
+      addBtn.addEventListener('click', function () {
+        if (_portfolioSlots.length >= PORTFOLIO_MAX_FILES) return;
+        fileInput.value = '';
+        fileInput.click();
+      });
+      fileInput.addEventListener('change', function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (file) addPortfolioFile(file);
+        fileInput.value = '';
+      });
+    }
+  })();
 
   /* ─────────────────────────────────────
      FORM HELPERS
@@ -2598,42 +3140,17 @@
     e.preventDefault();
     if (!tg || !tg.initData || appMode === 'paid') return;
 
-    var formData = validateFormClient();
-    if (!formData) return;
-
-    submitBtn.disabled = true;
-    clearStatus(statusEl);
-
-    var payload = buildPayload('submit_listing', formData);
-    if (!payload) {
-      showStatus(statusEl, ERRORS.Invalid_initData, 'err');
-      submitBtn.disabled = false;
+    if (_pendingPortfolioListingId) {
+      if (!validatePortfolioClient(statusEl)) return;
+      runFreePortfolioRetry(statusEl, submitBtn);
       return;
     }
 
-    apiPost(payload)
-      .then(function (data) {
-        if (data.ok) {
-          showStatus(statusEl, data.message || 'Анкета отправлена на модерацию', 'ok');
-          form.reset();
-          document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
-          updateDescriptionCounter();
-          setTimeout(function () { showScreen('main'); }, 1500);
-        } else {
-          var key = (data.error || '').replace(/\s/g, '_');
-          var msg = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
-          showStatus(statusEl, msg, 'err');
-          if (data.paid_mode || key === 'use_paid_flow') {
-            setMode('paid', data.message || msg);
-          }
-        }
-      })
-      .catch(function (err) {
-        showStatus(statusEl, apiErrorMessage(err), 'err');
-      })
-      .finally(function () {
-        submitBtn.disabled = false;
-      });
+    var formData = validateFormClient();
+    if (!formData) return;
+    if (!validatePortfolioClient(statusEl)) return;
+
+    runFreeSubmit(formData, statusEl, submitBtn);
   });
 
   document.querySelectorAll('.pay-method').forEach(function (btn) {
@@ -2643,39 +3160,70 @@
         showScreen('form');
         return;
       }
-
-      var method = btn.getAttribute('data-method');
-      btn.disabled = true;
-      clearStatus(paymentStatusEl);
-
-      var payload = buildPayload('select_payment_method', Object.assign({ payment_method: method }, formData));
-      if (!payload) {
-        showStatus(paymentStatusEl, ERRORS.Invalid_initData, 'err');
-        btn.disabled = false;
+      if (!validatePortfolioClient(statusEl)) {
+        showScreen('form');
         return;
       }
 
-      apiPost(payload)
-        .then(function (data) {
-          if (data.ok) {
-            showStatus(
-              paymentStatusEl,
-              data.message ||
-                'QR-код отправлен в чат с ботом. После оплаты пришлите скриншот чека в ответ боту.',
-              'ok'
-            );
-            setTimeout(function () {
-              if (tg && tg.close) tg.close();
-            }, 2500);
-          } else {
-            var key = (data.error || '').replace(/\s/g, '_');
-            showStatus(paymentStatusEl, data.message || ERRORS[key] || 'Ошибка оплаты', 'err');
+      var method = btn.getAttribute('data-method');
+      var needStaging = shouldUploadPortfolio();
+      btn.disabled = true;
+      clearStatus(paymentStatusEl);
+
+      function proceedToPayment() {
+        var payload = buildPayload('select_payment_method', Object.assign({ payment_method: method }, formData));
+        if (!payload) {
+          showStatus(paymentStatusEl, ERRORS.Invalid_initData, 'err');
+          btn.disabled = false;
+          return Promise.resolve();
+        }
+
+        if (needStaging) {
+          showStatus(paymentStatusEl, 'Подготовка фото…', 'info');
+        }
+
+        return apiPost(payload)
+          .then(function (data) {
+            if (data.ok) {
+              showStatus(
+                paymentStatusEl,
+                data.message ||
+                  'QR-код отправлен в чат с ботом. После оплаты пришлите скриншот чека в ответ боту.',
+                'ok'
+              );
+              setTimeout(function () {
+                if (tg && tg.close) tg.close();
+              }, 2500);
+            } else {
+              var key = (data.error || '').replace(/\s/g, '_');
+              showStatus(paymentStatusEl, data.message || ERRORS[key] || 'Ошибка оплаты', 'err');
+            }
+          })
+          .catch(function (err) {
+            showStatus(paymentStatusEl, apiErrorMessage(err), 'err');
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
+      }
+
+      if (!needStaging) {
+        proceedToPayment();
+        return;
+      }
+
+      showStatus(paymentStatusEl, 'Загрузка фото…', 'info');
+      uploadPortfolioStaging()
+        .then(function (stagingData) {
+          if (!stagingData.ok) {
+            showStatus(paymentStatusEl, portfolioErrorMessage(stagingData), 'err');
+            btn.disabled = false;
+            return;
           }
+          return proceedToPayment();
         })
         .catch(function (err) {
           showStatus(paymentStatusEl, apiErrorMessage(err), 'err');
-        })
-        .finally(function () {
           btn.disabled = false;
         });
     });

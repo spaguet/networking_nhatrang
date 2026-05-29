@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS listings (
   pin_status      TEXT NOT NULL DEFAULT 'regular',
   pinned_at       TEXT,
   pin_expires_at  TEXT,
+  archived_at     TEXT,
   FOREIGN KEY (tg_id) REFERENCES users(tg_id)
 );
 
@@ -34,6 +35,26 @@ CREATE INDEX IF NOT EXISTS idx_listings_category ON listings(category);
 CREATE INDEX IF NOT EXISTS idx_listings_tg_id    ON listings(tg_id);
 CREATE INDEX IF NOT EXISTS idx_listings_pin      ON listings(pin_status, status);
 CREATE INDEX IF NOT EXISTS idx_listings_expires  ON listings(expires_at);
+CREATE INDEX IF NOT EXISTS idx_listings_archived_at ON listings(archived_at) WHERE status = 'archived';
+
+-- listing_media (portfolio photos; see migrations/002_portfolio.sql)
+CREATE TABLE IF NOT EXISTS listing_media (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  listing_id    TEXT NOT NULL,
+  position      INTEGER NOT NULL CHECK (position >= 1 AND position <= 5),
+  r2_key        TEXT NOT NULL,
+  thumb_r2_key  TEXT,
+  mime_type     TEXT NOT NULL DEFAULT 'image/webp',
+  byte_size     INTEGER NOT NULL,
+  width         INTEGER,
+  height        INTEGER,
+  status        TEXT NOT NULL DEFAULT 'pending',
+  created_at    TEXT NOT NULL,
+  UNIQUE (listing_id, position),
+  FOREIGN KEY (listing_id) REFERENCES listings(listing_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_listing_media_listing ON listing_media(listing_id);
 
 -- sessions
 CREATE TABLE IF NOT EXISTS sessions (

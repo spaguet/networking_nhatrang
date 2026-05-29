@@ -812,6 +812,12 @@ async function approveListing(
     .bind(today.toISOString(), expires.toISOString(), listingId)
     .run();
 
+  await env.DB.prepare(
+    `UPDATE listing_media SET status = 'active' WHERE listing_id = ? AND status = 'pending'`,
+  )
+    .bind(listingId)
+    .run();
+
   if (listing.payment_status === 'free') {
     await setUserFreeUsed(listing.tg_id, true, env.DB);
   }
