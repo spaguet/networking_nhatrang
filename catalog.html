@@ -598,6 +598,105 @@
       border-color: var(--orange);
     }
 
+    .portfolio-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--dark-card);
+      border: 1.5px solid var(--border-dark);
+      border-radius: 11px;
+      padding: 10px 13px;
+      font-size: 0.79rem;
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      width: 100%;
+      text-align: center;
+      transition: background .15s, border-color .15s, opacity .15s;
+    }
+    .portfolio-btn:active {
+      opacity: 0.82;
+    }
+
+    /* ══════════════════════════════════════════
+       PORTFOLIO POPUP (§9)
+    ══════════════════════════════════════════ */
+    .portfolio-popup {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      background: #000;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .portfolio-popup[hidden] { display: none; }
+
+    .portfolio-popup-close {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
+      z-index: 510;
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .15s;
+    }
+    .portfolio-popup-close:active {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .portfolio-popup-title {
+      position: sticky;
+      top: 0;
+      z-index: 505;
+      padding: max(14px, env(safe-area-inset-top)) 56px 12px 16px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.85);
+      background: linear-gradient(to bottom, rgba(0,0,0,0.92) 70%, transparent);
+      text-align: center;
+    }
+    .portfolio-popup-title:empty { display: none; }
+
+    .portfolio-popup-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 8px 16px max(24px, env(safe-area-inset-bottom));
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    @media (min-width: 480px) {
+      .portfolio-popup-feed { gap: 20px; padding: 8px 20px 32px; }
+    }
+    .portfolio-popup-feed img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .portfolio-popup-loading,
+    .portfolio-popup-empty {
+      color: rgba(255, 255, 255, 0.55);
+      text-align: center;
+      padding: 48px 20px;
+      font-size: 0.9rem;
+    }
+
     .navigation_bar {
       display: flex;
       align-items: center;
@@ -1485,6 +1584,14 @@
   </div>
 </div>
 
+<!-- PORTFOLIO POPUP -->
+<div id="portfolioPopup" class="portfolio-popup" hidden>
+  <button type="button" class="portfolio-popup-close" id="portfolioPopupClose" aria-label="Закрыть">✕</button>
+  <div class="portfolio-popup-title" id="portfolioPopupTitle"></div>
+  <div class="portfolio-popup-loading" id="portfolioPopupLoading">Загрузка…</div>
+  <div class="portfolio-popup-feed" id="portfolioPopupFeed" hidden></div>
+</div>
+
 <!-- LINK POPUP -->
 <div id="linkPopup" class="popup-overlay" hidden>
   <div class="popup" role="dialog" aria-labelledby="linkPopupTitle" aria-modal="true">
@@ -1713,6 +1820,86 @@
   document.getElementById('linkPopup').addEventListener('click', function (e) {
     if (e.target === this) hideLinkPopup();
   });
+
+  /* ─────────────────────────────────────
+     PORTFOLIO POPUP (§9)
+  ───────────────────────────────────── */
+  function closePortfolioPopup() {
+    var popup = document.getElementById('portfolioPopup');
+    var feed = document.getElementById('portfolioPopupFeed');
+    var loading = document.getElementById('portfolioPopupLoading');
+    popup.hidden = true;
+    feed.hidden = true;
+    feed.innerHTML = '';
+    loading.hidden = false;
+    loading.textContent = 'Загрузка…';
+    document.getElementById('portfolioPopupTitle').textContent = '';
+    document.body.style.overflow = '';
+  }
+
+  function openPortfolioPopup(listingId, displayName) {
+    if (!listingId) return;
+
+    var popup = document.getElementById('portfolioPopup');
+    var feed = document.getElementById('portfolioPopupFeed');
+    var loading = document.getElementById('portfolioPopupLoading');
+    var titleEl = document.getElementById('portfolioPopupTitle');
+
+    feed.hidden = true;
+    feed.innerHTML = '';
+    loading.hidden = false;
+    loading.textContent = 'Загрузка…';
+    titleEl.textContent = displayName || '';
+    popup.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    var payload = buildPayload('get_portfolio', { listing_id: listingId });
+    if (!payload) {
+      loading.textContent = ERRORS.Invalid_initData || 'Ошибка авторизации';
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        loading.hidden = true;
+        feed.hidden = false;
+
+        if (!data.ok) {
+          feed.innerHTML =
+            '<p class="portfolio-popup-empty">' +
+            esc(data.message || 'Не удалось загрузить портфолио') +
+            '</p>';
+          return;
+        }
+
+        var items = (data.items || []).slice().sort(function (a, b) {
+          return (a.position || 0) - (b.position || 0);
+        });
+
+        if (!items.length) {
+          feed.innerHTML = '<p class="portfolio-popup-empty">Нет фото</p>';
+          return;
+        }
+
+        items.forEach(function (item) {
+          var img = document.createElement('img');
+          img.src = item.url;
+          img.alt = '';
+          img.loading = 'lazy';
+          if (item.width) img.width = item.width;
+          if (item.height) img.height = item.height;
+          feed.appendChild(img);
+        });
+      })
+      .catch(function () {
+        loading.hidden = true;
+        feed.hidden = false;
+        feed.innerHTML =
+          '<p class="portfolio-popup-empty">Не удалось загрузить. Проверьте интернет.</p>';
+      });
+  }
+
+  document.getElementById('portfolioPopupClose').addEventListener('click', closePortfolioPopup);
 
   var LINK_GUARD_FIELDS = ['display_name', 'description'];
   var _linkFieldPrev = {};
@@ -2030,6 +2217,12 @@
               'Скопировать ' + esc(l.contact_type || 'контакт') +
             '</button>'
           : '') +
+        (l.has_portfolio
+          ? '<button type="button" class="portfolio-btn" data-listing-id="' + esc(cardId) + '" ' +
+              'data-name="' + esc(l.display_name) + '">' +
+              '🖼 Портфолио' +
+            '</button>'
+          : '') +
       '</div>'
     );
   }
@@ -2068,6 +2261,14 @@
     document.querySelectorAll('.copy-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         copyText(btn.getAttribute('data-contacts'));
+      });
+    });
+    document.querySelectorAll('.portfolio-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openPortfolioPopup(
+          btn.getAttribute('data-listing-id'),
+          btn.getAttribute('data-name')
+        );
       });
     });
     document.querySelectorAll('.like-btn').forEach(function (btn) {

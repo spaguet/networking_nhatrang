@@ -680,7 +680,7 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 | 1 | R2 + D1 + services | ✅ | 29.05.2026 | Промпт 1: см. ниже |
 | 2 | API upload/get | ✅ | 29.05.2026 | Промпт 2: см. ниже |
 | 3 | Форма catalog | ✅ | 29.05.2026 | Промпт 3: см. ниже |
-| 4 | Popup + portfolio.html | ⬜ | | |
+| 4 | Popup + portfolio.html | ✅ | 29.05.2026 | Промпт 4: см. ниже |
 | 5 | Admin + cron + rules | ⬜ | | |
 | 6 | E2E + docs | ⬜ | | |
 
@@ -760,6 +760,26 @@ wrangler d1 execute ... --remote --file=002_portfolio.sql (+ backfill при н�
 - GitHub Pages: push `main` `d58cfd6` → Actions run `26628022875` ✅ (`https://spaguet.github.io/networking_nhatrang/`).
 
 **Проверки:** smoke в Telegram Mini App (форма + upload).
+
+---
+
+### Фаза 4 — журнал (Промпт 4, 29.05.2026)
+
+**Сделано:**
+
+- `catalog.html` — кнопка **«🖼 Портфолио»** в карточке при `l.has_portfolio`; fullscreen popup `#portfolioPopup` (фон `#000`, вертикальная лента, gap 16/20px, закрытие ✕); lazy `get_portfolio` через `apiPost` после открытия.
+- `portfolio.html` — NEW: admin Web App §8.3 (фон `#000`, вертикальный скролл, `get_portfolio` с `view=admin` + `token` + `exp` из query).
+- `.github/workflows/pages.yml` — `cp portfolio.html site/`.
+- `worker/src/utils/portfolio-auth.ts` — `getMiniAppPortfolioUrl`: trim + удаление trailing slash у `MINI_APP_URL` (уже было с фазы 2, без изменений).
+
+**Не изменялось (по ТЗ):** `moderationKeyboard` — Фаза 5.
+
+**Деплой (29.05.2026):**
+
+- GitHub Pages: push `main` → Actions (catalog.html + portfolio.html).
+- Worker: без изменений кода в фазе 4; API `get_portfolio` задеплоен ранее (фазы 2–3).
+
+**Проверки:** кнопка «Портфолио» только при `has_portfolio`; popup загружает signed URLs; `portfolio.html?listing_id=…&view=admin&token=…&exp=…` для админа.
 
 ---
 
