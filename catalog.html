@@ -1698,13 +1698,12 @@
   var PORTFOLIO_MAX_BYTES = 8 * 1024 * 1024;
   var PORTFOLIO_UPLOAD_MAX_EDGE = 1280;
   var PORTFOLIO_UPLOAD_RETRY_MAX_EDGE = 960;
-  var PORTFOLIO_SKIP_CANVAS_BELOW = 300 * 1024;
   var PORTFOLIO_CANVAS_TIMEOUT_MS = 5000;
   var PORTFOLIO_UPLOAD_CANVAS_TIMEOUT_MS = 15000;
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v88jpegoriginal';
+  var PORTFOLIO_CLIENT_VERSION = 'v89canvaswebp';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3475,15 +3474,6 @@
       });
   }
 
-  function portfolioUploadKeepOriginal(file) {
-    if (!file) return false;
-    var type = (file.type || '').toLowerCase();
-    if (type === 'image/jpeg' || type === 'image/jpg' || type === 'image/pjpeg') {
-      return true;
-    }
-    return /\.jpe?g$/i.test(file.name || '');
-  }
-
   function portfolioServerRejectRisk(file, width, height) {
     if (!file || !file.size) return true;
     if (file.size > PORTFOLIO_MAX_BYTES) return true;
@@ -3573,10 +3563,6 @@
     if (!file || !file.size) {
       return Promise.resolve(file);
     }
-    if (file.size < PORTFOLIO_SKIP_CANVAS_BELOW) {
-      portfolioTwlog('compress skip small ' + (file.name || '') + ' ' + file.size);
-      return Promise.resolve(file);
-    }
 
     function tryCompress(maxEdge, timeoutMs) {
       return new Promise(function (resolve, reject) {
@@ -3621,14 +3607,6 @@
           imgW = img.naturalWidth;
           imgH = img.naturalHeight;
           var longEdge = Math.max(imgW, imgH);
-          if (
-            portfolioUploadKeepOriginal(file) &&
-            longEdge <= PORTFOLIO_SERVER_MAX_LONG_EDGE &&
-            !portfolioServerRejectRisk(file, imgW, imgH)
-          ) {
-            succeed(file, 'compress keep original ' + imgW + 'x' + imgH);
-            return;
-          }
           var scale = Math.min(1, maxEdge / longEdge);
           var cw = Math.max(1, Math.round(imgW * scale));
           var ch = Math.max(1, Math.round(imgH * scale));

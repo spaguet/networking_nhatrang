@@ -1,38 +1,60 @@
 # Отладка загрузки фото портфолио (Telegram Mini App)
 
 **Дата сбора:** 2026-05-29  
-**Статус:** баг **не закрыт** — воспроизводится у пользователя в Telegram Android на платном сценарии  
-**Последний коммит с правками клиента:** `e0b745d` (`main`)
+**Последнее обновление:** 2026-05-30 (сессия #3)  
+**Статус:** **retest 5/5** — materialize ✅; transport ✅; passthrough ✅ (слоты 1–3 на v87/v88); слоты 4–5 падали на `compress skip small` → fix **v89**  
+**Текущая версия клиента:** `v89canvaswebp` (деплой после commit в `main`)  
+**Предыдущая:** `v88jpegoriginal` (commit `f37954b`)  
+**Последний деплой Worker:** `6fa577cb-8c10-4d57-b21e-0ad07801ae9e` (commit `0389438`)
 
-Документ для стороннего ИИ / разработчика: контекст, симптомы, архитектура, история фиксов, гипотезы, чеклист отладки.
+Документ для стороннего ИИ / разработчика: контекст, симптомы, архитектура, **полная история правок**, **логи пользователя**, **корневые причины**, гипотезы, что пробовать дальше.
 
 ---
 
-## 1. Симптомы (от пользователя)
+## 0. Executive summary (для другого ИИ)
 
-### 1.1. Превью на форме
+### Две разные корневые проблемы
 
-- При добавлении фото **не у всех** тестовых файлов появляется превью в слоте `#portfolioSlots`.
-- Слот может остаться серым (класс `is-loading`) или без картинки.
-- Проблема **интерmittent**: одно и то же изображение иногда загружается в превью, при повторном добавлении — нет.
-- До отправки на сервер пользователь **не доходит** (ошибка на этапе оплаты).
+| # | Проблема | Где | Fix |
+|---|----------|-----|-----|
+| **A** | Canvas output WebView **не декодируется `@jsquash`** | JPEG/PNG/WebP после `canvas.toDataURL` | Worker **WebP passthrough** (без decode) для canvas-path |
+| **B** | **`readWebpDimensions` bug** — VP8 start code читался с offset 20 вместо 23 | `v86` passthrough возвращал `null` → fallback в jsquash → fail | Fix `v87webpfix` |
+| **C** | **Original Telegram PNG** не декодируется `@jsquash/png` | slot 3, `1000041856.png` | Fix v88: PNG → canvas; superseded v89 |
+| **D** | **`compress skip small`** → original Telegram **JPEG** → `@jsquash/jpeg` fail | slots 4–5, `1000041842.jpg` 204 KB | Fix **`v89canvaswebp`**: все файлы → canvas WebP |
 
-### 1.2. Платное размещение (основной сценарий сбоя)
+### Что работает (подтверждено пользователем, тест #11 / `v87webpfix`)
 
-1. Заполнить форму, включить «Добавить портфолио», добавить фото.
-2. «Разместить платно» → экран выбора способа оплаты.
-3. Нажать способ оплаты (`.pay-method`).
-4. Появляется **«Подготовка фото…»**.
-5. Затем ошибка: **«Не удалось связаться с сервером. При загрузке фото попробуйте 1–2 снимка или перезапустите Mini App.»**
+- Слот 1: `1000041952.jpg` 4000×2252 → canvas WebP 174 KB → **upload OK** (нет `upload fail 1`)
+- Слот 2: `1000041951.jpg` ~3 MB → canvas WebP 171 KB → **upload OK**
 
-Интернет у пользователя работает; JSON-запросы приложения (каталог, профиль) в целом живые.
+### Что сломалось на том же тесте
 
-### 1.3. Ранее наблюдавшиеся ошибки (история)
+- Слот 3: `1000041856.png` 1.8 MB → `compress keep original 1536x1024` → `@jsquash/png` decode fail → `upload fail 3 portfolio_compress_failed`
 
-| Этап | Сообщение | Причина (установленная) |
-|------|-----------|-------------------------|
-| Выбор файла | «Допустимы только JPEG, PNG или WebP» | Строгая проверка `file.type` в WebView Telegram (пустой MIME, `application/octet-stream`, `image/pjpeg`) |
-| Upload | «Проверьте интернет и попробуйте снова» | Generic `apiErrorMessage` при `fetch` throw (`Failed to fetch`) — не реальный обрыв интернета |
+### Актуальная стратегия upload (`v89canvaswebp`)
+
+```
+ВСЕ файлы (любой размер/формат) → canvas 1280px → WebP → Worker passthrough
+jsquash на Worker не вызывается для upload payload
+```
+
+Удалены пути v86–v88: `compress skip small`, `compress keep original`.
+
+---
+
+## 1. Симптомы и ошибки по версиям
+
+| Версия | Симптом / код | Причина |
+|--------|---------------|---------|
+| `v79` | «Не удалось связаться с сервером» | multipart / пустые слоты |
+| `v80` | «Файл слишком большой» | compress timeout → original 4000×2252 |
+| `v81`–`v82` | «Не удалось обработать фото» | `toBlob` hang / dim check bug |
+| `v83`–`v84` | «Допустимы только JPEG…» | canvas JPEG/PNG undecodable (@jsquash) |
+| `v85` | «Не удалось обработать фото» | canvas WebP undecodable (@jsquash) |
+| `v86` | «Не удалось обработать фото» | passthrough fail (`readWebpDimensions` bug) |
+| `v87` | слоты 1–2 OK, слот 3 fail | passthrough OK; original PNG fail |
+| `v88` | слоты 1–2 OK, slot 3 PNG fix | PNG → canvas WebP |
+| `v89` | **ожидает retest** | slots 4–5: убран `compress skip small` |
 
 ---
 
@@ -40,365 +62,489 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Mini App (frontend) | https://spaguet.github.io/networking_nhatrang/catalog.html |
+| Mini App | https://spaguet.github.io/networking_nhatrang/catalog.html |
+| Debug URL (актуальный) | `https://spaguet.github.io/networking_nhatrang/catalog.html?portfolio_debug=1&v=12` |
+| Production URL | `https://spaguet.github.io/networking_nhatrang/catalog.html?v=12` |
 | API (Worker) | https://tg-networking-nhatrang.albertkoall.workers.dev |
-| `WEBAPP_SECRET` в catalog.html | `getting_more_money` (синхрон с wrangler secret) |
-| Платформа воспроизведения | **Telegram Mini App, Android** (WebView) |
-| Desktop Chrome / Playwright | тесты **проходят** — баг специфичен для Telegram WebView |
-| OS пользователя (dev machine) | Windows 10 |
+| `WEBAPP_SECRET` | `getting_more_money` |
+| Платформа | Telegram Mini App, **Android 13**, WebView `Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 …` |
+| Репозиторий | https://github.com/spaguet/networking_nhatrang (private) |
 | ТЗ | `portfolio_TZ.md` v1.3 |
+
+**Cache buster:** параметр `&v=N` в URL BotFather обязателен; смотреть первую строку `client vXXX`.
 
 ---
 
 ## 3. Тестовые файлы пользователя
 
-Путь на машине тестировщика: `C:\Users\OMOW\Downloads\Telegram Desktop\`
+Путь: `C:\Users\OMOW\Downloads\Telegram Desktop\`
 
-| Файл | Размер | Формат | Разрешение | Magic bytes | Поведение (со слов пользователя) |
-|------|--------|--------|------------|-------------|----------------------------------|
-| `IMG-20260529-WA0000.jpg` | 76 KB | JPEG (JFIF) | 899×1599 | `FF D8 FF E0…` | Обычно **работает** (WhatsApp-сжатое) |
-| `20260529_163459.jpg` | 3.0 MB | JPEG (EXIF) | 4000×2252 | `FF D8 FF E1…` | Часто **не работает** (камера) |
-| `file_00000000fda071faa9077be2dcf37557.png` | 2.6 MB | PNG | 1122×1402 | `89 50 4E 47…` | **Не работает** (интерmittent превью) |
-| `IMG_20260525_090547_878.jpg` | 116 KB | JPEG (EXIF) | 1240×1654 | `FF D8 FF E1…` | **Не работает** (интерmittent) |
-
-Все файлы валидные, лимит клиента 8 MB не превышен.
+| Telegram name | Размер | Разрешение (в WebView) | Upload strategy `v88` |
+|---------------|--------|------------------------|------------------------|
+| `1000041952.jpg` | 3.1 MB | 4000×2252 | canvas → WebP → passthrough |
+| `1000041951.jpg` | 3.2 MB | ~4000×2252 | canvas → WebP → passthrough |
+| `1000041856.png` | 1.8 MB | **1536×1024** (не 1122×1402!) | canvas → WebP → passthrough |
+| `1000041842.jpg` | 204 KB | — | skip small / original JPEG |
+| `1000041817.jpg` | 116 KB | 1240×1654 | skip small / original JPEG |
+| `1000041919.jpg` | 76 KB | 899×1599 | skip small / original JPEG |
 
 ---
 
-## 4. Архитектура потока данных
+## 4. Архитектура (`v88jpegoriginal`)
 
 ```mermaid
 sequenceDiagram
-  participant User as Telegram WebView
-  participant GH as GitHub Pages catalog.html
-  participant CF as Cloudflare Worker /api
-  participant R2 as R2 PORTFOLIO
+  participant GH as catalog.html
+  participant CF as Worker
+  participant R2 as R2
 
-  User->>GH: file input change
-  GH->>GH: materializePortfolioFile (ArrayBuffer)
-  GH->>GH: buildPortfolioPreview (blob/data URL)
-  Note over User,GH: Превью — только клиент
+  GH->>GH: materialize (early FileReader)
 
-  User->>GH: click .pay-method (paid + portfolio)
-  GH->>GH: compressPortfolioFileForUpload (canvas)
-  loop Каждое фото отдельно (клиент v4)
-    GH->>CF: POST multipart upload_portfolio_staging
-    CF->>CF: validateImageBytes + compressToWebp
-    CF->>R2: portfolio/staging/{tg_id}/{n}.webp
+  alt JPEG ≤2560px (keep original)
+    GH->>CF: b64 original JPEG
+    CF->>CF: jsquash decode → resize 1920 → encode WebP
+  else JPEG >2560px OR any PNG
+    GH->>GH: canvas 1280px → toDataURL WebP
+    GH->>CF: b64 WebP + canvas_w + canvas_h
+    CF->>CF: readWebpDimensions OR client dims fallback
+    CF->>CF: passthrough (no jsquash decode)
   end
-  GH->>CF: POST JSON select_payment_method
-  CF->>User: QR в бот
+  CF->>R2: staging/{tg_id}/{n}.webp
 ```
 
-### 4.1. Бесплатный submit
+### Отличия от ТЗ
 
-`submit_listing` (JSON) → `upload_portfolio` (multipart) → notify админу.
-
-### 4.2. Платный submit (§7.3 portfolio_TZ.md)
-
-- **Staging НЕ на `#paidBtn`** — только на клик `.pay-method`.
-- Цепочка: `validateFormClient` → `validatePortfolioClient` → `uploadPortfolioStaging` → `select_payment_method` → `tg.close()`.
-- Код: `catalog.html` ~3687–3759.
+- Transport: **JSON base64** (`upload_portfolio_staging_b64`), не multipart (H3).
+- Sequential POST per photo (WebView workaround).
+- Canvas: **`toDataURL`**, не `toBlob` (H2).
+- Passthrough WebP: отступление от «server re-encode всего» (§6 ТЗ) — см. §19.
 
 ---
 
-## 5. Ключевые файлы и функции
+## 5. Ключевой код (актуальный)
 
 ### 5.1. Frontend — `catalog.html`
 
-| Функция | Назначение | Строки (~) |
-|---------|------------|------------|
-| `portfolioFileMimeOk` | MIME + fallback для Telegram | 3110–3128 |
-| `materializePortfolioFile` | `readAsArrayBuffer` → in-memory `File` | 3219–3242 |
-| `addPortfolioFile` | слот + pending + materialize + preview | 3131–3189 |
-| `buildPortfolioPreview` | blob URL / canvas thumb 384px | 3033–3070 |
-| `compressPortfolioFileForUpload` | canvas → JPEG max 1920px перед upload | 3245–3292 |
-| `uploadPortfolioPhotosSequential` | **по одному фото** на запрос | 3306–3337 |
-| `uploadPortfolioStaging` | action `upload_portfolio_staging` | 3349–3350 |
-| `apiPostMultipart` | fetch + timeout 120s | 2059–2084 |
-| `apiErrorMessage` | маппинг ошибок fetch | 2087–2117 |
-| `bindPortfolioFileInput` | пересоздание `<input>` после каждого выбора | 3525–3534 |
-
-Константы: `PORTFOLIO_MAX_FILES = 5`, `PORTFOLIO_MAX_BYTES = 8 MiB`.
-
-HTML input:
-
-```html
-<input type="file" id="portfolioFileInput"
-  accept="image/jpeg,image/jpg,image/png,image/webp,image/*" hidden />
-```
-
-Meta no-cache в `<head>` (кэш Mini App).
-
-### 5.2. Backend — Cloudflare Worker
-
-| Файл | Назначение |
-|------|------------|
-| `worker/src/index.ts` | `POST /api` → multipart или JSON |
-| `worker/src/handlers/portfolio.ts` | `handleUploadPortfolioStaging`, `handleUploadPortfolio` |
-| `worker/src/services/media.ts` | magic bytes, resize 1920, WebP, лимиты §6 |
-| `worker/src/utils/portfolio-auth.ts` | rate limit KV `portfolio_rl:{tg_id}` 30/час |
-| `worker/src/utils/response.ts` | CORS `Access-Control-Allow-Origin: *` |
-
-Лимиты сервера (`media.ts`):
-
-- Вход: max **8 MB**, JPEG/PNG/WebP по magic bytes
-- Выход: WebP, long edge **1920**, target ≤400 KB, hard cap **600 KB**
-
-Multipart contract (`upload_portfolio_staging`):
-
-```
-action=upload_portfolio_staging
-initData=<Telegram WebApp initData>
-secret=<WEBAPP_SECRET>
-tg_id=<user id>
-photo_1 … photo_5  (File, multipart)
-```
-
----
-
-## 6. Маппинг ошибок UI
-
-### 6.1. `apiErrorMessage(err)` — когда `fetch` упал (`.catch`)
-
-| Условие | Текст пользователю |
-|---------|-------------------|
-| `err.name === 'AbortError'` | Превышено время ожидания… |
-| `Failed to fetch` / `TypeError` | **«Не удалось связаться с сервером. При загрузке фото…»** ← текущий баг |
-| `http_error` | Ошибка сервера (HTTP N) |
-| JSON `{ ok: false, error: "…" }` | `portfolioErrorMessage` / `ERRORS[…]` — **не** через `apiErrorMessage` |
-
-**Важно:** сообщение «не удалось связаться с сервером» означает, что **ответ Worker не получен** (обрыв, CORS без тела, таймаут WebView, краш Worker до ответа). Это **не** `portfolio_upload_failed` от сервера.
-
-### 6.2. Где показывается ошибка при оплате
+| Символ | Назначение |
+|--------|------------|
+| `PORTFOLIO_CLIENT_VERSION` | `'v89canvaswebp'` |
+| `compressPortfolioFileForUpload` | всегда canvas 1280px → WebP |
+| `canvasToUploadFile` | WebP→JPEG→PNG; `fetch(dataUrl)`; sets `canvasW/H` on File |
+| `uploadPortfolioPhotoB64` | JSON + optional `canvas_w`, `canvas_h` |
+| `bytesToBase64` | chunked `String.fromCharCode.apply` (32 KB chunks) |
 
 ```javascript
-uploadPortfolioStaging(paymentStatusEl)
-  .catch(function (err) {
-    showStatus(paymentStatusEl, apiErrorMessage(err), 'err');
-  });
+PORTFOLIO_CLIENT_VERSION = 'v89canvaswebp'
+PORTFOLIO_UPLOAD_MAX_EDGE = 1280
+PORTFOLIO_MAX_BYTES = 8 * 1024 * 1024
 ```
 
-Если сервер вернул JSON с `ok: false`, сработает `.then` → `portfolioErrorMessage(stagingData)`.
+### 5.2. Backend — Worker
 
----
+| Символ | Файл | Назначение |
+|--------|------|------------|
+| `upload_portfolio_staging_b64` | `portfolio.ts` | JSON handler |
+| `base64ToBytes` | `portfolio.ts` | atob + for-loop + `& 0xff`; head/tail log |
+| `parseCanvasDims` | `portfolio.ts` | `canvas_w`, `canvas_h` из body |
+| `readWebpDimensions` | `media.ts` | VP8 / VP8L / VP8X parse (**fixed v87**) |
+| `tryPassthroughClientWebp` | `media.ts` | passthrough + client dims fallback |
+| `compressToWebp` | `media.ts` | passthrough first, else jsquash pipeline |
 
-## 7. Расхождение клиента с ТЗ
-
-`portfolio_TZ.md` §7.2 / §312–315: **atomic upload** — один multipart с `photo_1…photo_n`, all-or-nothing.
-
-**Текущая реализация (с `e0b745d`):** `uploadPortfolioPhotosSequential` — **отдельный POST на каждое фото**. Сделано как workaround для Telegram WebView (малые запросы).
-
-Следствия для отладки:
-
-- Worker обрабатывает каждый запрос независимо; partial staging возможен при падении на N-м фото.
-- Rate limit: **30 upload/час/tg_id** — при многократных тестах может сработать (вернёт JSON, не fetch throw).
-
----
-
-## 8. История коммитов (попытки исправления)
-
-| Commit | Что менялось |
-|--------|--------------|
-| `e4a4408` | `portfolioFileMimeOk`: fallback по расширению при пустом MIME |
-| `00956d1` | Принятие `image/*`, `pjpeg`, `x-png` |
-| `d5a2baa` | Инкрементальный DOM слотов; canvas preview >512KB; тест Playwright |
-| `01c5b0b` | FileReader data URL; no-cache meta; clone file input после выбора |
-| `9537918` | Client-side compress перед upload; таймаут fetch; улучшен `apiErrorMessage` |
-| `e0b745d` | **materializePortfolioFile** (ArrayBuffer); **sequential upload**; validate pending |
-
-GitHub Pages: функции `buildPortfolioPreview`, `materializePortfolioFile`, `uploadPortfolioPhotosSequential` **деployed** (проверено fetch live HTML).
-
----
-
-## 9. Автотесты (desktop — проходят)
-
-### 9.1. Playwright
-
-```bash
-cd d:\cursor_dev\networking
-npm install playwright   # если нет
-node tests/portfolio-preview-run.mjs
-```
-
-Файл: `tests/portfolio-preview-run.mjs`  
-Результат на Chromium (2026-05-29): все 4 тестовых файла — превью OK, дубликаты OK.
-
-**Ограничение:** не эмулирует Telegram WebView / `content://` URI / реальный `initData`.
-
-### 9.2. curl multipart на Worker
-
-```bash
-curl -X POST "https://tg-networking-nhatrang.albertkoall.workers.dev/api" \
-  -F "action=upload_portfolio_staging" \
-  -F "initData=invalid" \
-  -F "secret=getting_more_money" \
-  -F "photo_1=@20260529_163459.jpg"
-```
-
-Ответ: `{"ok":false,"error":"Invalid_initData"}` HTTP 200 за ~2s — **сеть и multipart до Worker доходят**.
-
-### 9.3. Локальный pipeline Worker (@jsquash)
-
-Запуск `tsx` + `media.ts` на JPG в Node **завис/упал** (WASM в Node без Cloudflare runtime). **Не использовать** как доказательство битых файлов.
-
----
-
-## 10. Гипотезы (не подтверждены / частично)
-
-### H1. Telegram WebView не читает `content://` файлы через FileReader
-
-- `materializePortfolioFile` всё ещё использует `readAsArrayBuffer(file)` на объекте из picker.
-- Если read fails → слот удаляется с `portfolio_upload_failed` (превью нет).
-- Если read «успешен», но буфер битый → превью пустое, upload падает на fetch.
-
-**Проверка:** логировать `buf.byteLength` vs `file.size` в WebView (Telegram logging / eruda).
-
-### H2. `canvas.toBlob` / `createObjectURL` нестабильны в WebView
-
-- `compressPortfolioFileForUpload` и `buildPortfolioPreview` зависят от canvas.
-- На части устройств canvas memory limit ниже.
-
-**Проверка:** пропустить compress на клиенте, отправить materialized File as-is одним маленьким файлом.
-
-### H3. Multipart + `initData` + большой body обрывается WebView
-
-- Даже sequential upload ~300–800 KB JPEG может рваться.
-- `Failed to fetch` без HTTP status.
-
-**Проверка:** Worker logs / Cloudflare Observability на `upload_portfolio_staging`; временный endpoint echo размера body.
-
-### H4. Worker CPU / memory timeout на decode 4000×2252
-
-- `@jsquash` decode ~36 MB RGBA на кадр.
-- Может убить isolate **после** получения запроса → клиент видит обрыв (не JSON).
-
-**Проверка:** логи Worker, `wrangler tail`; тест с уже сжатым клиентом 1920px.
-
-### H5. CORS на error response от Cloudflare
-
-- При 502/1101 без CORS headers браузер показывает `Failed to fetch`.
-
-**Проверка:** DevTools Network в Telegram Desktop (если доступен) или proxy.
-
-### H6. Превью: race / `pending` слоты
-
-- `getPortfolioFiles()` фильтрует `!pending`.
-- Если materialize медленный, пользователь успевает нажать оплату → «Подождите, фото ещё обрабатывается» (другой текст).
-- Пользователь видит другую ошибку → materialize завершился, но preview URL не отрисовался (`img` onerror не обрабатывается).
-
-### H7. `releasePortfolioPreviewUrl` vs data URL
-
-- `releasePortfolioPreviewUrl` revokes только `blob:`; data URL не revoke — OK.
-- При compress upload создаётся новый blob URL для Image — если совпадает timing с preview revoke — маловероятно.
-
----
-
-## 11. Чеклист для стороннего ИИ
-
-### 11.1. Воспроизведение
-
-- [ ] Telegram Android, Mini App из бота, **paid flow** + portfolio ON
-- [ ] Тестовые файлы из §3 (минимум `20260529_163459.jpg` + PNG)
-- [ ] 1 фото vs 3–5 фото
-- [ ] Полностью закрыть Mini App между попытками (кэш)
-
-### 11.2. Инструментирование (рекомендуется добавить временно)
+JSON body (расширение v87):
 
 ```javascript
-// В materializePortfolioFile reader.onload:
-console.log('[portfolio] materialize', file.name, file.size, buf.byteLength);
-
-// В uploadPortfolioPhotosSequential перед fetch:
-console.log('[portfolio] upload', slot.position, compressed.size || compressed.byteLength);
-
-// В apiPostMultipart catch:
-console.log('[portfolio] fetch fail', err.name, err.message);
+{
+  action: 'upload_portfolio_staging_b64',
+  secret: '...',
+  initData: '...',
+  tg_id: 123,
+  position: 1,
+  name: 'photo.webp',
+  data: '<base64>',
+  canvas_w: 1280,   // optional, canvas-path only
+  canvas_h: 721
+}
 ```
 
-Telegram: `Telegram.WebApp.showAlert(JSON.stringify(...))` если console недоступен.
+---
 
-### 11.3. Server-side
+## 6. Worker deploy history
+
+| Version ID | Commit | Client | Изменение |
+|------------|--------|--------|-----------|
+| `4fb783ae` | `334414c` | v83 | b64 JSON handlers |
+| `44e2f898` | `8666eca` | v84 | relaxed JPEG SOI |
+| `92585a1b…` | `eabbc09` | v85 | b64 logging; decode fail code fix |
+| `e7d9fb62…` | `95813af` | v86 | WebP passthrough (buggy VP8 parse) |
+| `37edea58…` | `0389438` | v87 | **VP8 offset fix**; canvas_w/h |
+| `6fa577cb…` | `0389438` | v87 | redeploy (same code) |
+
+Client-only deploy:
+
+| Commit | Client | Изменение |
+|--------|--------|-----------|
+| `f37954b` | v88 | `portfolioUploadKeepOriginal` — JPEG only |
+| (next) | v89 | убраны `skip small` и `keep original` — только canvas WebP |
+
+---
+
+## 7. История коммитов (portfolio upload fix)
+
+| Commit | Версия | Суть |
+|--------|--------|------|
+| `0b7c699` | v79earlyread | Early FileReader до DOM → materialize fix |
+| `d494e73` | v80uploadcompress | compress timeout; не слать huge original |
+| `f3bbb64` | v81dataurl | `toDataURL` вместо `toBlob` |
+| `51432be` | v82dimcheck | risk check по output dims |
+| `334414c` | v83b64upload | JSON base64 upload |
+| `8666eca` | v84pngupload | canvas PNG export |
+| `eabbc09` | v85webpupload | canvas WebP; fetch(dataUrl); b64 logging |
+| `95813af` | v86webppass | original ≤2560; WebP passthrough |
+| `0389438` | v87webpfix | fix VP8 header; canvas_w/h fallback |
+| `f37954b` | v88jpegoriginal | original только JPEG; PNG → canvas |
+
+---
+
+## 8. Гипотезы
+
+| ID | Гипотеза | Статус |
+|----|----------|--------|
+| H1 | `content://` URI умирает после yield | ✅ fix v79 |
+| H1b | Кэш WebView | ✅ `&v=N` |
+| H2 | `canvas.toBlob` never fires | ✅ fix toDataURL |
+| H3 | Multipart портит bytes | ✅ fix b64 JSON |
+| H4 | canvas-JPEG undecodable | ✅ подтверждена |
+| H5 | compress timeout → too_large | ✅ fix v80 |
+| H6 | dim check по original | ✅ fix v82 |
+| H8 | **canvas output undecodable @jsquash (all formats)** | ✅ подтверждена |
+| H9 | b64 atob truncation | ❌ маловероятна (174 KB WebP тоже fail до v87) |
+| H10 | detectImageMime too strict | ❌ magic OK, fail на decode |
+| **H11** | **`readWebpDimensions` VP8 start code wrong offset** | ✅ **v86 читал bytes[20-22], нужно [23-25]** |
+| **H12** | **Original Telegram PNG undecodable @jsquash/png** | ✅ **тест #11 slot 3**; fix v88 |
+
+---
+
+## 9. Хронология сессий Cursor AI
+
+### 9.1. Сессия #1 (30.05, день) — v79…v84
+
+Materialize, compress, b64 transport, PNG export attempt. Детали в git log `0b7c699`…`8666eca`.
+
+### 9.2. Сессия #2 (30.05, вечер) — v85…v86
+
+**v85:** canvas WebP + safer b64; decode fail → `portfolio_compress_failed`.  
+**Тест #9:** WebP 174 KB, magic OK, still fail → H8 confirmed.
+
+**v86:** passthrough WebP + send original if ≤2560px.  
+**Ожидание:** camera JPEG/PNG decode on server.
+
+### 9.3. Сессия #3 (30.05, поздний вечер) — v87…v88
+
+#### 9.3.1. Анализ Claude (после v86 fail / тест #9 still failing on v85)
+
+Claude диагностировал:
+
+```
+upload b64 magic 82,73,70,70 len=174356  → MIME OK
+upload fail portfolio_compress_failed     → passthrough null → jsquash fail
+```
+
+**Вывод Claude:** `tryPassthroughClientWebp` возвращает `null` потому что `readWebpDimensions` fail — **VP8 start code проверялся на bytes[20-22] вместо [23-25]** (frame tag 3 байта на 20-22, start code `9D 01 2A` на 23-25).
+
+Claude также предложил fallback `canvas_w`/`canvas_h` от клиента — **реализовано**.
+
+**Замечание:** Claude ошибочно предложил читать chunk FourCC с bytes[12-15] — это **chunk size**, не tag. Правильный FourCC: **bytes[16-19]**.
+
+#### 9.3.2. `0389438` — `v87webpfix`
+
+**Worker `media.ts`:**
+
+- Переписан `readWebpDimensions`: RIFF/WEBP verify; VP8/VP8L/VP8X; VP8 keyframe check `(bytes[20]&1)===0`; start code at **23-25**.
+- `tryPassthroughClientWebp(bytes, clientWidth?, clientHeight?)` — fallback dims + diagnostic logs.
+- `compressToWebp(bytes, mime, opts?)` — прокидывает client dims.
+
+**Worker `portfolio.ts`:**
+
+- `parseCanvasDims(body)` — `canvas_w`, `canvas_h`.
+- `processPhotoBytes(..., opts)` → `compressToWebp`.
+
+**Client `catalog.html`:**
+
+- `portfolioUploadFileFromBytes` — attaches `canvasW`, `canvasH` to File.
+- `uploadPortfolioPhotoB64` — sends `canvas_w`, `canvas_h` in JSON.
+
+**Deploy:** Worker `6fa577cb`; Pages `0389438`. BotFather `&v=10`.
+
+**Примечание:** первый git push завис; повторён успешно.
+
+#### 9.3.3. Тест #11 — `v87webpfix` — **частичный успех**
+
+```
+client v87webpfix Mozilla/5.0 (Linux; Android 13; K) Apple
+read ok ×5, materialize ×5, preview ×5
+compress ok webp 1000041952.jpg 3137669→174356 1280x721
+upload slot 1 174356 1000041952.webp
+upload b64 magic 82,73,70,70 len=174356
+compress ok webp 1000041951.jpg 3178695→171506 1280x721
+upload slot 2 171506 1000041951.webp
+upload b64 magic 82,73,70,70 len=171506
+compress keep original 1536x1024 1000041856.png 1841473
+upload slot 3 1841473 1000041856.png
+upload b64 magic 137,80,78,71 len=1841473
+upload fail 3 portfolio_compress_failed
+```
+
+**Анализ:**
+
+| Слот | Путь | Результат |
+|------|------|-----------|
+| 1 | canvas WebP | ✅ **OK** (нет upload fail) — passthrough работает |
+| 2 | canvas WebP | ✅ **OK** |
+| 3 | original PNG 1.8 MB | ❌ jsquash PNG decode fail |
+
+**Вывод:** v87 fix **подтверждён** для canvas WebP. Новая проблема: **original PNG из Telegram** (не canvas!) не проходит `@jsquash/png`.
+
+#### 9.3.4. `f37954b` — `v88jpegoriginal`
+
+**Проблема v86/v87:** `compress keep original` применялся ко **всем** форматам с long edge ≤2560. PNG попадал на jsquash decode → fail.
+
+**Fix:**
+
+```javascript
+function portfolioUploadKeepOriginal(file) {
+  // true ONLY for JPEG (type or .jpg extension)
+}
+
+// in compressPortfolioFileForUpload img.onload:
+if (portfolioUploadKeepOriginal(file) && longEdge <= 2560 && !rejectRisk) {
+  succeed(file, 'compress keep original ...');
+}
+```
+
+PNG `1000041856.png` теперь: canvas 1280px → WebP → passthrough (как большие JPEG).
+
+**Deploy:** Pages only (`f37954b`). Worker без изменений. BotFather `&v=11`.
+
+**Ожидаемый лог slot 3:**
+
+```
+compress ok webp 1000041856.png 1841473→~120000 1280x853
+upload slot 3 ...webp
+(нет upload fail)
+```
+
+---
+
+## 10. Все логи пользователя (краткий индекс)
+
+| # | Версия | Результат |
+|---|--------|-----------|
+| 1 | d2eaa84 | materialize intermittent fail |
+| 2 | 78a8a57 | кэш / no early read |
+| 3 | v79 | materialize ✅; upload too_large |
+| 4 | v80 | toBlob timeout |
+| 5 | v81 | compress ok but dim check fail |
+| 6 | v82 | upload invalid_type (multipart/b64) |
+| 7 | v83 | b64 JPEG magic OK, invalid_type |
+| 8 | v84 | PNG 2.2 MB, invalid_type |
+| 9 | v85 | WebP 174 KB, compress_failed |
+| 10 | v86 | (не зафиксирован отдельным логом; passthrough buggy) |
+| 11 | v87 | **слоты 1–2 OK**, slot 3 PNG fail |
+| 12 | v88 | **ожидается** |
+
+---
+
+## 11. Debug checklist
+
+1. URL: `?portfolio_debug=1&v=12`
+2. Первая строка: `client v89canvaswebp …`
+3. Worker tail:
 
 ```bash
 cd worker && npx wrangler tail
 ```
 
-Смотреть: доходит ли `upload_portfolio_staging`, `handleUploadPortfolioStaging`, ошибки D1/R2/KV.
+Ожидаемые строки для canvas WebP:
 
-### 11.4. Быстрые эксперименты
+```
+[media] webp passthrough attempt 174356
+[media] readWebpDimensions result { width: 1280, height: 721 }
+[media] webp passthrough 174356 1280 x 721
+```
 
-1. **Отключить client compress** — отправить materialized file напрямую.
-2. **Один файл 76 KB WhatsApp** — проходит ли paid flow целиком?
-3. **Base64 JSON upload** (новый action) — обход multipart WebView (большая доработка).
-4. **Telegram Bot API sendPhoto** вместо fetch multipart (альтернативная архитектура).
-5. Вернуть **single multipart** vs sequential — сравнить поведение.
+4. Live check:
 
-### 11.5. Валидация успеха
-
-- Превью: `#portfolioSlots img` с `naturalWidth > 0`
-- Staging: R2 ключи `portfolio/staging/{tg_id}/1.webp` …
-- UI: переход к «QR отправлен в чат», `tg.close()`
+```bash
+curl.exe -s "https://spaguet.github.io/networking_nhatrang/catalog.html" | findstr "v89canvaswebp"
+```
 
 ---
 
-## 12. Связанные документы
+## 12. Ожидаемый успешный лог (`v89canvaswebp`)
 
-| Файл | Содержание |
-|------|------------|
-| `portfolio_TZ.md` | Полное ТЗ v1.3, §6 лимиты, §7 форма, §7.3 paid |
-| `migration_to_cf_d1_TZ.md` | API contract, multipart actions |
-| `DEPLOY_GUIDE_CF.md` | Deploy Worker, R2, smoke tests |
-| `tests/portfolio-preview-run.mjs` | Playwright тест превью |
-| `tests/portfolio-preview-test.html` | Standalone harness |
+```
+client v89canvaswebp …
+read ok ×5
+materialize ×5
+preview ×5
+compress ok webp 1000041952.jpg … 1280x721
+upload slot 1 … (no fail)
+compress ok webp 1000041951.jpg …
+upload slot 2 … (no fail)
+compress ok webp 1000041856.png … 1280x853
+upload slot 3 … (no fail)
+compress ok webp 1000041842.jpg 204630→… 1280x…
+upload slot 4 … (no fail)
+compress ok webp 1000041817.jpg … 1280x…
+upload slot 5 … (no fail)
+→ QR в чат
+```
 
 ---
 
-## 13. Контактные точки API (для mock-тестов)
+## 13. Чеклист для следующего ИИ
+
+### Закрыто
+
+- [x] Materialize (H1)
+- [x] Transport b64 JSON (H3)
+- [x] Canvas compress toDataURL (H2)
+- [x] Canvas output undecodable — passthrough path (H8)
+- [x] VP8 header parse bug (H11) — v87
+- [x] Original PNG path — route to canvas (H12) — v88
+- [x] Small JPEG `skip small` → jsquash fail (H13) — v89
+
+### Если v89 всё ещё fail
+
+1. **Regression slots 1–3:** passthrough / `readWebpDimensions` / `canvas_w/h`.
+2. **Slots 4–5:** должны быть `compress ok webp`, не `compress skip small`.
+3. **Nuclear option:** client-side WASM encode; Bot API `file_id` upload.
+
+### Критерий успеха
+
+- [ ] 5/5 upload slots без `upload fail`
+- [ ] `select_payment_method` → QR
+- [ ] R2: `portfolio/staging/{tg_id}/1.webp` … `5.webp`
+
+---
+
+## 14. Маппинг ошибок UI
+
+| JSON `error` | UI | Когда |
+|--------------|-----|-------|
+| `portfolio_compress_failed` | Не удалось обработать фото | jsquash decode fail **или** passthrough null (v86) |
+| `portfolio_invalid_type` | Допустимы только JPEG… | bad magic (редко) |
+| `portfolio_too_large` | Файл слишком большой | dims/bytes limits |
+| `portfolio_upload_failed` | generic | b64 null / auth |
+
+---
+
+## 15. API
 
 ```javascript
 var API_URL = 'https://tg-networking-nhatrang.albertkoall.workers.dev';
 var WEBAPP_SECRET = 'getting_more_money';
 ```
 
-JSON health:
+---
 
-```bash
-curl -X POST "$API_URL/api" -H "Content-Type: application/json" \
-  -d '{"action":"get_listings","category":"services","secret":"getting_more_money"}'
+## 16. Связанные документы
+
+| Файл | Содержание |
+|------|------------|
+| `portfolio_TZ.md` | ТЗ v1.3 |
+| `migration_to_cf_d1_TZ.md` | API contract |
+| `tests/portfolio-preview-run.mjs` | Playwright preview only |
+
+---
+
+## 17. Deep dive: VP8 header layout (bug H11)
+
+WebP file structure:
+
+```
+0-3:   'RIFF'
+4-7:   file size - 8
+8-11:  'WEBP'
+12-15: chunk size (LE)        ← НЕ FourCC!
+16-19: chunk FourCC ('VP8 ', 'VP8X', 'VP8L')
+20+:   chunk payload
+```
+
+**VP8 lossy (`VP8 `) payload:**
+
+```
+20-22: frame tag (3 bytes); bit0=0 → key frame
+23-25: start code 0x9D 0x01 0x2A    ← v86 ошибочно проверял здесь bytes[20-22]
+26-27: width (14 bit LE)
+28-29: height (14 bit LE)
+```
+
+**v86 buggy code:**
+
+```typescript
+if (bytes[20] !== 0x9d || bytes[21] !== 0x01 || bytes[22] !== 0x2a) return null;
+```
+
+**v87 fixed code:**
+
+```typescript
+if ((bytes[20] & 0x01) !== 0) return null;
+if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) return null;
 ```
 
 ---
 
-## 14. Краткий вывод для ИИ
+## 18. Deep dive: почему original PNG fail (H12)
 
-1. Баг **воспроизводится в Telegram Android**, не в desktop Chrome.
-2. Платный путь падает на **`upload_portfolio_staging`** (fetch throw), не на «нет интернета».
-3. Превью и upload используют **разные цепочки**, но оба завязаны на чтение File в WebView.
-4. Уже пробованы: MIME fixes, blob/data URL preview, materialize ArrayBuffer, sequential upload, client compress — **недостаточно**.
-5. Следующий фокус: **доказать**, доходит ли HTTP запрос до Worker; если да — CPU/memory jsquash; если нет — WebView multipart / размер / initData.
+`1000041856.png`:
 
----
+- 1841473 bytes (~1.8 MB)
+- WebView reports 1536×1024
+- Magic `137,80,78,71` valid on client
+- v86/v87: sent as **original** (≤2560px rule for all formats)
+- Worker: `compressToWebp` → `decodePng` → **null** → `portfolio_compress_failed`
 
-## 15. Правки 2026-05-29 (после рекомендации стороннего ИИ)
+**Camera/original JPEG** декодируется (wrangler tail: `processPhoto 1 3137669`).  
+**Telegram PNG** — нет (возможны: нестандартный PNG, interlace, color type, или b64 corruption tail — но magic OK).
 
-### Клиент (`catalog.html`)
-
-- `compressPortfolioFileForUpload`: файлы **< 300 KB** — без canvas; **таймаут 5 s** + **toBlob timeout 3 s**; fallback на оригинал; max edge **1280** (было 1920); quality **0.75**.
-- `buildPortfolioPreview`: таймаут 5 s на canvas-путь (серые слоты).
-- Debug: `?portfolio_debug=1` → `#portfolioDebugLog` + `portfolioTwlog()` (materialize / compress / upload).
-
-### Worker (`media.ts`, `portfolio.ts`)
-
-- Чтение JPEG/PNG dimensions **до** `@jsquash` decode; отказ при long edge **> 2560** или **> 2 MB** без читаемых dimensions.
-- `console.log` в `processPhotoFile` и при reject — для `wrangler tail`.
-
-### Деплой
-
-1. Worker: `cd worker && npx wrangler deploy`
-2. GitHub Pages: push `catalog.html`
-3. Тест в Telegram: `catalog.html?portfolio_debug=1` + `wrangler tail`
+**Практичный fix:** не отправлять PNG original; canvas → WebP → passthrough (v88).
 
 ---
 
-*Документ сгенерирован по результатам сессии отладки 2026-05-29. Обновлять при новых коммитах или симптомах.*
+## 19. Deep dive: passthrough vs ТЗ
+
+ТЗ §6: server-side WebP encode с quality loop для всех входов.
+
+Passthrough:
+
+- Применяется только к **canvas-WebP** ≤600 KB, long edge ≤1920
+- Validation: RIFF magic + header dims (+ optional client dims)
+- **Не** применяется к original JPEG (там полный jsquash pipeline)
+- Security: size cap + magic + dims; no arbitrary file types
+
+---
+
+## 20. Рекомендации внешних ИИ — итог
+
+| Источник | Рекомендация | Статус |
+|----------|--------------|--------|
+| ИИ #1 (b64/atob) | WebP client; tail logging; fix b64 | ✅ v85 |
+| ИИ #1 | PNG truncation on 2.2 MB | ❌ не главная причина |
+| Claude (VP8 parse) | Fix offset 23-25; canvas_w/h | ✅ v87; **подтверждено тестом #11** |
+| Claude | chunk tag at 12-15 | ❌ **ошибка** — FourCC at 16-19 |
+| Cursor (v88) | original only JPEG | ✅ deployed |
+
+---
+
+## 21. Краткий вывод для ИИ
+
+1. **Три слоя багов:** transport (fixed v83) → canvas/jsquash (fixed passthrough v86+) → VP8 parse (fixed v87) → PNG original (fixed v88).
+2. **Тест #11 доказал:** passthrough работает для canvas WebP после v87.
+3. **Следующий retest:** `v89canvaswebp`, URL `&v=12`, ожидать 5/5 upload.
+4. **Worker tail** — главный инструмент диагностики passthrough.
+5. **Playwright** не покрывает paid upload — только preview.
+
+---
+
+*Документ обновлён 2026-05-30: сессии Cursor #1–#3, тесты #1–#11, fix v79–v88, анализ двух внешних ИИ (b64 + Claude VP8).*
