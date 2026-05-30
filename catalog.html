@@ -1704,7 +1704,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v86webppass';
+  var PORTFOLIO_CLIENT_VERSION = 'v87webpfix';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3487,16 +3487,23 @@
     return file.size > PORTFOLIO_SERVER_LARGE_BYTES;
   }
 
-  function portfolioUploadFileFromBytes(bytes, sourceFile, ext, mime) {
+  function portfolioUploadFileFromBytes(bytes, sourceFile, ext, mime, canvasW, canvasH) {
     var baseName = (sourceFile.name || 'photo').replace(/\.[^.]+$/, '');
+    var uploadFile;
     try {
-      return new File([bytes], baseName + '.' + ext, {
+      uploadFile = new File([bytes], baseName + '.' + ext, {
         type: mime,
         lastModified: Date.now()
       });
     } catch (e) {
-      return new Blob([bytes], { type: mime });
+      uploadFile = new Blob([bytes], { type: mime });
+      uploadFile.name = baseName + '.' + ext;
     }
+    if (canvasW > 0 && canvasH > 0) {
+      uploadFile.canvasW = canvasW;
+      uploadFile.canvasH = canvasH;
+    }
+    return uploadFile;
   }
 
   function dataUrlToBytes(dataUrl) {
@@ -3545,7 +3552,7 @@
             portfolioTwlog('compress png no IEND ' + (sourceFile.name || '') + ' len=' + bytes.length);
           }
         }
-        return portfolioUploadFileFromBytes(bytes, sourceFile, fmt.ext, fmt.mime);
+        return portfolioUploadFileFromBytes(bytes, sourceFile, fmt.ext, fmt.mime, cw, ch);
       }).catch(function () {
         return tryFormat(idx + 1);
       });
@@ -3683,6 +3690,10 @@
         name: compressed.name || slot.file.name || ('photo_' + slot.position + '.jpg'),
         data: bytesToBase64(bytes)
       };
+      if (compressed.canvasW > 0 && compressed.canvasH > 0) {
+        extra.canvas_w = compressed.canvasW;
+        extra.canvas_h = compressed.canvasH;
+      }
       if (listingId) extra.listing_id = listingId;
       var payload = buildPayload(portfolioB64Action(action), extra);
       if (!payload) {

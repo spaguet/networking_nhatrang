@@ -98,6 +98,7 @@ async function processPhotoBytes(
   position: number,
   r2Key: string,
   existingKey: string | null,
+  opts?: { clientWidth?: number; clientHeight?: number },
 ): Promise<
   | { ok: true; photo: ProcessedPhoto }
   | { ok: false; code: string }
@@ -130,7 +131,10 @@ async function processPhotoBytes(
     return { ok: false, code: validated.code };
   }
 
-  const compressed = await compressToWebp(bytes, validated.mime);
+  const compressed = await compressToWebp(bytes, validated.mime, {
+    clientWidth: opts?.clientWidth,
+    clientHeight: opts?.clientHeight,
+  });
   if (!compressed.ok) {
     console.log(
       '[portfolio] compress fail',
@@ -169,6 +173,26 @@ async function processPhotoFile(
   const bytes = new Uint8Array(await file.arrayBuffer());
   console.log('[portfolio] processPhoto file', position, file.size, file.type || '', bytes.byteLength);
   return processPhotoBytes(bytes, position, r2Key, existingKey);
+}
+
+function parseCanvasDims(body: Record<string, unknown>): {
+  clientWidth?: number;
+  clientHeight?: number;
+} {
+  const clientWidth = Number(body.canvas_w);
+  const clientHeight = Number(body.canvas_h);
+  if (
+    Number.isFinite(clientWidth) &&
+    Number.isFinite(clientHeight) &&
+    clientWidth > 0 &&
+    clientHeight > 0
+  ) {
+    return {
+      clientWidth: Math.round(clientWidth),
+      clientHeight: Math.round(clientHeight),
+    };
+  }
+  return {};
 }
 
 function base64DecodedLength(b64: string): number {
@@ -664,11 +688,13 @@ export async function handleUploadPortfolioStagingB64(
 
     const existingKeys = await readStagingExistingKeys(tgId, env);
     const r2Key = stagingObjectKey(tgId, position);
+    const canvasDims = parseCanvasDims(body);
     const result = await processPhotoBytes(
       bytes,
       position,
       r2Key,
       existingKeys.get(position) ?? null,
+      canvasDims,
     );
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.code });
@@ -763,11 +789,13 @@ export async function handleUploadPortfolioB64(
     const existingMedia = await listMediaByListing(listingId, env.DB);
     const existingByPosition = new Map(existingMedia.map((m) => [m.position, m.r2_key]));
     const r2Key = portfolioObjectKey(listingId, position);
+    const canvasDims = parseCanvasDims(body);
     const result = await processPhotoBytes(
       bytes,
       position,
       r2Key,
       existingByPosition.get(position) ?? null,
+      canvasDims,
     );
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.code });

@@ -122,32 +122,46 @@ function readPngDimensions(
   return null;
 }
 
-function readWebpChunkTag(bytes: Uint8Array): string {
-  return String.fromCharCode(bytes[16], bytes[17], bytes[18], bytes[19]);
-}
-
 function readWebpDimensions(
   bytes: Uint8Array,
 ): { width: number; height: number } | null {
-  if (bytes.length < 30) {
+  if (bytes.length < 12) {
     return null;
   }
 
-  const chunkTag = readWebpChunkTag(bytes);
+  if (
+    bytes[0] !== 0x52 ||
+    bytes[1] !== 0x49 ||
+    bytes[2] !== 0x46 ||
+    bytes[3] !== 0x46 ||
+    bytes[8] !== 0x57 ||
+    bytes[9] !== 0x45 ||
+    bytes[10] !== 0x42 ||
+    bytes[11] !== 0x50
+  ) {
+    return null;
+  }
 
-  if (chunkTag === 'VP8X') {
-    const width =
-      ((bytes[24] | (bytes[25] << 8) | (bytes[26] << 16)) & 0xffffff) + 1;
-    const height =
-      ((bytes[27] | (bytes[28] << 8) | (bytes[29] << 16)) & 0xffffff) + 1;
-    if (width > 0 && height > 0) {
-      return { width, height };
+  if (bytes.length < 20) {
+    return null;
+  }
+
+  const c0 = bytes[16];
+  const c1 = bytes[17];
+  const c2 = bytes[18];
+  const c3 = bytes[19];
+
+  // VP8 lossy: "VP8 "
+  if (c0 === 0x56 && c1 === 0x50 && c2 === 0x38 && c3 === 0x20) {
+    if (bytes.length < 30) {
+      return null;
     }
-    return null;
-  }
-
-  if (chunkTag === 'VP8 ') {
-    if (bytes[20] !== 0x9d || bytes[21] !== 0x01 || bytes[22] !== 0x2a) {
+    // Frame tag at 20-22; bit0=0 → key frame.
+    if ((bytes[20] & 0x01) !== 0) {
+      return null;
+    }
+    // Key-frame start code at 23-25 (not 20-22).
+    if (bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) {
       return null;
     }
     const width = (bytes[26] | (bytes[27] << 8)) & 0x3fff;
@@ -158,8 +172,12 @@ function readWebpDimensions(
     return null;
   }
 
-  if (chunkTag === 'VP8L') {
-    if (bytes.length < 25 || bytes[20] !== 0x2f) {
+  // VP8L lossless: "VP8L"
+  if (c0 === 0x56 && c1 === 0x50 && c2 === 0x38 && c3 === 0x4c) {
+    if (bytes.length < 25) {
+      return null;
+    }
+    if (bytes[20] !== 0x2f) {
       return null;
     }
     const bits =
@@ -169,6 +187,22 @@ function readWebpDimensions(
     if (width > 0 && height > 0) {
       return { width, height };
     }
+    return null;
+  }
+
+  // VP8X extended: "VP8X"
+  if (c0 === 0x56 && c1 === 0x50 && c2 === 0x38 && c3 === 0x58) {
+    if (bytes.length < 30) {
+      return null;
+    }
+    const width =
+      (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16)) + 1;
+    const height =
+      (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16)) + 1;
+    if (width > 0 && height > 0) {
+      return { width, height };
+    }
+    return null;
   }
 
   return null;
@@ -190,18 +224,52 @@ function readImageDimensions(
   return null;
 }
 
-function tryPassthroughClientWebp(bytes: Uint8Array): CompressWebpResult | null {
+export type CompressWebpOptions = {
+  clientWidth?: number;
+  clientHeight?: number;
+};
+
+function tryPassthroughClientWebp(
+  bytes: Uint8Array,
+  clientWidth?: number,
+  clientHeight?: number,
+): CompressWebpResult | null {
   if (bytes.byteLength > OUTPUT_HARD_CAP_BYTES) {
+    console.log('[media] webp passthrough skip: too large', bytes.byteLength);
     return null;
   }
 
-  const dims = readWebpDimensions(bytes);
+  console.log('[media] webp passthrough attempt', bytes.byteLength);
+  let dims = readWebpDimensions(bytes);
+  console.log('[media] readWebpDimensions result', dims);
+
+  if (
+    !dims &&
+    clientWidth &&
+    clientHeight &&
+    clientWidth > 0 &&
+    clientHeight > 0
+  ) {
+    dims = {
+      width: Math.round(clientWidth),
+      height: Math.round(clientHeight),
+    };
+    console.log(
+      '[media] webp passthrough: header parse fallback to client dims',
+      dims.width,
+      'x',
+      dims.height,
+    );
+  }
+
   if (!dims) {
+    console.log('[media] webp passthrough skip: cannot determine dims');
     return null;
   }
 
   const longEdge = Math.max(dims.width, dims.height);
   if (longEdge > MAX_LONG_EDGE) {
+    console.log('[media] webp passthrough skip: long edge', longEdge);
     return null;
   }
 
@@ -304,6 +372,7 @@ export async function validateImageBytes(
 export async function compressToWebp(
   bytes: Uint8Array,
   mime: string,
+  opts?: CompressWebpOptions,
 ): Promise<CompressWebpResult> {
   const dimError = checkInputDimensions(bytes, mime);
   if (dimError) {
@@ -312,7 +381,11 @@ export async function compressToWebp(
   }
 
   if (mime === 'image/webp') {
-    const passthrough = tryPassthroughClientWebp(bytes);
+    const passthrough = tryPassthroughClientWebp(
+      bytes,
+      opts?.clientWidth,
+      opts?.clientHeight,
+    );
     if (passthrough) {
       return passthrough;
     }
