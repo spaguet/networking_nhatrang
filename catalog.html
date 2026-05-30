@@ -1704,7 +1704,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v87webpfix';
+  var PORTFOLIO_CLIENT_VERSION = 'v88jpegoriginal';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3475,6 +3475,15 @@
       });
   }
 
+  function portfolioUploadKeepOriginal(file) {
+    if (!file) return false;
+    var type = (file.type || '').toLowerCase();
+    if (type === 'image/jpeg' || type === 'image/jpg' || type === 'image/pjpeg') {
+      return true;
+    }
+    return /\.jpe?g$/i.test(file.name || '');
+  }
+
   function portfolioServerRejectRisk(file, width, height) {
     if (!file || !file.size) return true;
     if (file.size > PORTFOLIO_MAX_BYTES) return true;
@@ -3612,7 +3621,11 @@
           imgW = img.naturalWidth;
           imgH = img.naturalHeight;
           var longEdge = Math.max(imgW, imgH);
-          if (longEdge <= PORTFOLIO_SERVER_MAX_LONG_EDGE && !portfolioServerRejectRisk(file, imgW, imgH)) {
+          if (
+            portfolioUploadKeepOriginal(file) &&
+            longEdge <= PORTFOLIO_SERVER_MAX_LONG_EDGE &&
+            !portfolioServerRejectRisk(file, imgW, imgH)
+          ) {
             succeed(file, 'compress keep original ' + imgW + 'x' + imgH);
             return;
           }
