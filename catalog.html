@@ -601,6 +601,10 @@
       border-color: var(--orange);
     }
 
+    .copy-btn + .portfolio-btn {
+      margin-top: 12px;
+    }
+
     .portfolio-btn {
       display: flex;
       align-items: center;
@@ -809,6 +813,11 @@
       margin-bottom: 12px;
     }
     .p-actions { display: flex; gap: 8px; }
+
+    .profile-card .portfolio-btn {
+      margin-top: 12px;
+      margin-bottom: 12px;
+    }
 
     /* ══════════════════════════════════════════
        BUTTONS
@@ -2773,6 +2782,13 @@
             ? '<div class="p-exp"><span class="p-exp-label">' + esc(l.contact_type) + ':</span> ' + esc(l.contacts) + '</div>'
             : '';
 
+          var portfolioBtnHtml = l.has_portfolio
+            ? '<button type="button" class="portfolio-btn" data-listing-id="' + esc(l.listing_id) + '" ' +
+                'data-name="' + esc(l.display_name) + '">' +
+                '🖼 Портфолио' +
+              '</button>'
+            : '';
+
           var profileCardClass = 'profile-card s-' + meta.cls + (l.pin_status === 'pinned' ? ' is-pinned' : '');
 
           html +=
@@ -2785,6 +2801,7 @@
               contactBlock +
               (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
               pinDatesHtml +
+              portfolioBtnHtml +
               actions +
               pinBtnHtml +
             '</div>';
@@ -2822,6 +2839,15 @@
         document.querySelectorAll('[data-action="upload-portfolio"]').forEach(function (btn) {
           btn.addEventListener('click', function () {
             goToFormPortfolioRetry(btn.getAttribute('data-id'));
+          });
+        });
+
+        document.querySelectorAll('#profileContainer .portfolio-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            openPortfolioPopup(
+              btn.getAttribute('data-listing-id'),
+              btn.getAttribute('data-name')
+            );
           });
         });
       })
