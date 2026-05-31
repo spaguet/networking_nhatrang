@@ -887,6 +887,33 @@
       margin-bottom: 12px;
     }
 
+    .p-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .p-keywords-label {
+      font-size: 0.73rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      width: 100%;
+      margin-bottom: 2px;
+    }
+    .p-keyword-tag {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface-2, #f0f0f0);
+      border: none;
+      cursor: pointer;
+      color: var(--accent, var(--orange));
+      font-family: inherit;
+    }
+
     /* ══════════════════════════════════════════
        BUTTONS
     ══════════════════════════════════════════ */
@@ -2699,6 +2726,28 @@
     return '<div class="card-keywords">' + tags + '</div>';
   }
 
+  function findCategoryIcon(category) {
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      if (CATEGORIES[i].label === category) return CATEGORIES[i].icon;
+    }
+    return '🔹';
+  }
+
+  function buildProfileKeywordsHtml(l) {
+    var list = l.keywords || [];
+    if (!list.length) return '';
+    var category = l.category || '';
+    var tags = list.map(function (word) {
+      return '<button type="button" class="p-keyword-tag keyword-tag-profile" ' +
+        'data-keyword="' + esc(word) + '" ' +
+        'data-category="' + esc(category) + '">{#' + esc(word) + '}</button>';
+    }).join('');
+    return '<div class="p-keywords">' +
+      '<span class="p-keywords-label">Ключевые слова:</span>' +
+      tags +
+    '</div>';
+  }
+
   function buildListingCardHtml(l, animIndex) {
     var cardId = String(l.listing_id || '').trim();
     var isPinned = l.pin_status === 'pinned';
@@ -3269,6 +3318,7 @@
                 '🖼 Портфолио' +
               '</button>'
             : '';
+          var keywordsHtml = buildProfileKeywordsHtml(l);
 
           var profileCardClass = 'profile-card s-' + meta.cls + (l.pin_status === 'pinned' ? ' is-pinned' : '');
 
@@ -3280,6 +3330,7 @@
               expBlock +
               '<div class="p-desc">' + formatDescriptionHtml(l.description) + '</div>' +
               contactBlock +
+              keywordsHtml +
               (dates.length ? '<div class="p-dates">' + dates.join('<br>') + '</div>' : '') +
               pinDatesHtml +
               portfolioBtnHtml +
@@ -3331,6 +3382,15 @@
               btn.getAttribute('data-listing-id'),
               btn.getAttribute('data-name')
             );
+          });
+        });
+
+        document.querySelectorAll('.keyword-tag-profile').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var category = btn.getAttribute('data-category');
+            var keyword = btn.getAttribute('data-keyword');
+            if (!category || !keyword) return;
+            openListings(category, findCategoryIcon(category), { keywordFilter: keyword });
           });
         });
       })
