@@ -1129,6 +1129,142 @@
       flex: none;
     }
 
+    /* Rules popup (стиль rules.html) */
+    .rules-popup-overlay {
+      align-items: flex-end;
+      padding: 0;
+    }
+    @media (min-width: 480px) {
+      .rules-popup-overlay { align-items: center; padding: 20px; }
+    }
+
+    .rules-popup {
+      width: 100%;
+      max-width: 420px;
+      max-height: min(92vh, 720px);
+      display: flex;
+      flex-direction: column;
+      background: var(--cream);
+      border-radius: var(--r-card) var(--r-card) 0 0;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: fadeUp 0.22s cubic-bezier(.22,.68,0,1.2) both;
+    }
+    @media (min-width: 480px) {
+      .rules-popup { border-radius: var(--r-card); max-height: min(88vh, 680px); }
+    }
+
+    .rules-popup-header {
+      background: var(--dark);
+      padding: 22px 20px 18px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .rules-popup-header::before {
+      content: '';
+      position: absolute;
+      top: -50px; right: -50px;
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--orange-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .rules-popup-badge {
+      display: inline-flex;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 10px;
+    }
+
+    .rules-popup-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .rules-popup-title span { color: var(--orange); }
+
+    .rules-popup-desc {
+      font-size: 0.82rem;
+      color: rgba(255, 255, 255, 0.62);
+      line-height: 1.5;
+    }
+
+    .rules-popup-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 14px 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .rules-section {
+      background: var(--cream-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r-card);
+      box-shadow: var(--shadow);
+      padding: 14px 14px;
+      margin-bottom: 10px;
+    }
+
+    .rules-section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--orange-dim);
+    }
+
+    .rules-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .rules-list li {
+      display: flex;
+      gap: 9px;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: var(--text-mid);
+    }
+
+    .rules-list .rule-num {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--orange-dim);
+      color: var(--orange);
+      font-size: 0.68rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .rules-list li strong { color: var(--text); font-weight: 600; }
+
+    .rules-popup-footer {
+      flex-shrink: 0;
+      padding: 12px 14px 16px;
+      background: var(--cream);
+      border-top: 1px solid var(--border);
+    }
+    .rules-popup-footer .btn { width: 100%; flex: none; }
+
     /* ══════════════════════════════════════════
        SCREEN 4 — FORM
     ══════════════════════════════════════════ */
@@ -1164,6 +1300,26 @@
       font-size: 0.78rem;
       color: rgba(255,255,255,0.5);
       line-height: 1.5;
+    }
+    .form-intro-link-wrap {
+      margin-top: 8px;
+    }
+    .form-text-link,
+    .keywords-about-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--orange);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+      font-weight: 600;
+    }
+    .form-text-link:active,
+    .keywords-about-link:active {
+      opacity: 0.75;
     }
 
     .field-group {
@@ -1401,16 +1557,6 @@
       flex: 1;
       min-width: 0;
     }
-    .keywords-about-link {
-      background: none;
-      border: none;
-      padding: 0;
-      color: var(--accent, var(--orange));
-      text-decoration: underline;
-      cursor: pointer;
-      font-size: inherit;
-      font-family: inherit;
-    }
     .keywords-inputs {
       display: flex;
       flex-direction: column;
@@ -1542,7 +1688,7 @@
       <span class="add-resume-icon">✍️</span>
       <div class="add-resume-text">
         <span class="add-resume-title">Разместить мини-резюме</span>
-        <span class="add-resume-sub">Одно размещение бесплатно · Модерация 24 ч</span>
+        <span class="add-resume-sub">Одно размещение бесплатно</span>
       </div>
       <span class="add-resume-arrow">→</span>
     </button>
@@ -1628,6 +1774,9 @@
       <div class="form-intro-text">
         <div class="form-intro-title">Только профили специалистов</div>
         <div class="form-intro-sub">Без вакансий и объявлений о найме. Расскажите о себе и своих услугах.</div>
+        <p class="form-intro-link-wrap">
+          <button type="button" class="form-text-link" id="formRulesBtn">Правила</button>
+        </p>
       </div>
     </div>
 
@@ -1924,6 +2073,57 @@
       </ul>
     </div>
     <button type="button" id="keywordsAboutOk" class="btn btn-primary">Понятно</button>
+  </div>
+</div>
+
+<!-- FORM RULES POPUP -->
+<div id="formRulesPopup" class="popup-overlay rules-popup-overlay" hidden>
+  <div class="rules-popup" role="dialog" aria-labelledby="formRulesTitle" aria-modal="true">
+    <div class="rules-popup-header">
+      <div class="rules-popup-badge">Анкета</div>
+      <h3 class="rules-popup-title" id="formRulesTitle">Правила <span>размещения</span></h3>
+      <p class="rules-popup-desc">Модерация, сроки публикации и условия бесплатного размещения.</p>
+    </div>
+    <div class="rules-popup-body">
+      <section class="rules-section">
+        <h4 class="rules-section-title">Кто может размещать</h4>
+        <ol class="rules-list">
+          <li><span class="rule-num">1</span><span>Размещать анкету могут <strong>специалисты и фрилансеры</strong>, которые предлагают свои услуги.</span></li>
+          <li><span class="rule-num">2</span><span><strong>Нельзя</strong> публиковать вакансии, объявления о найме и предложения от работодателей.</span></li>
+          <li><span class="rule-num">3</span><span>Анкета — это <strong>профиль специалиста</strong>, а не объявление «ищем в команду».</span></li>
+        </ol>
+      </section>
+      <section class="rules-section">
+        <h4 class="rules-section-title">Модерация</h4>
+        <ol class="rules-list">
+          <li><span class="rule-num">4</span><span>Каждая анкета проходит <strong>ручную модерацию</strong> — обычно в течение <strong>24 часов</strong>.</span></li>
+          <li><span class="rule-num">5</span><span>До одобрения анкета <strong>не появится в каталоге</strong>.</span></li>
+          <li><span class="rule-num">6</span><span>При отклонении администратор свяжется с вами в течение <strong>24 часов</strong>.</span></li>
+          <li><span class="rule-num">7</span><span>Если анкета не прошла проверку — исправьте текст и отправьте заново.</span></li>
+        </ol>
+      </section>
+      <section class="rules-section">
+        <h4 class="rules-section-title">Бесплатно и платно</h4>
+        <ol class="rules-list">
+          <li><span class="rule-num">8</span><span><strong>Одно размещение — бесплатно</strong> (один раз на аккаунт Telegram).</span></li>
+          <li><span class="rule-num">9</span><span><strong>Второе и каждое следующее</strong> — платно или бесплатно после окончания срока предыдущей активной анкеты (<strong>30 дней</strong>).</span></li>
+          <li><span class="rule-num">10</span><span>Пока есть <strong>активная</strong> или <strong>на модерации</strong> анкета — новую бесплатную отправить нельзя.</span></li>
+          <li><span class="rule-num">11</span><span>После оплаты отправьте <strong>скриншот чека</strong> боту — анкета активируется <strong>в течение часа</strong> (при успешной модерации).</span></li>
+        </ol>
+      </section>
+      <section class="rules-section">
+        <h4 class="rules-section-title">Сроки публикации</h4>
+        <ol class="rules-list">
+          <li><span class="rule-num">12</span><span>Одобренная анкета публикуется на <strong>30 дней</strong>.</span></li>
+          <li><span class="rule-num">13</span><span>По истечении срока анкета <strong>автоматически уходит в архив</strong>.</span></li>
+          <li><span class="rule-num">14</span><span>В архиве данные хранятся <strong>3 месяца</strong>, затем удаляются безвозвратно.</span></li>
+          <li><span class="rule-num">15</span><span>Активную анкету можно <strong>самостоятельно убрать в архив</strong> через «Мой профиль».</span></li>
+        </ol>
+      </section>
+    </div>
+    <div class="rules-popup-footer">
+      <button type="button" id="formRulesOk" class="btn btn-primary">Понятно</button>
+    </div>
   </div>
 </div>
 
@@ -2287,6 +2487,14 @@
     document.getElementById('keywordsAboutPopup').hidden = true;
   }
 
+  function showFormRulesPopup() {
+    document.getElementById('formRulesPopup').hidden = false;
+  }
+
+  function hideFormRulesPopup() {
+    document.getElementById('formRulesPopup').hidden = true;
+  }
+
   document.getElementById('keywordStopPopupOk').addEventListener('click', hideKeywordStopPopup);
   document.getElementById('keywordStopPopup').addEventListener('click', function (e) {
     if (e.target === this) hideKeywordStopPopup();
@@ -2294,6 +2502,15 @@
   document.getElementById('keywordsAboutOk').addEventListener('click', hideKeywordsAboutPopup);
   document.getElementById('keywordsAboutPopup').addEventListener('click', function (e) {
     if (e.target === this) hideKeywordsAboutPopup();
+  });
+
+  var formRulesBtn = document.getElementById('formRulesBtn');
+  if (formRulesBtn) {
+    formRulesBtn.addEventListener('click', showFormRulesPopup);
+  }
+  document.getElementById('formRulesOk').addEventListener('click', hideFormRulesPopup);
+  document.getElementById('formRulesPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideFormRulesPopup();
   });
 
   function syncKeywordsCheckboxVisual() {
