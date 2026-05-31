@@ -23,6 +23,11 @@ import {
 } from '../services/telegram-api';
 import { decodeDescriptionNewlines } from '../utils/description';
 import {
+  formatKeywordsModerationLine,
+  parseKeywordsJson,
+  serializeKeywords,
+} from '../utils/keywords';
+import {
   ensureUser,
   formatDateRu,
   getPinDurationLabel,
@@ -79,6 +84,7 @@ interface ListingAdminData {
   experience?: string;
   contact_type?: string;
   contacts: string;
+  keywords?: string[];
 }
 
 /** KV dedup — upd_{update_id}, TTL 21600s (как isDuplicateUpdate в Code.gs) */
@@ -227,7 +233,8 @@ function formatListingAdminText(
     `Опыт/стаж: ${data.experience || '—'}\n` +
     `Описание: ${decodeDescriptionNewlines(data.description)}\n` +
     `Тип контакта: ${data.contact_type || '—'}\n` +
-    `Контакты: ${data.contacts}`;
+    `Контакты: ${data.contacts}\n` +
+    `${formatKeywordsModerationLine(data.keywords ?? [])}`;
 
   if (userRef) {
     text += `\n\n👤 Аккаунт автора:\n${userRef}`;
@@ -244,7 +251,7 @@ async function getListingData(
   env: Env,
 ): Promise<(ListingAdminData & { tg_id: number; payment_status: string }) | null> {
   const row = await env.DB.prepare(
-    `SELECT tg_id, display_name, category, description, experience, contact_type, contacts, payment_status
+    `SELECT tg_id, display_name, category, description, experience, contact_type, contacts, payment_status, keywords
      FROM listings
      WHERE listing_id = ?`,
   )
@@ -258,6 +265,7 @@ async function getListingData(
       contact_type: string;
       contacts: string;
       payment_status: string;
+      keywords: string;
     }>();
 
   if (!row) {
@@ -273,6 +281,7 @@ async function getListingData(
     contact_type: row.contact_type,
     contacts: row.contacts,
     payment_status: row.payment_status,
+    keywords: parseKeywordsJson(row.keywords),
   };
 }
 
@@ -594,8 +603,8 @@ async function insertPaidListing(
     `INSERT INTO listings (
       listing_id, tg_id, display_name, category, description, experience,
       contact_type, contacts, status, payment_status, created_at, expires_at,
-      submitted_at, avatar_emoji, pin_status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'paid', NULL, NULL, ?, ?, 'regular')`,
+      submitted_at, avatar_emoji, pin_status, keywords
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'paid', NULL, NULL, ?, ?, 'regular', ?)`,
   )
     .bind(
       draft.listing_id,
@@ -608,6 +617,7 @@ async function insertPaidListing(
       draft.contacts,
       now,
       draft.avatar_emoji || DEFAULT_AVATAR_EMOJI,
+      serializeKeywords(draft.keywords ?? []),
     )
     .run();
 }

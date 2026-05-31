@@ -15,6 +15,7 @@ import {
 import { moderationKeyboard, sendMessage } from '../services/telegram-api';
 import { getUserIdFromInitData, validateInitData } from '../utils/auth';
 import { decodeDescriptionNewlines } from '../utils/description';
+import { formatKeywordsModerationLine, parseKeywordsJson } from '../utils/keywords';
 import { logAction } from '../utils/helpers';
 import {
   checkPortfolioRateLimit,
@@ -419,8 +420,10 @@ function buildFreeModerationAdminText(
     description: string;
     contact_type: string | null;
     contacts: string;
+    keywords?: string;
   },
 ): string {
+  const keywords = parseKeywordsJson(listing.keywords);
   return (
     '📋 МОДЕРАЦИЯ АНКЕТЫ\n' +
     `listing_id: ${listingId}\n` +
@@ -431,7 +434,8 @@ function buildFreeModerationAdminText(
     `Опыт/стаж: ${listing.experience || '—'}\n` +
     `Описание: ${decodeDescriptionNewlines(listing.description)}\n` +
     `Тип контакта: ${listing.contact_type || '—'}\n` +
-    `Контакты: ${listing.contacts}\n\n` +
+    `Контакты: ${listing.contacts}\n` +
+    `${formatKeywordsModerationLine(keywords)}\n\n` +
     '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.'
   );
 }
@@ -442,7 +446,7 @@ async function sendDeferredFreeNotify(
   env: Env,
 ): Promise<void> {
   const listing = await env.DB.prepare(
-    `SELECT display_name, category, description, experience, contact_type, contacts
+    `SELECT display_name, category, description, experience, contact_type, contacts, keywords
      FROM listings WHERE listing_id = ?`,
   )
     .bind(listingId)
@@ -453,6 +457,7 @@ async function sendDeferredFreeNotify(
       experience: string | null;
       contact_type: string | null;
       contacts: string;
+      keywords: string;
     }>();
 
   if (!listing) {

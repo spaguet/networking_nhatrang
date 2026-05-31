@@ -10,6 +10,11 @@ import {
 } from '../utils/auth';
 import { decodeDescriptionNewlines } from '../utils/description';
 import {
+  formatKeywordsModerationLine,
+  parseKeywordsJson,
+  serializeKeywords,
+} from '../utils/keywords';
+import {
   generateId,
   getUserListingMode,
   logAction,
@@ -57,6 +62,7 @@ interface CatalogListingRow {
   pin_expires_at: string | null;
   has_portfolio: number;
   portfolio_count: number;
+  keywords: string;
 }
 
 function mapCatalogListing(row: CatalogListingRow) {
@@ -77,6 +83,7 @@ function mapCatalogListing(row: CatalogListingRow) {
     pin_expires_at: row.pin_expires_at ? String(row.pin_expires_at) : '',
     has_portfolio: portfolioCount > 0,
     portfolio_count: portfolioCount,
+    keywords: parseKeywordsJson(row.keywords),
   };
 }
 
@@ -122,7 +129,7 @@ export async function handleGetListings(
 
     const { results } = await env.DB.prepare(
       `SELECT l.listing_id, l.display_name, l.category, l.description, l.experience, l.contact_type, l.contacts,
-              l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at,
+              l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at, l.keywords,
               EXISTS(
                 SELECT 1 FROM listing_media lm
                 WHERE lm.listing_id = l.listing_id AND lm.status = 'active'
@@ -182,7 +189,7 @@ export async function handleGetMyListings(
 
     const { results } = await env.DB.prepare(
       `SELECT l.listing_id, l.display_name, l.category, l.description, l.experience, l.contact_type, l.contacts,
-              l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at,
+              l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at, l.keywords,
               l.status, l.payment_status, l.submitted_at,
               EXISTS(
                 SELECT 1 FROM listing_media lm
@@ -265,8 +272,8 @@ export async function handleSubmitListing(
       `INSERT INTO listings (
         listing_id, tg_id, display_name, category, description, experience,
         contact_type, contacts, status, payment_status, created_at, expires_at,
-        submitted_at, avatar_emoji, pin_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'free', NULL, NULL, ?, ?, 'regular')`,
+        submitted_at, avatar_emoji, pin_status, keywords
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'free', NULL, NULL, ?, ?, 'regular', ?)`,
     )
       .bind(
         listingId,
@@ -279,6 +286,7 @@ export async function handleSubmitListing(
         form.contacts,
         now,
         form.avatar_emoji,
+        serializeKeywords(form.keywords),
       )
       .run();
 
@@ -293,7 +301,8 @@ export async function handleSubmitListing(
         `Опыт/стаж: ${form.experience}\n` +
         `Описание: ${decodeDescriptionNewlines(form.description)}\n` +
         `Тип контакта: ${form.contact_type}\n` +
-        `Контакты: ${form.contacts}\n\n` +
+        `Контакты: ${form.contacts}\n` +
+        `${formatKeywordsModerationLine(form.keywords)}\n\n` +
         '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.';
 
       const adminMsgId = await sendMessage(

@@ -14,6 +14,7 @@ export interface PaidListingDraft {
   payment_method: string;
   username: string;
   first_name: string;
+  keywords: string[];
 }
 
 export interface LegacySessionDraft {

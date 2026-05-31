@@ -67,10 +67,11 @@ npx wrangler d1 execute networking_nhatrang --file=src/db/schema.sql --remote
 ```powershell
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/002_portfolio.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/003_backfill_archived_at.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/004_keywords.sql
 ```
 
 Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, `admin_links`, **`listing_media`**.  
-В `listings` — колонка **`archived_at`** (для purge архива > 90 дней).
+В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`).
 
 ### A4a. R2 bucket (портфолио)
 

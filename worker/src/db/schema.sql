@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS listings (
   pinned_at       TEXT,
   pin_expires_at  TEXT,
   archived_at     TEXT,
+  keywords        TEXT NOT NULL DEFAULT '[]',
   FOREIGN KEY (tg_id) REFERENCES users(tg_id)
 );
 

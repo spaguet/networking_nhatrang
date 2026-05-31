@@ -144,6 +144,7 @@ export async function handleSelectPaymentMethod(
       payment_method: methodKey,
       username,
       first_name: firstName,
+      keywords: form.keywords,
     };
 
     await upsertSession(tgId, 'await_payment_proof', JSON.stringify(draft), env);

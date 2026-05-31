@@ -5,6 +5,7 @@ import {
   STOP_WORDS,
 } from '../config';
 import { encodeDescriptionNewlines, normalizeDescriptionInput } from './description';
+import { validateKeywords } from './keywords';
 import { containsLink } from './links';
 
 export interface ListingFormFields {
@@ -15,6 +16,7 @@ export interface ListingFormFields {
   contact_type: string;
   contacts: string;
   avatar_emoji: string;
+  keywords: string[];
 }
 
 export interface ListingFormError {
@@ -110,6 +112,11 @@ export function validateListingForm(
     return stopWordsError;
   }
 
+  const keywordsResult = validateKeywords(body.keywords_enabled === true, body.keywords);
+  if (keywordsResult.error !== null) {
+    return keywordsResult;
+  }
+
   return {
     error: null,
     display_name: displayName,
@@ -119,5 +126,6 @@ export function validateListingForm(
     contact_type: contactType,
     contacts,
     avatar_emoji: avatarEmoji,
+    keywords: keywordsResult.keywords,
   };
 }
