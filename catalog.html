@@ -694,7 +694,8 @@
       filter: none;
     }
 
-    .favorite-label {
+    .favorite-label,
+    .favorite-count {
       font-size: 0.72rem;
       font-weight: 500;
       color: var(--text-sub);
@@ -2880,7 +2881,7 @@
       ? '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn" ' +
           'aria-label="В избранное" aria-pressed="false">' +
           '<span class="star-icon" aria-hidden="true">☆</span>' +
-          '<span class="favorite-label">Звезда: <span id="favorite-count-' + cardId + '">0</span></span>' +
+          '<span id="favorite-count-' + cardId + '" class="favorite-count">0</span>' +
         '</button>'
       : '';
     var actionsStack = (likeBtn || favoriteBtn)
@@ -3355,6 +3356,16 @@
     });
   }
 
+  function syncFavoritesScreenStars() {
+    document.querySelectorAll('#favoritesContainer .favorite-btn').forEach(function (btn) {
+      var listingId = btn.id.slice('favorite-btn-'.length);
+      if (!listingId) return;
+      myFavorites.add(listingId);
+      var count = favoriteCountState[listingId] != null ? favoriteCountState[listingId] : 0;
+      renderFavoriteButton(listingId, true, count);
+    });
+  }
+
   async function initFavoriteCounts() {
     if (!FAVORITES_ENABLED) return;
     if (!tg || !tg.initData) return;
@@ -3534,7 +3545,7 @@
     requestAnimationFrame(function () {
       initCardDescToggles(container);
     });
-    syncFavoriteButtonsFromState();
+    syncFavoritesScreenStars();
     syncLikeButtonsFromState();
 
     var prevBtn = document.getElementById('favoritesNavPrev');
@@ -3645,7 +3656,7 @@
         applyFavoritesSort();
         showFavoritesPage(1);
         Promise.all([initFavoriteCounts(), initLikes()]).then(function () {
-          syncFavoriteButtonsFromState();
+          syncFavoritesScreenStars();
           syncLikeButtonsFromState();
         });
       })
