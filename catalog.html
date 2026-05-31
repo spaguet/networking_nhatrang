@@ -621,6 +621,15 @@
       flex: 1;
       min-width: 0;
     }
+
+    .card-actions-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
     .like-btn {
       display: inline-flex;
       align-items: center;
@@ -660,50 +669,36 @@
       white-space: nowrap;
     }
 
-    .favorite-wrap {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 2;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
-
-    .listing-card.is-pinned .favorite-wrap {
-      left: 10px;
-      right: auto;
-    }
-
     .favorite-btn {
-      background: rgba(255,255,255,0.85);
-      border: none;
-      border-radius: 50%;
-      width: 34px;
-      height: 34px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      justify-content: center;
-      font-size: 1.15rem;
+      gap: 6px;
+      background: none;
+      border: none;
       cursor: pointer;
       padding: 0;
-      line-height: 1;
-      transition: transform .15s;
+      flex-shrink: 0;
+      font-family: inherit;
+      line-height: 1.2;
     }
-    .favorite-btn:active { transform: scale(0.92); }
+    .favorite-btn:active { transform: scale(0.95); }
 
-    .favorite-btn .star-icon { opacity: 0.45; filter: grayscale(1); }
-    .favorite-btn.is-favorited .star-icon { opacity: 1; filter: none; }
+    .favorite-btn .star-icon {
+      font-size: 1rem;
+      line-height: 1;
+      opacity: 0.45;
+      filter: grayscale(1);
+    }
+    .favorite-btn.is-favorited .star-icon {
+      opacity: 1;
+      filter: none;
+    }
 
-    .favorite-count-label {
-      font-size: 0.62rem;
-      font-weight: 600;
-      color: rgba(0,0,0,0.45);
+    .favorite-label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-sub);
       white-space: nowrap;
-      background: rgba(255,255,255,0.8);
-      padding: 1px 5px;
-      border-radius: 8px;
     }
 
     .copy-btn {
@@ -2881,30 +2876,29 @@
           '<span class="like-label">Рекомендуют: <span id="like-count-' + cardId + '">0</span></span>' +
         '</button>'
       : '';
+    var favoriteBtn = cardId
+      ? '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn" ' +
+          'aria-label="В избранное" aria-pressed="false">' +
+          '<span class="star-icon" aria-hidden="true">☆</span>' +
+          '<span class="favorite-label">Звезда: <span id="favorite-count-' + cardId + '">0</span></span>' +
+        '</button>'
+      : '';
+    var actionsStack = (likeBtn || favoriteBtn)
+      ? '<div class="card-actions-stack">' + likeBtn + favoriteBtn + '</div>'
+      : '';
     var expBlock = l.experience
       ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
       : '';
     var cardClass = 'listing-card' + (isPinned ? ' is-pinned' : '');
-    var favoriteBlock = cardId
-      ? '<div class="favorite-wrap">' +
-          '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn" ' +
-            'aria-label="В избранное" aria-pressed="false">' +
-            '<span class="star-icon" aria-hidden="true">☆</span>' +
-          '</button>' +
-          '<span class="favorite-count-label">В избранном: ' +
-            '<span id="favorite-count-' + cardId + '">0</span></span>' +
-        '</div>'
-      : '';
     return (
       '<div class="' + cardClass + '" style="animation-delay:' + (animIndex * 0.055) + 's">' +
-        favoriteBlock +
         '<div class="card-head">' +
           '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
           '<div class="card-head-body">' +
             '<div class="card-name">' + esc(l.display_name) + '</div>' +
             '<div class="card-cat-row">' +
               '<div class="card-cat">' + esc(l.category) + '</div>' +
-              likeBtn +
+              actionsStack +
             '</div>' +
           '</div>' +
         '</div>' +
