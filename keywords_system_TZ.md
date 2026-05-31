@@ -648,7 +648,7 @@ function keywordViolatesStopWords(word) {
 | 2 | Форма | ✅ | 31.05.2026 | чекбокс, 5 полей, popups, submit/republish |
 | 3 | Каталог search + tags | ✅ | 31.05.2026 | поиск, фильтр, теги на карточках |
 | 4 | Профиль + navigation | ✅ | 31.05.2026 | .p-keywords, клик → openListings + filter |
-| 5 | Rules + deploy + QA | ⬜ | | |
+| 5 | Rules + deploy + QA | ✅ | 31.05.2026 | rules, DEPLOY_GUIDE local D1; worker deploy — см. ниже |
 
 ---
 

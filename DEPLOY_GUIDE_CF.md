@@ -3,6 +3,7 @@
 > **Связанные документы:**
 > - `migration_to_cf_d1_TZ.md` — полное ТЗ миграции, API-контракт, промпты
 > - `portfolio_TZ.md` — портфолио v1.3 (R2, D1 `listing_media`, multipart upload)
+> - `keywords_system_TZ.md` — ключевые слова v1.1 (D1 `listings.keywords`, поиск в каталоге)
 > - `DEPLOY_GUIDE_RU.md` — архивный гайд для GAS + Google Sheets
 > - `catalog.html` — Mini App (GitHub Pages), `API_URL` указывает на Worker
 
@@ -72,6 +73,19 @@ npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/00
 
 Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, `admin_links`, **`listing_media`**.  
 В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`).
+
+**Local D1** (`wrangler dev`, без `--remote`):
+
+```powershell
+cd worker
+npx wrangler d1 execute networking_nhatrang --file=src/db/migrations/004_keywords.sql
+```
+
+Полная локальная схема с нуля:
+
+```powershell
+npx wrangler d1 execute networking_nhatrang --file=src/db/schema.sql
+```
 
 ### A4a. R2 bucket (портфолио)
 
@@ -229,11 +243,11 @@ Invoke-WebRequest -Uri "https://tg-networking-nhatrang.albertkoall.workers.dev/a
 # Ожидание: { "ok": true, "week": {...}, "month": {...}, "lifetime": {...} }
 ```
 
-**POST /api** — `get_listings` с полями портфолио:
+**POST /api** — `get_listings` с полями портфолио и keywords:
 
 ```powershell
 $payload = '{"action":"get_listings","category":"Другое","secret":"<WEBAPP_SECRET>"}'
-# Ожидание: { "ok": true, "listings": [{ ..., "has_portfolio": false|true, "portfolio_count": N }] }
+# Ожидание: { "ok": true, "listings": [{ ..., "has_portfolio": false|true, "portfolio_count": N, "keywords": [] }] }
 ```
 
 **POST /api** — multipart `upload_portfolio` / `upload_portfolio_staging` — только из Mini App с валидным `initData` и файлами `photo_1`…`photo_5` (см. `portfolio_TZ.md` §10). Smoke curl без Telegram initData не применим.
@@ -267,6 +281,24 @@ $payload = '{"action":"get_listings","category":"Другое","secret":"<WEBAPP
 | P6 | Reject | R2 + `listing_media` удалены; listing `rejected` |
 | P7 | Approve с портфолио | Текст §11; `listing_media` pending → active |
 | P8 | Архив > 90 дней | `purgeListing` (D1 + R2); staging > 7 дней — cleanup |
+
+### D2b. Ключевые слова (`keywords_system_TZ.md` §15)
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| K1 | Чекбокс keywords off | submit OK, `keywords: []` |
+| K2 | Чекбокс on, 0 слов | `keywords_required` |
+| K3 | Слово «дизайн123» | `keywords_invalid` |
+| K4 | Стоп-слово | popup, submit blocked |
+| K5 | Поиск «дизайн» | exact match only |
+| K6 | Поиск «диз» | пусто (не substring) |
+| K7 | Клик `{#tag}` в каталоге | search autofill + filter |
+| K8 | Клик tag в профиле | openListings(cat) + filter |
+| K9 | Фильтр в кат. A | нет карточек из кат. B |
+| K10 | Republish | чекбокс + поля заполнены |
+| K11 | Старые анкеты | без тегов, `keywords: []` |
+
+> **PR-чеклист:** `worker/src/config.ts` `STOP_WORDS` ↔ `catalog.html` `STOP_WORDS`.
 
 ### D3. Логи в реальном времени
 
