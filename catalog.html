@@ -1411,12 +1411,74 @@
     }
 
     .field-item.field-avatar {
-      max-width: 96px;
+      max-width: 108px;
     }
-    .field-item.field-avatar select {
-      font-size: 1.35rem;
-      text-align: center;
-      padding: 10px 30px 10px 10px;
+    .avatar-emoji-btn {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 10px 12px;
+      background: var(--cream-card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-btn);
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .avatar-emoji-btn:focus {
+      outline: none;
+      border-color: var(--orange);
+    }
+    .avatar-emoji-btn:active {
+      border-color: var(--orange);
+    }
+    .avatar-emoji-preview {
+      font-size: 1.75rem;
+      line-height: 1;
+    }
+    .avatar-emoji-hint {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    .avatar-emoji-section {
+      padding: 12px;
+      margin-bottom: 0;
+    }
+    .avatar-emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .avatar-emoji-option {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.65rem;
+      line-height: 1;
+      background: var(--cream);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color .12s, transform .1s, background .12s;
+      box-shadow: var(--shadow);
+    }
+    .avatar-emoji-option:active {
+      transform: scale(.94);
+    }
+    .avatar-emoji-option.selected {
+      border-color: var(--orange);
+      background: var(--orange-dim);
+    }
+    .avatar-emoji-option:focus {
+      outline: none;
+      border-color: var(--orange);
     }
 
     .field-portfolio { margin-top: 4px; }
@@ -1791,8 +1853,12 @@
         </div>
 
         <div class="field-item field-avatar">
-          <label for="avatar_emoji">Аватар</label>
-          <select id="avatar_emoji" name="avatar_emoji" required></select>
+          <label for="avatarEmojiBtn">Аватар</label>
+          <input type="hidden" id="avatar_emoji" name="avatar_emoji" required />
+          <button type="button" id="avatarEmojiBtn" class="avatar-emoji-btn" aria-haspopup="dialog" aria-expanded="false">
+            <span class="avatar-emoji-preview" id="avatarEmojiPreview">👨‍🎓</span>
+            <span class="avatar-emoji-hint">Выбрать</span>
+          </button>
         </div>
 
         <div class="field-item">
@@ -2076,6 +2142,25 @@
   </div>
 </div>
 
+<!-- AVATAR EMOJI POPUP -->
+<div id="avatarEmojiPopup" class="popup-overlay rules-popup-overlay" hidden>
+  <div class="rules-popup avatar-emoji-popup" role="dialog" aria-labelledby="avatarEmojiPopupTitle" aria-modal="true">
+    <div class="rules-popup-header">
+      <div class="rules-popup-badge">Анкета</div>
+      <h3 class="rules-popup-title" id="avatarEmojiPopupTitle">Выберите <span>аватар</span></h3>
+      <p class="rules-popup-desc">Эмодзи будет показан рядом с вашим именем в каталоге.</p>
+    </div>
+    <div class="rules-popup-body">
+      <section class="rules-section avatar-emoji-section">
+        <div class="avatar-emoji-grid" id="avatarEmojiGrid"></div>
+      </section>
+    </div>
+    <div class="rules-popup-footer">
+      <button type="button" id="avatarEmojiCancel" class="btn btn-secondary">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- FORM RULES POPUP -->
 <div id="formRulesPopup" class="popup-overlay rules-popup-overlay" hidden>
   <div class="rules-popup" role="dialog" aria-labelledby="formRulesTitle" aria-modal="true">
@@ -2168,8 +2253,9 @@
   ];
 
   var AVATAR_EMOJIS = [
-    '👦', '👩', '👨‍🎓', '👨‍💻', '💃', '🏃‍♂️', '🧎‍♂️', '🕺', '🚗', '🛵', '✈', '🚢',
-    '🔥', '🧻', '🎨', '🦺', '🥇', '♠', '💄', '🍝', '😎', '👅', '✨'
+    '🖥️', '🎨', '📣', '💼', '⚖️', '🩺', '💄', '📚', '🔨', '🚗', '🏋️', '🎭',
+    '🌴', '🏠', '👨‍🍳', '📸', '👨‍👩‍👧', '🔹', '👦', '👩', '👨‍🎓', '👨‍💻', '💃',
+    '🏃‍♂️', '🧎‍♂️', '🛵', '✈', '🚢', '🔥', '🥇', '🍝', '😎', '✨'
   ];
   var DEFAULT_AVATAR_EMOJI = '👨‍🎓';
 
@@ -2280,14 +2366,49 @@
     categorySelect.appendChild(opt);
   });
 
-  var avatarSelect = document.getElementById('avatar_emoji');
+  function setAvatarEmoji(emoji) {
+    var input = document.getElementById('avatar_emoji');
+    var preview = document.getElementById('avatarEmojiPreview');
+    if (input) input.value = emoji;
+    if (preview) preview.textContent = emoji;
+    var grid = document.getElementById('avatarEmojiGrid');
+    if (grid) {
+      grid.querySelectorAll('.avatar-emoji-option').forEach(function (btn) {
+        btn.classList.toggle('selected', btn.getAttribute('data-emoji') === emoji);
+      });
+    }
+  }
+
+  function showAvatarEmojiPopup() {
+    document.getElementById('avatarEmojiPopup').hidden = false;
+    document.getElementById('avatarEmojiBtn').setAttribute('aria-expanded', 'true');
+  }
+
+  function hideAvatarEmojiPopup() {
+    document.getElementById('avatarEmojiPopup').hidden = true;
+    document.getElementById('avatarEmojiBtn').setAttribute('aria-expanded', 'false');
+  }
+
+  var avatarGrid = document.getElementById('avatarEmojiGrid');
   AVATAR_EMOJIS.forEach(function (emoji) {
-    var opt = document.createElement('option');
-    opt.value = emoji;
+    var opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'avatar-emoji-option';
+    opt.setAttribute('data-emoji', emoji);
     opt.textContent = emoji;
-    avatarSelect.appendChild(opt);
+    opt.addEventListener('click', function () {
+      setAvatarEmoji(emoji);
+      hideAvatarEmojiPopup();
+    });
+    avatarGrid.appendChild(opt);
   });
-  avatarSelect.value = DEFAULT_AVATAR_EMOJI;
+  setAvatarEmoji(DEFAULT_AVATAR_EMOJI);
+
+  document.getElementById('avatarEmojiBtn').addEventListener('click', showAvatarEmojiPopup);
+  document.getElementById('avatarEmojiCancel').addEventListener('click', hideAvatarEmojiPopup);
+  document.getElementById('avatarEmojiPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideAvatarEmojiPopup();
+  });
 
   /* ─────────────────────────────────────
      NAVIGATION
@@ -4263,7 +4384,7 @@
     var keepRetry = !!_pendingPortfolioListingId;
     form.reset();
     clearStatus(document.getElementById('status'));
-    document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
+    setAvatarEmoji(DEFAULT_AVATAR_EMOJI);
     resetPortfolioState();
     resetKeywordsState();
     if (keepRetry) {
@@ -4287,7 +4408,7 @@
     if (prefill.display_name)
       document.getElementById('display_name').value = prefill.display_name;
     if (prefill.avatar_emoji)
-      document.getElementById('avatar_emoji').value = prefill.avatar_emoji;
+      setAvatarEmoji(prefill.avatar_emoji);
     if (prefill.experience)
       document.getElementById('experience').value = prefill.experience;
     if (prefill.description)
@@ -5196,7 +5317,7 @@
 
   function resetFormAfterSuccess() {
     document.getElementById('listingForm').reset();
-    document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
+    setAvatarEmoji(DEFAULT_AVATAR_EMOJI);
     resetPortfolioState();
     resetKeywordsState();
     clearPendingPortfolioSuccess();
