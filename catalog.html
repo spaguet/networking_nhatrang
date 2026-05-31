@@ -1340,25 +1340,42 @@
     }
     .admin-subsection-title:first-child { margin-top: 0; }
 
-    .admin-banned-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-    .admin-banned-table th,
-    .admin-banned-table td {
-      text-align: left;
-      padding: 8px 6px;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
+    .admin-banned-list { display: flex; flex-direction: column; gap: 10px; }
+    .admin-banned-card {
+      background: var(--cream);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
     }
-    .admin-banned-table th {
-      font-size: 0.68rem;
+    .admin-banned-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .admin-banned-field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .admin-banned-field-label {
+      font-size: 0.65rem;
       font-weight: 800;
       color: var(--text-sub);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+    .admin-banned-field-value {
+      font-size: 0.82rem;
+      line-height: 1.35;
+      word-break: break-word;
+    }
     .admin-banned-empty { font-size: 0.84rem; color: var(--text-sub); padding: 12px 0; text-align: center; }
     .admin-unban-btn {
-      padding: 6px 10px;
-      font-size: 0.72rem;
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 0.78rem;
       font-weight: 700;
       border-radius: 10px;
       border: 1.5px solid rgba(47, 180, 124, 0.35);
@@ -1366,7 +1383,6 @@
       color: var(--c-ok);
       cursor: pointer;
       font-family: inherit;
-      white-space: nowrap;
     }
     .admin-unban-btn:active { opacity: 0.8; }
 
@@ -6589,21 +6605,25 @@
       container.innerHTML = '<div class="admin-banned-empty">Нет забаненных пользователей</div>';
       return;
     }
-    var html = '<table class="admin-banned-table"><thead><tr>' +
-      '<th>ID</th><th>Имя</th><th>Дата бана</th><th>Кто забанил</th><th></th>' +
-      '</tr></thead><tbody>';
+    var html = '<div class="admin-banned-list">';
     users.forEach(function (u) {
       var name = u.firstName || '—';
       if (u.username) name += ' (@' + u.username + ')';
-      html += '<tr data-banned-tg="' + esc(String(u.tgId)) + '">' +
-        '<td>' + esc(String(u.tgId)) + '</td>' +
-        '<td>' + esc(name) + '</td>' +
-        '<td>' + esc(formatAdminDateTime(u.bannedAt)) + '</td>' +
-        '<td>' + esc(u.bannedByLabel || (u.bannedBy ? String(u.bannedBy) : '—')) + '</td>' +
-        '<td><button type="button" class="admin-unban-btn" data-unban-tg="' + esc(String(u.tgId)) + '">Простить</button></td>' +
-        '</tr>';
+      html += '<div class="admin-banned-card" data-banned-tg="' + esc(String(u.tgId)) + '">' +
+        '<div class="admin-banned-fields">' +
+        '<div class="admin-banned-field"><span class="admin-banned-field-label">Telegram ID</span>' +
+        '<span class="admin-banned-field-value">' + esc(String(u.tgId)) + '</span></div>' +
+        '<div class="admin-banned-field"><span class="admin-banned-field-label">Имя</span>' +
+        '<span class="admin-banned-field-value">' + esc(name) + '</span></div>' +
+        '<div class="admin-banned-field"><span class="admin-banned-field-label">Дата бана</span>' +
+        '<span class="admin-banned-field-value">' + esc(formatAdminDateTime(u.bannedAt)) + '</span></div>' +
+        '<div class="admin-banned-field"><span class="admin-banned-field-label">Кто забанил</span>' +
+        '<span class="admin-banned-field-value">' + esc(u.bannedByLabel || (u.bannedBy ? String(u.bannedBy) : '—')) + '</span></div>' +
+        '</div>' +
+        '<button type="button" class="admin-unban-btn" data-unban-tg="' + esc(String(u.tgId)) + '">Простить</button>' +
+        '</div>';
     });
-    html += '</tbody></table>';
+    html += '</div>';
     container.innerHTML = html;
     container.querySelectorAll('.admin-unban-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
