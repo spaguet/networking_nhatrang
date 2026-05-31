@@ -694,6 +694,12 @@
       filter: none;
     }
 
+    .favorite-btn.favorite-star-only .star-icon {
+      font-size: 1.15rem;
+      opacity: 1;
+      filter: none;
+    }
+
     .favorite-label,
     .favorite-count {
       font-size: 0.72rem;
@@ -2868,7 +2874,8 @@
     '</div>';
   }
 
-  function buildListingCardHtml(l, animIndex) {
+  function buildListingCardHtml(l, animIndex, opts) {
+    opts = opts || {};
     var cardId = String(l.listing_id || '').trim();
     var isPinned = l.pin_status === 'pinned';
     var likeBtn = cardId
@@ -2877,13 +2884,23 @@
           '<span class="like-label">Рекомендуют: <span id="like-count-' + cardId + '">0</span></span>' +
         '</button>'
       : '';
-    var favoriteBtn = cardId
-      ? '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn" ' +
-          'aria-label="В избранное" aria-pressed="false">' +
-          '<span class="star-icon" aria-hidden="true">☆</span>' +
-          '<span id="favorite-count-' + cardId + '" class="favorite-count">0</span>' +
-        '</button>'
-      : '';
+    var favoriteBtn = '';
+    if (cardId) {
+      if (opts.favoritesScreen) {
+        favoriteBtn =
+          '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn favorite-star-only is-favorited" ' +
+            'aria-label="Убрать из избранного" aria-pressed="true">' +
+            '<span class="star-icon" aria-hidden="true">⭐</span>' +
+          '</button>';
+      } else {
+        favoriteBtn =
+          '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn" ' +
+            'aria-label="В избранное" aria-pressed="false">' +
+            '<span class="star-icon" aria-hidden="true">☆</span>' +
+            '<span id="favorite-count-' + cardId + '" class="favorite-count">0</span>' +
+          '</button>';
+      }
+    }
     var actionsStack = (likeBtn || favoriteBtn)
       ? '<div class="card-actions-stack">' + likeBtn + favoriteBtn + '</div>'
       : '';
@@ -3332,8 +3349,8 @@
 
   function renderFavoriteButton(listingId, isFavorited, count) {
     var btn = document.getElementById('favorite-btn-' + listingId);
+    if (!btn) return;
     var countEl = document.getElementById('favorite-count-' + listingId);
-    if (!btn || !countEl) return;
     var icon = btn.querySelector('.star-icon');
     if (isFavorited) {
       btn.classList.add('is-favorited');
@@ -3344,7 +3361,7 @@
       btn.setAttribute('aria-pressed', 'false');
       if (icon) icon.textContent = '☆';
     }
-    countEl.textContent = String(count);
+    if (countEl) countEl.textContent = String(count);
   }
 
   function syncFavoriteButtonsFromState() {
@@ -3361,9 +3378,13 @@
       var listingId = btn.id.slice('favorite-btn-'.length);
       if (!listingId) return;
       myFavorites.add(listingId);
-      var count = favoriteCountState[listingId] != null ? favoriteCountState[listingId] : 0;
-      renderFavoriteButton(listingId, true, count);
+      renderFavoriteButton(listingId, true, favoriteCountState[listingId] != null ? favoriteCountState[listingId] : 0);
     });
+  }
+
+  function unfavoriteFromFavoritesScreen(listingId) {
+    if (!listingId || !myFavorites.has(listingId)) return;
+    toggleFavorite(listingId);
   }
 
   async function initFavoriteCounts() {
@@ -3477,7 +3498,7 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         var cardId = btn.id.slice('favorite-btn-'.length);
-        if (cardId) toggleFavorite(cardId);
+        if (cardId) unfavoriteFromFavoritesScreen(cardId);
       });
     });
     document.querySelectorAll('#favoritesContainer .card-desc-toggle').forEach(function (btn) {
@@ -3535,7 +3556,7 @@
 
     var html = '<div class="listings-wrap">';
     slice.forEach(function (l, i) {
-      html += buildListingCardHtml(l, i);
+      html += buildListingCardHtml(l, i, { favoritesScreen: true });
     });
     html += '</div>';
     html += renderFavoritesNavigation(total, page, totalPages);
