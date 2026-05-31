@@ -1287,6 +1287,213 @@
     .rules-popup-footer .btn { width: 100%; flex: none; }
 
     /* ══════════════════════════════════════════
+       ADMIN UI
+    ══════════════════════════════════════════ */
+    .admin-btn { border-color: rgba(224, 90, 40, 0.35); color: rgba(255,255,255,0.92); }
+    .admin-btn[hidden] { display: none; }
+
+    .admin-wrap { padding: 12px 16px 36px; display: flex; flex-direction: column; gap: 12px; }
+
+    .admin-header-bar {
+      background: var(--dark-card);
+      border-radius: var(--r-card);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .admin-role-label {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .admin-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .admin-header-btn { flex: 1; min-width: 120px; padding: 10px 12px; font-size: 0.8rem; }
+
+    .admin-section {
+      background: var(--cream-card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-card);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .admin-section[hidden] { display: none !important; }
+    .admin-section-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    .admin-section-hint {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+    .admin-subsection-title {
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 14px 0 8px;
+    }
+    .admin-subsection-title:first-child { margin-top: 0; }
+
+    .admin-banned-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .admin-banned-table th,
+    .admin-banned-table td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .admin-banned-table th {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .admin-banned-empty { font-size: 0.84rem; color: var(--text-sub); padding: 12px 0; text-align: center; }
+    .admin-unban-btn {
+      padding: 6px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border-radius: 10px;
+      border: 1.5px solid rgba(47, 180, 124, 0.35);
+      background: var(--c-ok-dim);
+      color: var(--c-ok);
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .admin-unban-btn:active { opacity: 0.8; }
+
+    .admin-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .admin-page-info { font-size: 0.78rem; color: var(--text-sub); }
+    .admin-page-btns { display: flex; gap: 6px; }
+    .admin-page-btn {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--cream);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .admin-page-btn:disabled { opacity: 0.4; pointer-events: none; }
+
+    .admin-settings-grid { display: flex; flex-direction: column; gap: 12px; }
+    .admin-save-row { margin-top: 12px; }
+    .admin-save-row .btn { width: 100%; flex: none; }
+
+    .admin-qr-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .admin-qr-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .admin-qr-label { font-size: 0.86rem; font-weight: 600; }
+    .admin-qr-status { font-size: 0.72rem; color: var(--text-sub); margin-top: 2px; }
+    .admin-qr-status.ok { color: var(--c-ok); }
+    .admin-qr-upload-btn {
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--cream);
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .admin-qr-file-input { display: none; }
+
+    .admin-admins-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .admin-admins-table th,
+    .admin-admins-table td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .admin-admins-table th {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+    }
+    .admin-remove-btn {
+      padding: 6px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border-radius: 10px;
+      border: 1.5px solid rgba(212, 53, 69, 0.25);
+      background: var(--c-err-dim);
+      color: var(--c-err);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .admin-login-wrap {
+      padding: 24px 16px 36px;
+      max-width: 420px;
+      margin: 0 auto;
+    }
+    .admin-login-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .admin-link-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      background: none;
+      border: none;
+      color: var(--orange);
+      font-size: 0.84rem;
+      font-weight: 600;
+      text-decoration: underline;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 8px;
+    }
+
+    .admin-prices-diff-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 12px 0; }
+    .admin-prices-diff-table th,
+    .admin-prices-diff-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .admin-prices-diff-table th { font-size: 0.72rem; color: var(--text-sub); text-transform: uppercase; }
+    .admin-prices-diff-old { color: var(--text-sub); text-decoration: line-through; }
+    .admin-prices-diff-new { color: var(--orange); font-weight: 700; }
+
+    .admin-modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .admin-modal-actions .btn { flex: 1; }
+
+    .field-item .field-error {
+      font-size: 0.75rem;
+      color: var(--c-err);
+      margin-top: 2px;
+    }
+
+    /* ══════════════════════════════════════════
        SCREEN 4 — FORM
     ══════════════════════════════════════════ */
     .form-wrap {
@@ -1761,6 +1968,7 @@
       <div class="hero-actions">
         <button class="profile-btn" id="profileBtn">👤 Профиль</button>
         <button class="profile-btn" id="favoritesBtn">⭐ Избранные</button>
+        <button class="profile-btn admin-btn" id="adminBtn" hidden type="button">🛠 Админ</button>
       </div>
     </div>
     <p class="hero-desc">Каталог специалистов и фрилансеров. Найдите эксперта под свою задачу или предложите свои услуги.</p>
@@ -2245,6 +2453,209 @@
   </div>
 </div>
 
+<!-- ADMIN: setup password (grand_admin first run) -->
+<div id="adminSetupPasswordModal" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="adminSetupTitle">
+    <h3 class="popup-title" id="adminSetupTitle">Установка пароля администратора</h3>
+    <p class="popup-text">Задайте пароль для входа в панель администратора. Минимум 12 символов, одна буква и одна цифра.</p>
+    <div class="field-group" style="margin-top:12px;margin-bottom:0;box-shadow:none;">
+      <div class="field-item">
+        <label for="adminSetupPwd1">Новый пароль</label>
+        <input type="password" id="adminSetupPwd1" autocomplete="new-password" />
+        <div class="field-error" id="adminSetupPwd1Err" hidden></div>
+      </div>
+      <div class="field-item">
+        <label for="adminSetupPwd2">Повторите пароль</label>
+        <input type="password" id="adminSetupPwd2" autocomplete="new-password" />
+        <div class="field-error" id="adminSetupPwd2Err" hidden></div>
+      </div>
+    </div>
+    <div class="status" id="adminSetupStatus"></div>
+    <button type="button" id="adminSetupSubmitBtn" class="btn btn-cta" style="width:100%;margin-top:14px;flex:none;">Подтвердить пароль</button>
+  </div>
+</div>
+
+<!-- ADMIN: confirm prices -->
+<div id="adminConfirmPricesModal" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="adminConfirmPricesTitle">
+    <h3 class="popup-title" id="adminConfirmPricesTitle">Подтвердите изменение цен</h3>
+    <div id="adminConfirmPricesBody"></div>
+    <div class="admin-modal-actions">
+      <button type="button" id="adminConfirmPricesCancel" class="btn btn-outline">Отмена</button>
+      <button type="button" id="adminConfirmPricesSave" class="btn btn-cta">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN: login -->
+<div id="screenAdminLogin" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromAdminLogin" type="button">←</button>
+    <span class="screen-title">Вход администратора</span>
+  </div>
+  <div class="admin-login-wrap">
+    <div class="field-group">
+      <div class="field-item">
+        <label for="adminLoginPassword">Пароль</label>
+        <input type="password" id="adminLoginPassword" autocomplete="current-password" />
+      </div>
+    </div>
+    <div class="status" id="adminLoginStatus"></div>
+    <button type="button" id="adminLoginSubmitBtn" class="btn btn-cta" style="width:100%;flex:none;">Войти</button>
+    <button type="button" id="adminLoginChangePwdLink" class="admin-link-btn">Сменить пароль</button>
+  </div>
+</div>
+
+<!-- ADMIN: change password -->
+<div id="screenAdminChangePassword" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromAdminChangePwd" type="button">←</button>
+    <span class="screen-title">Смена пароля</span>
+  </div>
+  <div class="admin-login-wrap">
+    <div class="field-group">
+      <div class="field-item">
+        <label for="adminChangeCurrent">Текущий пароль</label>
+        <input type="password" id="adminChangeCurrent" autocomplete="current-password" />
+      </div>
+      <div class="field-item">
+        <label for="adminChangePwd1">Новый пароль</label>
+        <input type="password" id="adminChangePwd1" autocomplete="new-password" />
+      </div>
+      <div class="field-item">
+        <label for="adminChangePwd2">Повторите пароль</label>
+        <input type="password" id="adminChangePwd2" autocomplete="new-password" />
+      </div>
+    </div>
+    <div class="status" id="adminChangePwdStatus"></div>
+    <button type="button" id="adminChangePwdSubmitBtn" class="btn btn-cta" style="width:100%;flex:none;">Сохранить пароль</button>
+  </div>
+</div>
+
+<!-- ADMIN: dashboard -->
+<div id="screenAdmin" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromAdmin" type="button">←</button>
+    <span class="screen-title">Админ</span>
+  </div>
+  <div class="admin-wrap">
+    <div class="admin-header-bar">
+      <div class="admin-role-label" id="adminRoleLabel">Администратор</div>
+      <div class="admin-header-actions">
+        <button type="button" class="btn btn-outline admin-header-btn" id="adminChangePwdBtn">Сменить пароль</button>
+        <button type="button" class="btn btn-secondary admin-header-btn" id="adminLogoutBtn">Выйти</button>
+      </div>
+    </div>
+
+    <section class="admin-section">
+      <div class="admin-section-title">Забаненные пользователи</div>
+      <p class="admin-section-hint">Модерация анкет — в чате бота.</p>
+      <div id="adminBannedLoader" class="loader" hidden>
+        <div class="spinner"></div>
+        <p class="loader-text">Загрузка…</p>
+      </div>
+      <div id="adminBannedContainer"></div>
+      <div class="admin-pagination" id="adminBannedPagination" hidden>
+        <span class="admin-page-info" id="adminBannedPageInfo"></span>
+        <div class="admin-page-btns">
+          <button type="button" class="admin-page-btn" id="adminBannedPrev">←</button>
+          <button type="button" class="admin-page-btn" id="adminBannedNext">→</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-section" data-admin-grand-only hidden>
+      <div class="admin-section-title">Цены размещений</div>
+      <div class="admin-settings-grid">
+        <div class="field-item">
+          <label for="adminPaymentVnd">VND</label>
+          <input type="text" id="adminPaymentVnd" data-setting-key="payment_amount_vnd" />
+        </div>
+        <div class="field-item">
+          <label for="adminPaymentCrypto">Crypto</label>
+          <input type="text" id="adminPaymentCrypto" data-setting-key="payment_amount_crypto" />
+        </div>
+      </div>
+      <div class="admin-save-row">
+        <button type="button" class="btn btn-cta" id="adminSavePaymentPricesBtn">Сохранить цены размещения</button>
+      </div>
+    </section>
+
+    <section class="admin-section" data-admin-grand-only hidden>
+      <div class="admin-section-title">Цены закреплений</div>
+      <div class="admin-subsection-title">Неделя</div>
+      <div class="admin-settings-grid">
+        <div class="field-item">
+          <label for="adminPinWeekVnd">VND</label>
+          <input type="text" id="adminPinWeekVnd" data-setting-key="pin_price_week_vnd" />
+        </div>
+        <div class="field-item">
+          <label for="adminPinWeekCrypto">Crypto</label>
+          <input type="text" id="adminPinWeekCrypto" data-setting-key="pin_price_week_crypto" />
+        </div>
+      </div>
+      <div class="admin-subsection-title">Месяц</div>
+      <div class="admin-settings-grid">
+        <div class="field-item">
+          <label for="adminPinMonthVnd">VND</label>
+          <input type="text" id="adminPinMonthVnd" data-setting-key="pin_price_month_vnd" />
+        </div>
+        <div class="field-item">
+          <label for="adminPinMonthCrypto">Crypto</label>
+          <input type="text" id="adminPinMonthCrypto" data-setting-key="pin_price_month_crypto" />
+        </div>
+      </div>
+      <div class="admin-subsection-title">Бессрочно</div>
+      <div class="admin-settings-grid">
+        <div class="field-item">
+          <label for="adminPinLifetimeVnd">VND</label>
+          <input type="text" id="adminPinLifetimeVnd" data-setting-key="pin_price_lifetime_vnd" />
+        </div>
+        <div class="field-item">
+          <label for="adminPinLifetimeCrypto">Crypto</label>
+          <input type="text" id="adminPinLifetimeCrypto" data-setting-key="pin_price_lifetime_crypto" />
+        </div>
+      </div>
+      <div class="admin-save-row">
+        <button type="button" class="btn btn-cta" id="adminSavePinPricesBtn">Сохранить цены закреплений</button>
+      </div>
+    </section>
+
+    <section class="admin-section" data-admin-grand-only hidden>
+      <div class="admin-section-title">QR-коды оплаты</div>
+      <p class="admin-section-hint">Загрузите изображение QR для каждого способа оплаты.</p>
+      <div id="adminQrList"></div>
+      <input type="file" id="adminQrFileInput" class="admin-qr-file-input" accept="image/jpeg,image/png,image/webp,image/gif" />
+    </section>
+
+    <section class="admin-section" data-admin-grand-only hidden>
+      <div class="admin-section-title">Администраторы</div>
+      <div class="admin-subsection-title">Добавить администратора</div>
+      <div class="field-group" style="margin-bottom:12px;box-shadow:none;">
+        <div class="field-item">
+          <label for="adminAddTgId">Telegram ID</label>
+          <input type="number" id="adminAddTgId" inputmode="numeric" min="1" step="1" />
+        </div>
+        <div class="field-item">
+          <label for="adminAddPwd1">Пароль для нового admin</label>
+          <input type="password" id="adminAddPwd1" autocomplete="new-password" />
+        </div>
+        <div class="field-item">
+          <label for="adminAddPwd2">Повтор пароля</label>
+          <input type="password" id="adminAddPwd2" autocomplete="new-password" />
+        </div>
+      </div>
+      <div class="status" id="adminAddStatus"></div>
+      <button type="button" class="btn btn-cta" id="adminAddSubmitBtn" style="width:100%;flex:none;margin-bottom:16px;">Добавить</button>
+      <div class="admin-subsection-title">Список администраторов</div>
+      <div id="adminAdminsLoader" class="loader" hidden>
+        <div class="spinner"></div>
+      </div>
+      <div id="adminAdminsContainer"></div>
+    </section>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -2334,6 +2745,66 @@
     keywords_limit:         'Не более 5 ключевых слов.',
     user_banned:            'Ваш телеграм-аккаунт забанен'
   };
+
+  var ADMIN_ERRORS = {
+    invalid_password:       'Неверный пароль',
+    too_many_attempts:      'Слишком много попыток входа. Повторите через 30 минут',
+    session_expired:        'Сессия истекла. Войдите снова',
+    forbidden:              'Недостаточно прав',
+    not_admin:              'Нет доступа администратора',
+    not_grand_admin:        'Только для главного администратора',
+    passwords_mismatch:     'Пароли не совпадают',
+    password_too_weak:      'Минимум 12 символов, одна буква и одна цифра',
+    already_setup:          'Пароль уже установлен',
+    duplicate_admin:        'Этот Telegram ID уже является администратором',
+    invalid_target:         'Некорректный Telegram ID',
+    cannot_add_grand_admin: 'Нельзя добавить главного администратора',
+    cannot_unban_staff:     'Нельзя простить администратора',
+    cannot_unban_self:      'Нельзя простить себя',
+    invalid_settings:       'Проверьте значения цен',
+    invalid_method:         'Неизвестный способ оплаты',
+    invalid_image:          'Некорректное изображение',
+    image_too_large:        'Изображение слишком большое (макс. 5 МБ)',
+    upload_failed:          'Не удалось загрузить QR'
+  };
+
+  var ADMIN_PRICE_LABELS = {
+    payment_amount_vnd: 'Размещение VND',
+    payment_amount_crypto: 'Размещение crypto',
+    pin_price_week_vnd: 'Закрепление неделя VND',
+    pin_price_week_crypto: 'Закрепление неделя crypto',
+    pin_price_month_vnd: 'Закрепление месяц VND',
+    pin_price_month_crypto: 'Закрепление месяц crypto',
+    pin_price_lifetime_vnd: 'Закрепление бессрочно VND',
+    pin_price_lifetime_crypto: 'Закрепление бессрочно crypto'
+  };
+
+  var ADMIN_QR_METHODS = [
+    { key: 'vnd', label: '🇻🇳 VND (банк)' },
+    { key: 'trc20', label: '💎 USDT TRC20' },
+    { key: 'bybit', label: '💎 USDT Bybit' },
+    { key: 'solana', label: '💎 USDT Solana' }
+  ];
+
+  var ADMIN_PAYMENT_KEYS = ['payment_amount_vnd', 'payment_amount_crypto'];
+  var ADMIN_PIN_KEYS = [
+    'pin_price_week_vnd', 'pin_price_week_crypto',
+    'pin_price_month_vnd', 'pin_price_month_crypto',
+    'pin_price_lifetime_vnd', 'pin_price_lifetime_crypto'
+  ];
+  var ADMIN_BANNED_PAGE_SIZE = 20;
+  var ADMIN_TZ = 'Asia/Ho_Chi_Minh';
+
+  var _adminSessionToken = sessionStorage.getItem('adminSessionToken') || '';
+  var _adminRole = sessionStorage.getItem('adminRole') || '';
+  var _adminIsAdmin = false;
+  var _adminNeedsPasswordSetup = false;
+  var _adminSettingsOriginal = {};
+  var _adminQrStatus = {};
+  var _adminBannedPage = 1;
+  var _adminBannedTotal = 0;
+  var _adminPendingQrMethod = '';
+  var _adminConfirmSaveCallback = null;
 
   var appMode = 'free';
   var _formReturnScreen = 'main';
@@ -2552,6 +3023,9 @@
     document.getElementById('screenPayment').hidden  = (name !== 'payment');
     document.getElementById('screenPinChoice').hidden  = (name !== 'pinChoice');
     document.getElementById('screenPinPayment').hidden = (name !== 'pinPayment');
+    document.getElementById('screenAdminLogin').hidden = (name !== 'adminLogin');
+    document.getElementById('screenAdminChangePassword').hidden = (name !== 'adminChangePassword');
+    document.getElementById('screenAdmin').hidden = (name !== 'admin');
   }
 
   /* ─────────────────────────────────────
@@ -5920,6 +6394,788 @@
   }
 
   /* ─────────────────────────────────────
+     ADMIN MODULE
+  ───────────────────────────────────── */
+  function setAdminSession(token, role) {
+    _adminSessionToken = token || '';
+    _adminRole = role || '';
+    if (_adminSessionToken) {
+      sessionStorage.setItem('adminSessionToken', _adminSessionToken);
+    } else {
+      sessionStorage.removeItem('adminSessionToken');
+    }
+    if (_adminRole) {
+      sessionStorage.setItem('adminRole', _adminRole);
+    } else {
+      sessionStorage.removeItem('adminRole');
+    }
+  }
+
+  function clearAdminSession() {
+    setAdminSession('', '');
+  }
+
+  function buildAdminPayload(action, extra) {
+    var payload = buildPayload(action, extra);
+    if (payload && _adminSessionToken) {
+      payload.adminToken = _adminSessionToken;
+    }
+    return payload;
+  }
+
+  function adminErrorText(errorKey, fallback) {
+    if (!errorKey) return fallback || 'Ошибка. Попробуйте позже.';
+    return ADMIN_ERRORS[errorKey] || ERRORS[errorKey] || fallback || errorKey;
+  }
+
+  function setAdminStatus(el, msg, kind) {
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = 'status' + (kind ? (' ' + kind) : '');
+    if (!msg) el.className = 'status';
+  }
+
+  function handleAdminAuthError(data, statusEl) {
+    var err = (data && data.error) || '';
+    if (err === 'session_expired' || err === 'forbidden') {
+      clearAdminSession();
+    }
+    if (statusEl) {
+      setAdminStatus(statusEl, adminErrorText(err), 'err');
+    } else if (err === 'session_expired') {
+      showToast(adminErrorText('session_expired'));
+    }
+    return err;
+  }
+
+  function formatAdminDateTime(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString('ru-RU', {
+      timeZone: ADMIN_TZ,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function showAdminSetupPasswordModal() {
+    setAdminStatus(document.getElementById('adminSetupStatus'), '', '');
+    document.getElementById('adminSetupPwd1').value = '';
+    document.getElementById('adminSetupPwd2').value = '';
+    document.getElementById('adminSetupPwd1Err').hidden = true;
+    document.getElementById('adminSetupPwd2Err').hidden = true;
+    document.getElementById('adminSetupPasswordModal').hidden = false;
+  }
+
+  function hideAdminSetupPasswordModal() {
+    document.getElementById('adminSetupPasswordModal').hidden = true;
+  }
+
+  function renderAdminDashboard() {
+    var isGrand = _adminRole === 'grand_admin';
+    document.querySelectorAll('[data-admin-grand-only]').forEach(function (el) {
+      el.hidden = !isGrand;
+    });
+    var roleEl = document.getElementById('adminRoleLabel');
+    if (roleEl) {
+      roleEl.textContent = isGrand ? 'Главный администратор' : 'Администратор';
+    }
+  }
+
+  function collectSettingValues(keys) {
+    var values = {};
+    keys.forEach(function (key) {
+      var input = document.querySelector('[data-setting-key="' + key + '"]');
+      if (input) values[key] = String(input.value || '').trim();
+    });
+    return values;
+  }
+
+  function applySettingsToForm(settings) {
+    if (!settings) return;
+    Object.keys(settings).forEach(function (key) {
+      var input = document.querySelector('[data-setting-key="' + key + '"]');
+      if (input) input.value = settings[key] || '';
+    });
+    _adminSettingsOriginal = Object.assign({}, settings);
+  }
+
+  function openConfirmPricesModal(changedFields, onConfirm) {
+    var bodyEl = document.getElementById('adminConfirmPricesBody');
+    if (!bodyEl) return;
+    var keys = Object.keys(changedFields);
+    if (keys.length === 0) return;
+
+    var html = '<table class="admin-prices-diff-table"><thead><tr>' +
+      '<th>Поле</th><th>Было</th><th>Стало</th></tr></thead><tbody>';
+    keys.forEach(function (key) {
+      var diff = changedFields[key];
+      html += '<tr><td>' + esc(ADMIN_PRICE_LABELS[key] || key) + '</td>' +
+        '<td class="admin-prices-diff-old">' + esc(diff.old) + '</td>' +
+        '<td class="admin-prices-diff-new">' + esc(diff.newVal) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    bodyEl.innerHTML = html;
+    _adminConfirmSaveCallback = onConfirm;
+    document.getElementById('adminConfirmPricesModal').hidden = false;
+  }
+
+  function closeConfirmPricesModal() {
+    document.getElementById('adminConfirmPricesModal').hidden = true;
+    _adminConfirmSaveCallback = null;
+  }
+
+  function buildPriceDiff(keys) {
+    var current = collectSettingValues(keys);
+    var diff = {};
+    keys.forEach(function (key) {
+      var oldVal = String(_adminSettingsOriginal[key] || '').trim();
+      var newVal = String(current[key] || '').trim();
+      if (newVal && newVal !== oldVal) {
+        diff[key] = { old: oldVal || '—', newVal: newVal };
+      }
+    });
+    return diff;
+  }
+
+  function renderAdminQrList() {
+    var container = document.getElementById('adminQrList');
+    if (!container) return;
+    var html = '';
+    ADMIN_QR_METHODS.forEach(function (m) {
+      var st = _adminQrStatus[m.key] || {};
+      var configured = !!st.configured;
+      var source = st.source === 'd1' ? 'D1' : (st.source === 'env' ? 'env' : '');
+      html += '<div class="admin-qr-row">' +
+        '<div><div class="admin-qr-label">' + esc(m.label) + '</div>' +
+        '<div class="admin-qr-status' + (configured ? ' ok' : '') + '">' +
+        (configured ? ('✓ Настроен' + (source ? ' (' + source + ')' : '')) : 'Не загружен') +
+        '</div></div>' +
+        '<button type="button" class="admin-qr-upload-btn" data-qr-method="' + esc(m.key) + '">Загрузить</button>' +
+        '</div>';
+    });
+    container.innerHTML = html;
+    container.querySelectorAll('.admin-qr-upload-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        _adminPendingQrMethod = btn.getAttribute('data-qr-method') || '';
+        document.getElementById('adminQrFileInput').click();
+      });
+    });
+  }
+
+  function renderBannedUsers(users) {
+    var container = document.getElementById('adminBannedContainer');
+    if (!container) return;
+    if (!users || users.length === 0) {
+      container.innerHTML = '<div class="admin-banned-empty">Нет забаненных пользователей</div>';
+      return;
+    }
+    var html = '<table class="admin-banned-table"><thead><tr>' +
+      '<th>ID</th><th>Имя</th><th>Дата бана</th><th>Кто забанил</th><th></th>' +
+      '</tr></thead><tbody>';
+    users.forEach(function (u) {
+      var name = u.firstName || '—';
+      if (u.username) name += ' (@' + u.username + ')';
+      html += '<tr data-banned-tg="' + esc(String(u.tgId)) + '">' +
+        '<td>' + esc(String(u.tgId)) + '</td>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(formatAdminDateTime(u.bannedAt)) + '</td>' +
+        '<td>' + esc(u.bannedByLabel || (u.bannedBy ? String(u.bannedBy) : '—')) + '</td>' +
+        '<td><button type="button" class="admin-unban-btn" data-unban-tg="' + esc(String(u.tgId)) + '">Простить</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    container.querySelectorAll('.admin-unban-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tgId = Number(btn.getAttribute('data-unban-tg'));
+        if (tgId) unbanUser(tgId);
+      });
+    });
+  }
+
+  function updateBannedPagination() {
+    var pagEl = document.getElementById('adminBannedPagination');
+    var infoEl = document.getElementById('adminBannedPageInfo');
+    var prevBtn = document.getElementById('adminBannedPrev');
+    var nextBtn = document.getElementById('adminBannedNext');
+    if (!pagEl || !infoEl) return;
+
+    if (_adminBannedTotal <= ADMIN_BANNED_PAGE_SIZE) {
+      pagEl.hidden = true;
+      return;
+    }
+    pagEl.hidden = false;
+    var totalPages = Math.max(1, Math.ceil(_adminBannedTotal / ADMIN_BANNED_PAGE_SIZE));
+    infoEl.textContent = 'Стр. ' + _adminBannedPage + ' из ' + totalPages + ' (' + _adminBannedTotal + ')';
+    if (prevBtn) prevBtn.disabled = _adminBannedPage <= 1;
+    if (nextBtn) nextBtn.disabled = _adminBannedPage >= totalPages;
+  }
+
+  function loadBannedUsers(page) {
+    _adminBannedPage = page || 1;
+    var loader = document.getElementById('adminBannedLoader');
+    var container = document.getElementById('adminBannedContainer');
+    if (loader) loader.hidden = false;
+    if (container) container.innerHTML = '';
+
+    var payload = buildAdminPayload('admin_list_banned', { page: _adminBannedPage });
+    if (!payload) {
+      if (loader) loader.hidden = true;
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          if (handleAdminAuthError(data) === 'session_expired') {
+            showScreen('adminLogin');
+          }
+          return;
+        }
+        _adminBannedTotal = data.total || 0;
+        renderBannedUsers(data.users || []);
+        updateBannedPagination();
+      })
+      .catch(function () {
+        if (container) container.innerHTML = '<div class="admin-banned-empty">Не удалось загрузить список</div>';
+      })
+      .finally(function () {
+        if (loader) loader.hidden = true;
+      });
+  }
+
+  function unbanUser(tgId) {
+    if (!confirm('Простить пользователя ' + tgId + '?')) return;
+    var payload = buildAdminPayload('admin_unban_user', { targetTgId: tgId });
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          var err = handleAdminAuthError(data);
+          showToast(adminErrorText(err, data.message));
+          return;
+        }
+        showToast('Пользователь прощён');
+        var row = document.querySelector('[data-banned-tg="' + tgId + '"]');
+        if (row && row.parentNode) row.parentNode.removeChild(row);
+        _adminBannedTotal = Math.max(0, _adminBannedTotal - 1);
+        if (_adminBannedTotal === 0) {
+          renderBannedUsers([]);
+        }
+        updateBannedPagination();
+      })
+      .catch(function () {
+        showToast('Не удалось выполнить разбан');
+      });
+  }
+
+  function renderAdminsList(admins) {
+    var container = document.getElementById('adminAdminsContainer');
+    if (!container) return;
+    if (!admins || admins.length === 0) {
+      container.innerHTML = '<div class="admin-banned-empty">Нет добавленных администраторов</div>';
+      return;
+    }
+    var html = '<table class="admin-admins-table"><thead><tr>' +
+      '<th>ID</th><th>Имя</th><th>Добавлен</th><th>Кем</th><th></th></tr></thead><tbody>';
+    admins.forEach(function (a) {
+      var name = a.firstName || '—';
+      if (a.username) name += ' (@' + a.username + ')';
+      html += '<tr><td>' + esc(String(a.tgId)) + '</td>' +
+        '<td>' + esc(name) + '</td>' +
+        '<td>' + esc(formatAdminDateTime(a.createdAt)) + '</td>' +
+        '<td>' + esc(a.createdByLabel || '—') + '</td>' +
+        '<td><button type="button" class="admin-remove-btn" data-remove-admin="' + esc(String(a.tgId)) + '">Удалить</button></td></tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    container.querySelectorAll('.admin-remove-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tgId = Number(btn.getAttribute('data-remove-admin'));
+        if (tgId) adminRemoveAdmin(tgId);
+      });
+    });
+  }
+
+  function loadAdminsList() {
+    if (_adminRole !== 'grand_admin') return;
+    var loader = document.getElementById('adminAdminsLoader');
+    var container = document.getElementById('adminAdminsContainer');
+    if (loader) loader.hidden = false;
+    if (container) container.innerHTML = '';
+
+    var payload = buildAdminPayload('admin_list_admins');
+    if (!payload) {
+      if (loader) loader.hidden = true;
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          handleAdminAuthError(data);
+          return;
+        }
+        renderAdminsList(data.admins || []);
+      })
+      .catch(function () {
+        if (container) container.innerHTML = '<div class="admin-banned-empty">Не удалось загрузить</div>';
+      })
+      .finally(function () {
+        if (loader) loader.hidden = true;
+      });
+  }
+
+  function loadAdminSettings() {
+    if (_adminRole !== 'grand_admin') return;
+    var payload = buildAdminPayload('admin_get_settings');
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          handleAdminAuthError(data);
+          return;
+        }
+        applySettingsToForm(data.settings || {});
+        _adminQrStatus = data.qr || {};
+        renderAdminQrList();
+      })
+      .catch(function () {});
+  }
+
+  function saveAdminSettings(settings) {
+    var payload = buildAdminPayload('admin_update_settings', { settings: settings });
+    if (!payload) return Promise.reject(new Error('no_payload'));
+
+    return apiPost(payload).then(function (data) {
+      if (!data.ok) {
+        handleAdminAuthError(data);
+        throw new Error(data.error || 'save_failed');
+      }
+      Object.keys(settings).forEach(function (key) {
+        _adminSettingsOriginal[key] = settings[key];
+      });
+      showToast('Сохранено');
+      return data;
+    });
+  }
+
+  function openAdminDashboard() {
+    renderAdminDashboard();
+    showScreen('admin');
+    loadBannedUsers(1);
+    loadAdminSettings();
+    loadAdminsList();
+  }
+
+  function adminSetupPassword(p1, p2) {
+    var statusEl = document.getElementById('adminSetupStatus');
+    var err1 = document.getElementById('adminSetupPwd1Err');
+    var err2 = document.getElementById('adminSetupPwd2Err');
+    setAdminStatus(statusEl, '…', 'info');
+    err1.hidden = true;
+    err2.hidden = true;
+
+    if (p1 !== p2) {
+      err2.hidden = false;
+      err2.textContent = 'Пароли не совпадают';
+      setAdminStatus(statusEl, adminErrorText('passwords_mismatch'), 'err');
+      return Promise.resolve(false);
+    }
+
+    var payload = buildPayload('admin_setup_password', {
+      password: p1,
+      passwordConfirm: p2
+    });
+    if (!payload) {
+      setAdminStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return Promise.resolve(false);
+    }
+
+    return apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          var err = data.error || '';
+          if (err === 'password_too_weak') {
+            err1.hidden = false;
+            err1.textContent = adminErrorText('password_too_weak');
+          }
+          setAdminStatus(statusEl, adminErrorText(err), 'err');
+          return false;
+        }
+        setAdminSession(data.adminToken, data.role);
+        _adminNeedsPasswordSetup = false;
+        hideAdminSetupPasswordModal();
+        showToast('Пароль установлен');
+        openAdminDashboard();
+        return true;
+      })
+      .catch(function (err) {
+        setAdminStatus(statusEl, apiErrorMessage(err), 'err');
+        return false;
+      });
+  }
+
+  function adminLogin(password) {
+    var statusEl = document.getElementById('adminLoginStatus');
+    setAdminStatus(statusEl, '…', 'info');
+
+    var payload = buildPayload('admin_login', { password: password });
+    if (!payload) {
+      setAdminStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return Promise.resolve(false);
+    }
+
+    return apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          setAdminStatus(statusEl, adminErrorText(data.error), 'err');
+          return false;
+        }
+        setAdminSession(data.adminToken, data.role);
+        document.getElementById('adminLoginPassword').value = '';
+        openAdminDashboard();
+        return true;
+      })
+      .catch(function (err) {
+        setAdminStatus(statusEl, apiErrorMessage(err), 'err');
+        return false;
+      });
+  }
+
+  function adminChangePassword(current, p1, p2) {
+    var statusEl = document.getElementById('adminChangePwdStatus');
+    setAdminStatus(statusEl, '…', 'info');
+
+    if (p1 !== p2) {
+      setAdminStatus(statusEl, adminErrorText('passwords_mismatch'), 'err');
+      return Promise.resolve(false);
+    }
+
+    var payload = buildAdminPayload('admin_change_password', {
+      currentPassword: current,
+      password: p1,
+      passwordConfirm: p2
+    });
+    if (!payload) {
+      setAdminStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return Promise.resolve(false);
+    }
+
+    return apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          handleAdminAuthError(data, statusEl);
+          return false;
+        }
+        showToast('Пароль изменён');
+        if (_adminSessionToken) {
+          showScreen('admin');
+        } else {
+          showScreen('adminLogin');
+        }
+        return true;
+      })
+      .catch(function (err) {
+        setAdminStatus(statusEl, apiErrorMessage(err), 'err');
+        return false;
+      });
+  }
+
+  function adminLogout() {
+    var payload = buildAdminPayload('admin_logout');
+    clearAdminSession();
+    showScreen('main');
+    showToast('Вы вышли');
+    if (payload) {
+      apiPost(payload).catch(function () {});
+    }
+  }
+
+  function adminAddAdmin(tgId, p1, p2) {
+    var statusEl = document.getElementById('adminAddStatus');
+    setAdminStatus(statusEl, '…', 'info');
+
+    if (p1 !== p2) {
+      setAdminStatus(statusEl, adminErrorText('passwords_mismatch'), 'err');
+      return;
+    }
+
+    var payload = buildAdminPayload('admin_add_admin', {
+      targetTgId: tgId,
+      password: p1,
+      passwordConfirm: p2
+    });
+    if (!payload) {
+      setAdminStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          handleAdminAuthError(data, statusEl);
+          return;
+        }
+        showToast('Администратор добавлен');
+        setAdminStatus(statusEl, '', '');
+        document.getElementById('adminAddTgId').value = '';
+        document.getElementById('adminAddPwd1').value = '';
+        document.getElementById('adminAddPwd2').value = '';
+        loadAdminsList();
+      })
+      .catch(function (err) {
+        setAdminStatus(statusEl, apiErrorMessage(err), 'err');
+      });
+  }
+
+  function adminRemoveAdmin(tgId) {
+    if (!confirm('Удалить администратора ' + tgId + '? Доступ будет отозван.')) return;
+
+    var payload = buildAdminPayload('admin_remove_admin', { targetTgId: tgId });
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(data.error));
+          return;
+        }
+        showToast('Администратор удалён');
+        loadAdminsList();
+      })
+      .catch(function () {
+        showToast('Не удалось удалить');
+      });
+  }
+
+  function adminUploadQr(methodKey, base64Data) {
+    var payload = buildAdminPayload('admin_upload_qr', {
+      methodKey: methodKey,
+      data: base64Data
+    });
+    if (!payload) return Promise.reject(new Error('no_payload'));
+
+    return apiPost(payload, 90000).then(function (data) {
+      if (!data.ok) {
+        showToast(adminErrorText(data.error));
+        throw new Error(data.error || 'upload_failed');
+      }
+      showToast('QR загружен');
+      if (!_adminQrStatus[methodKey]) _adminQrStatus[methodKey] = {};
+      _adminQrStatus[methodKey].configured = true;
+      _adminQrStatus[methodKey].source = 'd1';
+      renderAdminQrList();
+      return data;
+    });
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var result = String(reader.result || '');
+        resolve(result.split(',')[1] || '');
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function handleAdminBtnClick() {
+    if (_adminNeedsPasswordSetup) {
+      showAdminSetupPasswordModal();
+      return;
+    }
+    if (_adminSessionToken) {
+      var payload = buildAdminPayload('admin_verify_session');
+      if (!payload) {
+        showScreen('adminLogin');
+        return;
+      }
+      apiPost(payload)
+        .then(function (data) {
+          if (data.ok && data.valid) {
+            if (data.role) {
+              _adminRole = data.role;
+              sessionStorage.setItem('adminRole', _adminRole);
+            }
+            openAdminDashboard();
+          } else {
+            clearAdminSession();
+            showScreen('adminLogin');
+          }
+        })
+        .catch(function () {
+          showScreen('adminLogin');
+        });
+      return;
+    }
+    showScreen('adminLogin');
+  }
+
+  function initAdminAccess() {
+    var adminBtn = document.getElementById('adminBtn');
+    if (!tg || !tg.initData) {
+      if (adminBtn) adminBtn.hidden = true;
+      return;
+    }
+
+    var payload = buildPayload('admin_check_access');
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok || !data.isAdmin) {
+          _adminIsAdmin = false;
+          if (adminBtn) adminBtn.hidden = true;
+          return;
+        }
+        _adminIsAdmin = true;
+        _adminNeedsPasswordSetup = !!data.needsPasswordSetup;
+        if (data.role && !_adminRole) {
+          _adminRole = data.role;
+        }
+        if (adminBtn) adminBtn.hidden = false;
+
+        if (_adminSessionToken && !_adminNeedsPasswordSetup) {
+          var verifyPayload = buildAdminPayload('admin_verify_session');
+          if (!verifyPayload) return;
+          apiPost(verifyPayload)
+            .then(function (vData) {
+              if (vData.ok && vData.valid && vData.role) {
+                _adminRole = vData.role;
+                sessionStorage.setItem('adminRole', _adminRole);
+              } else if (!vData.ok || !vData.valid) {
+                clearAdminSession();
+              }
+            })
+            .catch(function () {});
+        }
+      })
+      .catch(function () {
+        if (adminBtn) adminBtn.hidden = true;
+      });
+  }
+
+  document.getElementById('adminBtn').addEventListener('click', handleAdminBtnClick);
+  document.getElementById('backFromAdminLogin').addEventListener('click', function () { showScreen('main'); });
+  document.getElementById('backFromAdminChangePwd').addEventListener('click', function () {
+    if (_adminSessionToken) showScreen('admin');
+    else showScreen('adminLogin');
+  });
+  document.getElementById('backFromAdmin').addEventListener('click', function () { showScreen('main'); });
+  document.getElementById('adminLoginSubmitBtn').addEventListener('click', function () {
+    adminLogin(document.getElementById('adminLoginPassword').value);
+  });
+  document.getElementById('adminLoginChangePwdLink').addEventListener('click', function () {
+    if (!_adminSessionToken) {
+      setAdminStatus(
+        document.getElementById('adminLoginStatus'),
+        'Сначала войдите, затем «Сменить пароль» в панели администратора',
+        'info'
+      );
+      return;
+    }
+    showScreen('adminChangePassword');
+  });
+  document.getElementById('adminChangePwdSubmitBtn').addEventListener('click', function () {
+    adminChangePassword(
+      document.getElementById('adminChangeCurrent').value,
+      document.getElementById('adminChangePwd1').value,
+      document.getElementById('adminChangePwd2').value
+    );
+  });
+  document.getElementById('adminChangePwdBtn').addEventListener('click', function () {
+    showScreen('adminChangePassword');
+  });
+  document.getElementById('adminLogoutBtn').addEventListener('click', adminLogout);
+  document.getElementById('adminSetupSubmitBtn').addEventListener('click', function () {
+    adminSetupPassword(
+      document.getElementById('adminSetupPwd1').value,
+      document.getElementById('adminSetupPwd2').value
+    );
+  });
+  document.getElementById('adminSetupPasswordModal').addEventListener('click', function (e) {
+    if (e.target === this && !_adminNeedsPasswordSetup) hideAdminSetupPasswordModal();
+  });
+  document.getElementById('adminConfirmPricesCancel').addEventListener('click', closeConfirmPricesModal);
+  document.getElementById('adminConfirmPricesSave').addEventListener('click', function () {
+    if (typeof _adminConfirmSaveCallback === 'function') {
+      var cb = _adminConfirmSaveCallback;
+      closeConfirmPricesModal();
+      cb();
+    }
+  });
+  document.getElementById('adminConfirmPricesModal').addEventListener('click', function (e) {
+    if (e.target === this) closeConfirmPricesModal();
+  });
+  document.getElementById('adminBannedPrev').addEventListener('click', function () {
+    if (_adminBannedPage > 1) loadBannedUsers(_adminBannedPage - 1);
+  });
+  document.getElementById('adminBannedNext').addEventListener('click', function () {
+    var totalPages = Math.ceil(_adminBannedTotal / ADMIN_BANNED_PAGE_SIZE);
+    if (_adminBannedPage < totalPages) loadBannedUsers(_adminBannedPage + 1);
+  });
+  document.getElementById('adminSavePaymentPricesBtn').addEventListener('click', function () {
+    var diff = buildPriceDiff(ADMIN_PAYMENT_KEYS);
+    if (Object.keys(diff).length === 0) {
+      showToast('Нет изменений');
+      return;
+    }
+    openConfirmPricesModal(diff, function () {
+      var settings = collectSettingValues(ADMIN_PAYMENT_KEYS);
+      var toSave = {};
+      Object.keys(diff).forEach(function (k) { toSave[k] = settings[k]; });
+      saveAdminSettings(toSave).catch(function (err) {
+        showToast(adminErrorText(String(err.message)));
+      });
+    });
+  });
+  document.getElementById('adminSavePinPricesBtn').addEventListener('click', function () {
+    var diff = buildPriceDiff(ADMIN_PIN_KEYS);
+    if (Object.keys(diff).length === 0) {
+      showToast('Нет изменений');
+      return;
+    }
+    openConfirmPricesModal(diff, function () {
+      var settings = collectSettingValues(ADMIN_PIN_KEYS);
+      var toSave = {};
+      Object.keys(diff).forEach(function (k) { toSave[k] = settings[k]; });
+      saveAdminSettings(toSave).catch(function () {
+        showToast('Не удалось сохранить');
+      });
+    });
+  });
+  document.getElementById('adminAddSubmitBtn').addEventListener('click', function () {
+    adminAddAdmin(
+      Number(document.getElementById('adminAddTgId').value),
+      document.getElementById('adminAddPwd1').value,
+      document.getElementById('adminAddPwd2').value
+    );
+  });
+  document.getElementById('adminQrFileInput').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !_adminPendingQrMethod) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(adminErrorText('image_too_large'));
+      return;
+    }
+    readFileAsBase64(file)
+      .then(function (b64) { return adminUploadQr(_adminPendingQrMethod, b64); })
+      .catch(function () { showToast('Не удалось загрузить файл'); });
+    _adminPendingQrMethod = '';
+  });
+
+  /* ─────────────────────────────────────
      INIT — open form via ?form=1
   ───────────────────────────────────── */
   var params = new URLSearchParams(window.location.search);
@@ -5927,6 +7183,7 @@
     goToForm(null);
   }
   checkBanOnInit();
+  initAdminAccess();
 </script>
 </body>
 </html>
