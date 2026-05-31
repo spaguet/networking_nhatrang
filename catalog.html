@@ -3465,19 +3465,23 @@
     return fetch(API_URL + '/api', opts)
       .then(function (r) {
         return r.text().then(function (t) {
+          try {
+            var parsed = JSON.parse(t);
+            if (parsed && typeof parsed === 'object') {
+              return parsed;
+            }
+          } catch (parseErr) {
+            // fall through to HTTP / non-JSON handling
+          }
           if (!r.ok) {
             var httpErr = new Error('http_error');
             httpErr.httpStatus = r.status;
             httpErr.body = (t || '').slice(0, 200);
             throw httpErr;
           }
-          try {
-            return JSON.parse(t);
-          } catch (parseErr) {
-            var jsonErr = new Error('not_json');
-            jsonErr.body = (t || '').slice(0, 200);
-            throw jsonErr;
-          }
+          var jsonErr = new Error('not_json');
+          jsonErr.body = (t || '').slice(0, 200);
+          throw jsonErr;
         });
       })
       .finally(function () {
@@ -3493,19 +3497,23 @@
     return fetch(API_URL + '/api', opts)
       .then(function (r) {
         return r.text().then(function (t) {
+          try {
+            var parsed = JSON.parse(t);
+            if (parsed && typeof parsed === 'object') {
+              return parsed;
+            }
+          } catch (parseErr) {
+            // fall through to HTTP / non-JSON handling
+          }
           if (!r.ok) {
             var httpErr = new Error('http_error');
             httpErr.httpStatus = r.status;
             httpErr.body = (t || '').slice(0, 200);
             throw httpErr;
           }
-          try {
-            return JSON.parse(t);
-          } catch (parseErr) {
-            var jsonErr = new Error('not_json');
-            jsonErr.body = (t || '').slice(0, 200);
-            throw jsonErr;
-          }
+          var jsonErr = new Error('not_json');
+          jsonErr.body = (t || '').slice(0, 200);
+          throw jsonErr;
         });
       })
       .finally(function () {
@@ -6428,6 +6436,13 @@
     return ADMIN_ERRORS[errorKey] || ERRORS[errorKey] || fallback || errorKey;
   }
 
+  function validateAdminPasswordClient(pwd) {
+    if (!pwd || pwd.length < 12) return false;
+    if (!/[a-zA-Z\u0400-\u04FF]/.test(pwd)) return false;
+    if (!/\d/.test(pwd)) return false;
+    return true;
+  }
+
   function setAdminStatus(el, msg, kind) {
     if (!el) return;
     el.textContent = msg || '';
@@ -6789,6 +6804,12 @@
       setAdminStatus(statusEl, adminErrorText('passwords_mismatch'), 'err');
       return Promise.resolve(false);
     }
+    if (!validateAdminPasswordClient(p1)) {
+      err1.hidden = false;
+      err1.textContent = adminErrorText('password_too_weak');
+      setAdminStatus(statusEl, adminErrorText('password_too_weak'), 'err');
+      return Promise.resolve(false);
+    }
 
     var payload = buildPayload('admin_setup_password', {
       password: p1,
@@ -6806,6 +6827,13 @@
           if (err === 'password_too_weak') {
             err1.hidden = false;
             err1.textContent = adminErrorText('password_too_weak');
+          }
+          if (err === 'already_setup') {
+            _adminNeedsPasswordSetup = false;
+            hideAdminSetupPasswordModal();
+            setAdminStatus(statusEl, adminErrorText('already_setup'), 'info');
+            showScreen('adminLogin');
+            return false;
           }
           setAdminStatus(statusEl, adminErrorText(err), 'err');
           return false;
