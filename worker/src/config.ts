@@ -1,17 +1,24 @@
 import type { Env } from './env';
+import { loadAppSettings, qrSettingKey } from './services/app-settings';
 
 export const CATEGORIES = [
   'IT и разработка',
-  'Дизайн и creative',
+  'Дизайн и креатив',
   'Маркетинг и SMM',
   'Бизнес и финансы',
-  'Юриспруденция',
+  'Юридические услуги',
   'Медицина и здоровье',
   'Красота и уход',
-  'Туризм и экскурсии',
   'Образование и репетиторство',
   'Строительство и ремонт',
-  'Транспорт и логистика',
+  'Транспорт аренда и ремонт',
+  'Спорт и фитнес',
+  'Хобби и творчество',
+  'Туризм и экскурсии',
+  'Бытовые услуги и уборка',
+  'Кулинария и кейтеринг',
+  'Фото, видео и контент',
+  'Семья и дети (няни и воспитатели)',
   'Другое',
 ] as const;
 
@@ -92,7 +99,7 @@ export interface AppConfig {
 export function getConfig(env: Env): AppConfig {
   const qr: Record<string, string | undefined> = {};
   for (const method of QR_PAYMENT_METHODS) {
-    qr[method.propertyKey] = env[method.propertyKey];
+    qr[method.methodKey] = env[method.propertyKey];
   }
 
   return {
@@ -113,4 +120,52 @@ export function getConfig(env: Env): AppConfig {
     miniAppUrl: env.MINI_APP_URL,
     qr,
   };
+}
+
+const D1_PRICE_KEYS: Array<{
+  d1Key: string;
+  configKey: keyof Pick<
+    AppConfig,
+    | 'paymentAmountVnd'
+    | 'paymentAmountCrypto'
+    | 'pinPriceWeekVnd'
+    | 'pinPriceWeekCrypto'
+    | 'pinPriceMonthVnd'
+    | 'pinPriceMonthCrypto'
+    | 'pinPriceLifetimeVnd'
+    | 'pinPriceLifetimeCrypto'
+  >;
+}> = [
+  { d1Key: 'payment_amount_vnd', configKey: 'paymentAmountVnd' },
+  { d1Key: 'payment_amount_crypto', configKey: 'paymentAmountCrypto' },
+  { d1Key: 'pin_price_week_vnd', configKey: 'pinPriceWeekVnd' },
+  { d1Key: 'pin_price_week_crypto', configKey: 'pinPriceWeekCrypto' },
+  { d1Key: 'pin_price_month_vnd', configKey: 'pinPriceMonthVnd' },
+  { d1Key: 'pin_price_month_crypto', configKey: 'pinPriceMonthCrypto' },
+  { d1Key: 'pin_price_lifetime_vnd', configKey: 'pinPriceLifetimeVnd' },
+  { d1Key: 'pin_price_lifetime_crypto', configKey: 'pinPriceLifetimeCrypto' },
+];
+
+/** D1 app_settings (cached) merged over env defaults; QR by methodKey. */
+export async function getConfigWithSettings(env: Env): Promise<AppConfig> {
+  const config = getConfig(env);
+  const stored = await loadAppSettings(env);
+
+  for (let i = 0; i < D1_PRICE_KEYS.length; i++) {
+    const { d1Key, configKey } = D1_PRICE_KEYS[i];
+    const value = stored.get(d1Key);
+    if (value != null && value !== '') {
+      config[configKey] = value;
+    }
+  }
+
+  const qr: Record<string, string | undefined> = {};
+  for (let i = 0; i < QR_PAYMENT_METHODS.length; i++) {
+    const method = QR_PAYMENT_METHODS[i];
+    const d1Id = stored.get(qrSettingKey(method.methodKey));
+    qr[method.methodKey] = d1Id || env[method.propertyKey];
+  }
+  config.qr = qr;
+
+  return config;
 }
