@@ -1,6 +1,6 @@
 import type { Env } from '../env';
 import { validateMiniAppRequest, validateTelegramInitData, getUserIdFromInitData } from '../utils/auth';
-import { ensureUser } from '../utils/helpers';
+import { ensureUser, rejectIfBanned } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
 import { type CatalogListingRow, mapCatalogListing } from '../utils/catalog-listing';
 
@@ -205,6 +205,11 @@ export async function handleGetFavoritesListings(
     const tgId = getUserIdFromInitData(initData);
     if (!tgId) {
       return jsonResponse({ ok: false, error: 'missing_user_id' });
+    }
+
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
     }
 
     const totalCountRow = await env.DB.prepare(

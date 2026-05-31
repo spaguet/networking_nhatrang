@@ -1,5 +1,6 @@
 import { QR_PAYMENT_METHODS, type AppConfig, type QrPaymentMethod } from '../config';
 import type { Env } from '../env';
+import { jsonResponse } from './response';
 
 export interface BlockingListing {
   listing_id: string;
@@ -264,6 +265,44 @@ export function getPinPriceByDuration(
     return isVnd ? config.pinPriceLifetimeVnd : config.pinPriceLifetimeCrypto;
   }
   return '';
+}
+
+export async function isUserBanned(tgId: number, db: D1Database): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT banned FROM users WHERE tg_id = ?')
+    .bind(tgId)
+    .first<{ banned: number }>();
+
+  return row?.banned === 1;
+}
+
+export async function banUser(
+  tgId: number,
+  username: string,
+  firstName: string,
+  db: D1Database,
+): Promise<void> {
+  await ensureUser(tgId, username, firstName, db);
+  await db.prepare('UPDATE users SET banned = 1 WHERE tg_id = ?').bind(tgId).run();
+}
+
+export function bannedApiResponse(): Response {
+  return jsonResponse({
+    ok: false,
+    error: 'user_banned',
+    message: 'Ваш телеграм-аккаунт забанен',
+    banned: true,
+  });
+}
+
+export async function rejectIfBanned(
+  tgId: number,
+  db: D1Database,
+): Promise<Response | null> {
+  if (!tgId || !(await isUserBanned(tgId, db))) {
+    return null;
+  }
+  return bannedApiResponse();
 }
 
 export async function logAction(

@@ -16,7 +16,7 @@ import { moderationKeyboard, sendMessage } from '../services/telegram-api';
 import { getUserIdFromInitData, validateInitData } from '../utils/auth';
 import { decodeDescriptionNewlines } from '../utils/description';
 import { formatKeywordsModerationLine, parseKeywordsJson } from '../utils/keywords';
-import { logAction } from '../utils/helpers';
+import { logAction, rejectIfBanned } from '../utils/helpers';
 import {
   checkPortfolioRateLimit,
   createSignedMediaUrl,
@@ -78,6 +78,11 @@ async function checkMultipartAuth(
   const tgId = getUserIdFromInitData(initData);
   if (!tgId) {
     return { ok: false, response: jsonResponse({ ok: false, error: 'invalid_tg_id' }) };
+  }
+
+  const banned = await rejectIfBanned(tgId, env.DB);
+  if (banned) {
+    return { ok: false, response: banned };
   }
 
   return { ok: true, tgId };
@@ -292,6 +297,11 @@ async function checkJsonPortfolioAuth(
     return { ok: false, response: jsonResponse({ ok: false, error: 'invalid_tg_id' }) };
   }
 
+  const banned = await rejectIfBanned(tgId, env.DB);
+  if (banned) {
+    return { ok: false, response: banned };
+  }
+
   return { ok: true, tgId };
 }
 
@@ -469,7 +479,7 @@ async function sendDeferredFreeNotify(
   const adminMsgId = await sendMessage(
     env.ADMIN_TG_ID,
     adminText,
-    await moderationKeyboard(listingId, portfolioCount, env),
+    await moderationKeyboard(listingId, portfolioCount, tgId, env),
     env,
   );
   if (adminMsgId) {

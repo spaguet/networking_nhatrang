@@ -9,9 +9,24 @@ export interface InlineKeyboardButton {
   web_app?: { url: string };
 }
 
-export interface TelegramReplyMarkup {
+export interface ReplyKeyboardButton {
+  text: string;
+  web_app?: { url: string };
+}
+
+export interface InlineKeyboardMarkup {
   inline_keyboard: InlineKeyboardButton[][];
 }
+
+export interface ReplyKeyboardMarkup {
+  keyboard: ReplyKeyboardButton[][];
+  resize_keyboard?: boolean;
+  is_persistent?: boolean;
+  one_time_keyboard?: boolean;
+}
+
+/** Inline (под сообщением) или reply (у поля ввода). */
+export type TelegramReplyMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup;
 
 interface TelegramApiResponse {
   ok: boolean;
@@ -72,12 +87,16 @@ async function notifyAdminDebug(text: string, env: Env): Promise<void> {
 export async function moderationKeyboard(
   listingId: string,
   portfolioCount: number,
+  userTgId: number,
   env: Env,
-): Promise<TelegramReplyMarkup> {
+): Promise<InlineKeyboardMarkup> {
   const rows: InlineKeyboardButton[][] = [
     [
       { text: '✅ Разместить', callback_data: `approve_${listingId}` },
       { text: '❌ Отклонить', callback_data: `reject_${listingId}` },
+    ],
+    [
+      { text: '🚫 Забанить пользователя', callback_data: `ban_user_${userTgId}` },
     ],
   ];
 
@@ -96,10 +115,18 @@ export async function moderationKeyboard(
   return { inline_keyboard: rows };
 }
 
+export function contactBanKeyboard(userTgId: number): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: '🚫 Забанить пользователя', callback_data: `ban_user_${userTgId}` }],
+    ],
+  };
+}
+
 export function pinModerationKeyboard(
   listingId: string,
   pinDuration: string,
-): TelegramReplyMarkup {
+): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
@@ -189,7 +216,7 @@ export async function sendPhoto(
 export async function editMessageReplyMarkup(
   chatId: number | string,
   messageId: number,
-  replyMarkup: TelegramReplyMarkup | null | undefined,
+  replyMarkup: InlineKeyboardMarkup | null | undefined,
   env: Env,
 ): Promise<void> {
   const payload: Record<string, unknown> = {

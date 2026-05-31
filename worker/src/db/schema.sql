@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   username    TEXT,
   first_name  TEXT NOT NULL,
   reg_date    TEXT NOT NULL,
-  free_used   INTEGER NOT NULL DEFAULT 0
+  free_used   INTEGER NOT NULL DEFAULT 0,
+  banned      INTEGER NOT NULL DEFAULT 0
 );
 
 -- listings

@@ -7,7 +7,9 @@ import {
   formatDateRu,
   generateId,
   getUserListingMode,
+  isUserBanned,
   logAction,
+  rejectIfBanned,
 } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
 import { validateListingForm } from '../utils/validation';
@@ -39,6 +41,18 @@ export async function handleCheckListingStatus(
     const tgId = Number(body.tg_id);
     const username = String(body.username || '');
     const firstName = String(body.first_name || '');
+
+    if (tgId && (await isUserBanned(tgId, env.DB))) {
+      return jsonResponse({
+        ok: true,
+        banned: true,
+        has_listing: false,
+        paid_mode: false,
+        can_submit_free: false,
+        banner: '',
+      });
+    }
+
     const mode = await getUserListingMode(tgId, username, firstName, env);
 
     const response: Record<string, unknown> = {
@@ -47,6 +61,7 @@ export async function handleCheckListingStatus(
       paid_mode: mode.paid_mode,
       can_submit_free: mode.can_submit_free,
       banner: mode.banner,
+      banned: false,
     };
 
     if (mode.blocking) {
@@ -93,6 +108,11 @@ export async function handleSelectPaymentMethod(
     const tgId = Number(body.tg_id);
     const username = String(body.username || '');
     const firstName = String(body.first_name || '');
+
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
+    }
 
     const formResult = validateListingForm(body);
     if (formResult.error !== null) {

@@ -15,12 +15,13 @@ import {
 import type { AdminLink } from '../types';
 import {
   answerCallbackQuery,
+  contactBanKeyboard,
   editMessageReplyMarkup,
   moderationKeyboard,
   pinModerationKeyboard,
   sendMessage,
   sendPhoto,
-  type TelegramReplyMarkup,
+  type ReplyKeyboardMarkup,
 } from '../services/telegram-api';
 import { decodeDescriptionNewlines } from '../utils/description';
 import {
@@ -29,10 +30,12 @@ import {
   serializeKeywords,
 } from '../utils/keywords';
 import {
+  banUser,
   ensureUser,
   formatDateRu,
   getPinDurationLabel,
   getPinPriceByDuration,
+  isUserBanned,
   logAction,
   paymentMethodLabel,
   setUserFreeUsed,
@@ -48,6 +51,9 @@ import {
 } from './sessions';
 
 const WEBHOOK_DEDUP_TTL = 21600;
+
+/** Текст кнопки reply-клавиатуры (нажатие приходит как message.text). */
+const CONTACT_ADMIN_BUTTON = '📩 Написать администратору';
 
 interface TelegramUser {
   id: number;
@@ -286,8 +292,9 @@ async function getListingData(
   };
 }
 
-function mainMenuKeyboard(config: AppConfig): TelegramReplyMarkup {
-  const rows: TelegramReplyMarkup['inline_keyboard'] = [];
+/** Постоянное меню у поля ввода (не уезжает в историю чата). */
+function mainMenuKeyboard(config: AppConfig): ReplyKeyboardMarkup {
+  const rows: ReplyKeyboardMarkup['keyboard'] = [];
   if (isValidMiniAppUrl(config.miniAppUrl)) {
     rows.push([
       {
@@ -302,8 +309,21 @@ function mainMenuKeyboard(config: AppConfig): TelegramReplyMarkup {
       },
     ]);
   }
-  rows.push([{ text: '📩 Написать администратору', callback_data: 'contact_admin' }]);
-  return { inline_keyboard: rows };
+  rows.push([{ text: CONTACT_ADMIN_BUTTON }]);
+  return {
+    keyboard: rows,
+    resize_keyboard: true,
+    is_persistent: true,
+    one_time_keyboard: false,
+  };
+}
+
+function mainMenuKeyboardWithoutContact(config: AppConfig): ReplyKeyboardMarkup {
+  const kb = mainMenuKeyboard(config);
+  kb.keyboard = kb.keyboard.filter(
+    (row) => !row.some((btn) => btn.text === CONTACT_ADMIN_BUTTON),
+  );
+  return kb;
 }
 
 async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
@@ -326,12 +346,23 @@ async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
 }
 
 async function startContactAdmin(tgId: number, env: Env): Promise<void> {
+  const config = getConfig(env);
+  if (await isUserBanned(tgId, env.DB)) {
+    await sendMessage(
+      tgId,
+      '🚫 Ваш телеграм-аккаунт забанен. Обращение к администратору недоступно.',
+      mainMenuKeyboardWithoutContact(config),
+      env,
+    );
+    return;
+  }
+
   await upsertSession(tgId, 'contact_admin', '', env);
   await sendMessage(
     tgId,
     '✉️ Напишите администратору одним сообщением (текст или фото).\n\n' +
       'Для отмены отправьте /start',
-    null,
+    mainMenuKeyboard(config),
     env,
   );
 }
@@ -439,20 +470,32 @@ async function forwardContactToAdmin(
   }
 
   const tgId = user.id;
+  if (await isUserBanned(tgId, env.DB)) {
+    await clearSession(tgId, env);
+    await sendMessage(
+      tgId,
+      '🚫 Ваш телеграм-аккаунт забанен. Сообщение администратору не отправлено.',
+      mainMenuKeyboardWithoutContact(config),
+      env,
+    );
+    return;
+  }
+
   const header =
     '✉️ ОБРАЩЕНИЕ ПОЛЬЗОВАТЕЛЯ\n' +
     `${formatUserRef(user)}\n\n` +
     '↩️ Ответьте на это сообщение (Reply), чтобы ответ ушёл пользователю.';
+  const banKeyboard = contactBanKeyboard(tgId);
 
   let adminMsgId: number | null = null;
 
   if (message.photo?.length) {
     const fileId = message.photo[message.photo.length - 1].file_id;
     const userCaption = message.caption ? `\n\nТекст: ${message.caption}` : '';
-    adminMsgId = await sendPhoto(config.adminTgId, fileId, header + userCaption, null, env);
+    adminMsgId = await sendPhoto(config.adminTgId, fileId, header + userCaption, banKeyboard, env);
   } else {
     const body = message.text || message.caption || '(пустое сообщение)';
-    adminMsgId = await sendMessage(config.adminTgId, `${header}\n\n${body}`, null, env);
+    adminMsgId = await sendMessage(config.adminTgId, `${header}\n\n${body}`, banKeyboard, env);
   }
 
   if (adminMsgId) {
@@ -464,7 +507,7 @@ async function forwardContactToAdmin(
     tgId,
     '✅ Сообщение отправлено администратору.\n\n' +
       'Администратор рассмотрит его в течение 24 часов. Ответ придёт в этот чат.',
-    null,
+    mainMenuKeyboard(config),
     env,
   );
   await logAction(tgId, 'contact_admin', '', env.DB);
@@ -680,7 +723,7 @@ async function handlePaymentProofPhoto(
       config.adminTgId,
       fileId,
       photoCaption,
-      await moderationKeyboard(listingId, portfolioCount, env),
+      await moderationKeyboard(listingId, portfolioCount, tgId, env),
       env,
     );
     if (adminMsgId) {
@@ -729,7 +772,7 @@ async function handlePaymentProofPhoto(
     config.adminTgId,
     fileId,
     caption,
-    await moderationKeyboard(listingId, portfolioCount, env),
+    await moderationKeyboard(listingId, portfolioCount, tgId, env),
     env,
   );
   if (adminMsgId) {
@@ -788,6 +831,12 @@ async function handleUserTextMessage(
   if (command === '/start') {
     await logAction(tgId, 'cmd_start', String(chatId), env.DB);
     await sendWelcome(chatId, env);
+    return true;
+  }
+
+  const text = message.text?.trim() ?? '';
+  if (text === CONTACT_ADMIN_BUTTON) {
+    await startContactAdmin(tgId, env);
     return true;
   }
 
@@ -908,6 +957,98 @@ async function rejectListing(
   await logAction(listing.tg_id, 'reject', listingId, env.DB);
 }
 
+async function banUserByAdmin(
+  userTgId: number,
+  adminChatId: number | string,
+  messageId: number,
+  callbackQueryId: string,
+  env: Env,
+): Promise<void> {
+  const config = getConfig(env);
+
+  if (userTgId === config.adminTgId) {
+    await answerCallbackQuery(callbackQueryId, 'Нельзя забанить администратора', env);
+    return;
+  }
+
+  await banUser(userTgId, '', '', env.DB);
+  await clearSession(userTgId, env);
+
+  await sendMessage(userTgId, '🚫 Ваш телеграм-аккаунт забанен.', null, env);
+  await editMessageReplyMarkup(adminChatId, messageId, null, env);
+  await answerCallbackQuery(callbackQueryId, 'Пользователь забанен 🚫', env);
+  await logAction(userTgId, 'ban', '', env.DB);
+  await sendMessage(
+    config.adminTgId,
+    `🚫 Пользователь ${userTgId} забанен.`,
+    null,
+    env,
+  );
+}
+
+async function handleBannedUserInteraction(
+  update: Record<string, unknown>,
+  env: Env,
+): Promise<boolean> {
+  const config = getConfig(env);
+
+  const callbackQuery = update.callback_query as TelegramCallbackQuery | undefined;
+  if (callbackQuery) {
+    const fromId = callbackQuery.from.id;
+    if (fromId === config.adminTgId) {
+      return false;
+    }
+    if (!(await isUserBanned(fromId, env.DB))) {
+      return false;
+    }
+
+    const hint = 'Аккаунт забанен';
+    if (callbackQuery.data === 'contact_admin') {
+      await answerCallbackQuery(callbackQuery.id, hint, env);
+      await sendMessage(fromId, '🚫 Ваш телеграм-аккаунт забанен.', null, env);
+      return true;
+    }
+
+    await answerCallbackQuery(callbackQuery.id, hint, env);
+    return true;
+  }
+
+  const message = update.message as TelegramMessage | undefined;
+  if (!message?.from) {
+    return false;
+  }
+
+  const fromId = message.from.id;
+  if (fromId === config.adminTgId) {
+    return false;
+  }
+  if (!(await isUserBanned(fromId, env.DB))) {
+    return false;
+  }
+
+  await clearSession(fromId, env);
+  const command = getMessageCommand(message);
+  const text = message.text?.trim() ?? '';
+
+  if (command === '/start') {
+    await sendMessage(fromId, '🚫 Ваш телеграм-аккаунт забанен.', null, env);
+    return true;
+  }
+
+  if (text === CONTACT_ADMIN_BUTTON) {
+    await sendMessage(
+      fromId,
+      '🚫 Ваш телеграм-аккаунт забанен. Обращение к администратору недоступно.',
+      null,
+      env,
+    );
+    return true;
+  }
+
+  await sendMessage(fromId, '🚫 Ваш телеграм-аккаунт забанен.', null, env);
+  return true;
+}
+
 async function handleCallbackQuery(
   callbackQuery: TelegramCallbackQuery,
   env: Env,
@@ -968,6 +1109,16 @@ async function handleCallbackQuery(
     return;
   }
 
+  if (data.startsWith('ban_user_')) {
+    const userTgId = Number(data.substring('ban_user_'.length));
+    if (!userTgId) {
+      await answerCallbackQuery(callbackQuery.id, 'Некорректный ID', env);
+      return;
+    }
+    await banUserByAdmin(userTgId, chatId, messageId, callbackQuery.id, env);
+    return;
+  }
+
   await answerCallbackQuery(callbackQuery.id, undefined, env);
 }
 
@@ -984,6 +1135,10 @@ export async function handleTelegramUpdate(
   env: Env,
 ): Promise<void> {
   try {
+    if (await handleBannedUserInteraction(update, env)) {
+      return;
+    }
+
     const callbackQuery = update.callback_query as TelegramCallbackQuery | undefined;
     if (callbackQuery) {
       await handleCallbackQuery(callbackQuery, env);

@@ -22,6 +22,7 @@ import {
   generateId,
   getUserListingMode,
   logAction,
+  rejectIfBanned,
 } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
 import { validateListingForm } from '../utils/validation';
@@ -145,6 +146,11 @@ export async function handleGetMyListings(
       return jsonResponse({ ok: false, error: 'invalid_tg_id' });
     }
 
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
+    }
+
     const { results } = await env.DB.prepare(
       `SELECT l.listing_id, l.display_name, l.category, l.description, l.experience, l.contact_type, l.contacts,
               l.avatar_emoji, l.created_at, l.expires_at, l.pin_status, l.pinned_at, l.pin_expires_at, l.keywords,
@@ -201,6 +207,11 @@ export async function handleSubmitListing(
     const tgId = Number(body.tg_id);
     const username = String(body.username ?? '');
     const firstName = String(body.first_name ?? '');
+
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
+    }
 
     const formResult = validateListingForm(body);
     if (formResult.error !== null) {
@@ -266,7 +277,7 @@ export async function handleSubmitListing(
       const adminMsgId = await sendMessage(
         env.ADMIN_TG_ID,
         adminText,
-        await moderationKeyboard(listingId, 0, env),
+        await moderationKeyboard(listingId, 0, tgId, env),
         env,
       );
       if (adminMsgId) {
@@ -324,6 +335,11 @@ export async function handleArchiveListing(
 
     if (!tgId || !listingId) {
       return jsonResponse({ ok: false, error: 'missing_params' });
+    }
+
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
     }
 
     const existing = await env.DB.prepare(

@@ -1129,6 +1129,27 @@
       flex: none;
     }
 
+    /* Ban screen (full Mini App block) */
+    .ban-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--dark);
+      color: var(--cream-card);
+      text-align: center;
+    }
+    .ban-overlay[hidden] { display: none; }
+    .ban-overlay-text {
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.45;
+      max-width: 320px;
+    }
+
     /* Rules popup (стиль rules.html) */
     .rules-popup-overlay {
       align-items: flex-end;
@@ -2227,6 +2248,10 @@
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<div id="banOverlay" class="ban-overlay" hidden aria-live="polite">
+  <p class="ban-overlay-text">Ваш телеграм-аккаунт забанен</p>
+</div>
+
 <script>
   /* ─────────────────────────────────────
      CONFIG — API_URL = Cloudflare Worker (см. migration_to_cf_d1_TZ.md)
@@ -2306,7 +2331,8 @@
     keyword_stop_word:      'Данное слово нарушает правила пользования «Место встречи».',
     keywords_invalid:       'Ключевое слово: только буквы, одно слово, до 15 символов.',
     keywords_required:      'Укажите хотя бы одно ключевое слово или снимите галочку «Ключевые слова».',
-    keywords_limit:         'Не более 5 ключевых слов.'
+    keywords_limit:         'Не более 5 ключевых слов.',
+    user_banned:            'Ваш телеграм-аккаунт забанен'
   };
 
   var appMode = 'free';
@@ -5615,10 +5641,33 @@
     if (!payload) return;
     apiPost(payload)
       .then(function (data) {
+        if (data.ok && data.banned) {
+          showBanOverlay();
+          return;
+        }
         if (data.ok && data.paid_mode) {
           setMode('paid', data.banner);
         } else {
           setMode('free');
+        }
+      })
+      .catch(function () { });
+  }
+
+  function showBanOverlay() {
+    var overlay = document.getElementById('banOverlay');
+    if (overlay) overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function checkBanOnInit() {
+    if (!tg || !tg.initData) return;
+    var payload = buildPayload('check_listing_status');
+    if (!payload) return;
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok && data.banned) {
+          showBanOverlay();
         }
       })
       .catch(function () { });
@@ -5877,6 +5926,7 @@
   if (params.get('form') === '1') {
     goToForm(null);
   }
+  checkBanOnInit();
 </script>
 </body>
 </html>

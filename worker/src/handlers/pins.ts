@@ -16,6 +16,7 @@ import {
   getPinPriceByDuration,
   logAction,
   paymentMethodLabel,
+  rejectIfBanned,
 } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
 import { upsertSession } from './sessions';
@@ -91,6 +92,11 @@ export async function handleSelectPinPaymentMethod(
     const listingId = String(body.listing_id ?? '').trim();
     const pinDuration = String(body.pin_duration ?? '').trim().toLowerCase();
     const methodKey = String(body.payment_method ?? '').trim().toLowerCase();
+
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
+    }
 
     if (!listingId) {
       return jsonResponse({ ok: false, error: 'missing_listing_id' });
