@@ -645,7 +645,7 @@ function keywordViolatesStopWords(word) {
 | Фаза | Промпт | Статус | Дата | Примечание |
 |------|--------|--------|------|------------|
 | 1 | D1 + Worker | ✅ | 31.05.2026 | миграция 004 применена на remote D1 |
-| 2 | Форма | ⬜ | | |
+| 2 | Форма | ✅ | 31.05.2026 | чекбокс, 5 полей, popups, submit/republish |
 | 3 | Каталог search + tags | ⬜ | | |
 | 4 | Профиль + navigation | ⬜ | | |
 | 5 | Rules + deploy + QA | ⬜ | | |

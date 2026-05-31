@@ -564,7 +564,8 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .like-btn.liked .like-checkbox,
-    .portfolio-toggle.is-checked .like-checkbox {
+    .portfolio-toggle.is-checked .like-checkbox,
+    .keywords-toggle.is-checked .like-checkbox {
       border-color: #43a315;
       background: #43a315;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2l2.4 2.4 4.6-5'/%3E%3C/svg%3E");
@@ -1208,6 +1209,64 @@
       border-radius: 8px;
       color: var(--text-muted);
     }
+
+    .field-keywords { margin-top: 4px; }
+    .keywords-toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .keywords-check-wrap {
+      position: relative;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .keywords-check-native {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .keywords-toggle .like-checkbox {
+      display: block;
+      pointer-events: none;
+    }
+    .keywords-toggle-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .keywords-about-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--accent, var(--orange));
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+    }
+    .keywords-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .keywords-inputs input {
+      width: 100%;
+    }
+    #keywordsBlock[hidden] { display: none !important; }
+
     .status .status-retry-btn {
       display: block;
       margin-top: 10px;
@@ -1429,6 +1488,28 @@
           <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
         </div>
 
+        <div class="field-item field-keywords">
+          <label class="keywords-toggle" id="keywordsToggleLabel">
+            <span class="keywords-check-wrap">
+              <input type="checkbox" id="keywords_enabled" name="keywords_enabled" class="keywords-check-native" />
+              <span class="like-checkbox" aria-hidden="true"></span>
+            </span>
+            <span class="keywords-toggle-text">Добавить ключевые слова (до 5)</span>
+          </label>
+          <p class="field-hint">
+            <button type="button" class="keywords-about-link" id="keywordsAboutBtn">О ключевых словах</button>
+          </p>
+          <div id="keywordsBlock" hidden>
+            <div class="keywords-inputs">
+              <input type="text" id="keyword_1" name="keyword_1" maxlength="15" placeholder="Слово 1" autocomplete="off" />
+              <input type="text" id="keyword_2" name="keyword_2" maxlength="15" placeholder="Слово 2" autocomplete="off" />
+              <input type="text" id="keyword_3" name="keyword_3" maxlength="15" placeholder="Слово 3" autocomplete="off" />
+              <input type="text" id="keyword_4" name="keyword_4" maxlength="15" placeholder="Слово 4" autocomplete="off" />
+              <input type="text" id="keyword_5" name="keyword_5" maxlength="15" placeholder="Слово 5" autocomplete="off" />
+            </div>
+          </div>
+        </div>
+
         <div class="field-item field-portfolio">
           <label class="portfolio-toggle" id="portfolioToggleLabel">
             <span class="portfolio-check-wrap">
@@ -1632,6 +1713,38 @@
   </div>
 </div>
 
+<!-- KEYWORDS ABOUT POPUP -->
+<div id="keywordsAboutPopup" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="keywordsAboutTitle">
+    <div class="popup-icon">🏷️</div>
+    <h3 class="popup-title" id="keywordsAboutTitle">О ключевых словах</h3>
+    <div class="popup-text">
+      <p>Ключевые слова помогают другим участникам найти ваше резюме в каталоге.</p>
+      <ul>
+        <li>Необязательно: можно не добавлять или указать <strong>от 1 до 5</strong> слов.</li>
+        <li>Одно слово в каждом поле, <strong>до 15 букв</strong>.</li>
+        <li>Только <strong>буквы</strong> (русские и английские), без цифр, пробелов и символов.</li>
+        <li>Слова должны описывать ваши навыки и услуги.</li>
+        <li>Запрещены ссылки и слова, нарушающие <strong>правила «Место встречи»</strong>.</li>
+        <li>В каталоге поиск работает по <strong>точному совпадению</strong> слова в рамках выбранной категории.</li>
+      </ul>
+    </div>
+    <button type="button" id="keywordsAboutOk" class="btn btn-primary">Понятно</button>
+  </div>
+</div>
+
+<!-- KEYWORD STOP POPUP -->
+<div id="keywordStopPopup" class="popup-overlay" hidden>
+  <div class="popup" role="dialog">
+    <div class="popup-icon">⚠️</div>
+    <h3 class="popup-title">Слово не допускается</h3>
+    <p class="popup-text">
+      Данное слово нарушает правила пользования «Место встречи».
+    </p>
+    <button type="button" id="keywordStopPopupOk" class="btn btn-primary">Понятно</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1666,6 +1779,19 @@
   ];
   var DEFAULT_AVATAR_EMOJI = '👨‍🎓';
 
+  /* sync with worker/src/config.ts STOP_WORDS */
+  var STOP_WORDS = [
+    'секс', 'эскорт', 'порно', 'интим', 'наркотики', 'вещества', 'закладки',
+    'оружие', 'казино', 'ставки', 'вулкан', 'скам', 'развод', 'схема',
+    'заработок 100к', 'заработок 200к', 'пассивный доход без вложений',
+    'вакансия', 'tребуется сотрудник', 'ищем в команду', 'открыта позиция',
+    'нужен специалист', 'работодатель', 'нанимаем'
+  ];
+
+  var KEYWORD_LETTERS_RE = /^[a-zA-Zа-яА-ЯёЁ]+$/;
+  var KEYWORD_MAX_LEN = 15;
+  var KEYWORD_FIELD_IDS = ['keyword_1', 'keyword_2', 'keyword_3', 'keyword_4', 'keyword_5'];
+
   var STATUS_META = {
     active:        { text: '✅ Активно',     cls: 'active' },
     archived:      { text: '📦 В архиве',    cls: 'archived' },
@@ -1696,7 +1822,11 @@
     portfolio_not_owner:    'Нет доступа к этой анкете.',
     portfolio_listing_not_found: 'Анкета не найдена или уже не на модерации.',
     portfolio_wrong_status: 'Загрузка фото недоступна для этой анкеты.',
-    portfolio_retry_expired:'Срок повторной загрузки фото истёк (24 часа).'
+    portfolio_retry_expired:'Срок повторной загрузки фото истёк (24 часа).',
+    keyword_stop_word:      'Данное слово нарушает правила пользования «Место встречи».',
+    keywords_invalid:       'Ключевое слово: только буквы, одно слово, до 15 символов.',
+    keywords_required:      'Укажите хотя бы одно ключевое слово или снимите галочку «Ключевые слова».',
+    keywords_limit:         'Не более 5 ключевых слов.'
   };
 
   var appMode = 'free';
@@ -1858,6 +1988,169 @@
   document.getElementById('linkPopup').addEventListener('click', function (e) {
     if (e.target === this) hideLinkPopup();
   });
+
+  function normalizeKeywordFilter(raw) {
+    return String(raw || '').trim().toLowerCase();
+  }
+
+  function keywordViolatesStopWords(word) {
+    var lower = normalizeKeywordFilter(word);
+    if (!lower) return false;
+    for (var i = 0; i < STOP_WORDS.length; i++) {
+      if (lower.indexOf(STOP_WORDS[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function isValidKeywordToken(token) {
+    var normalized = normalizeKeywordFilter(token);
+    if (!normalized) return false;
+    return normalized.length >= 1 &&
+      normalized.length <= KEYWORD_MAX_LEN &&
+      KEYWORD_LETTERS_RE.test(normalized);
+  }
+
+  function showKeywordStopPopup() {
+    document.getElementById('keywordStopPopup').hidden = false;
+  }
+
+  function hideKeywordStopPopup() {
+    document.getElementById('keywordStopPopup').hidden = true;
+  }
+
+  function showKeywordsAboutPopup() {
+    document.getElementById('keywordsAboutPopup').hidden = false;
+  }
+
+  function hideKeywordsAboutPopup() {
+    document.getElementById('keywordsAboutPopup').hidden = true;
+  }
+
+  document.getElementById('keywordStopPopupOk').addEventListener('click', hideKeywordStopPopup);
+  document.getElementById('keywordStopPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideKeywordStopPopup();
+  });
+  document.getElementById('keywordsAboutOk').addEventListener('click', hideKeywordsAboutPopup);
+  document.getElementById('keywordsAboutPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideKeywordsAboutPopup();
+  });
+
+  function syncKeywordsCheckboxVisual() {
+    var chk = document.getElementById('keywords_enabled');
+    var label = document.getElementById('keywordsToggleLabel');
+    if (label && chk) {
+      label.classList.toggle('is-checked', chk.checked);
+    }
+  }
+
+  function setKeywordsBlockVisible(visible) {
+    var block = document.getElementById('keywordsBlock');
+    if (block) block.hidden = !visible;
+  }
+
+  function clearKeywordInputs() {
+    KEYWORD_FIELD_IDS.forEach(function (id) {
+      var input = document.getElementById(id);
+      if (input) input.value = '';
+    });
+  }
+
+  function resetKeywordsState() {
+    var chk = document.getElementById('keywords_enabled');
+    if (chk) chk.checked = false;
+    syncKeywordsCheckboxVisual();
+    clearKeywordInputs();
+    setKeywordsBlockVisible(false);
+  }
+
+  function isKeywordsEnabled() {
+    var chk = document.getElementById('keywords_enabled');
+    return chk && chk.checked;
+  }
+
+  function sanitizeKeywordInput(input) {
+    if (!input) return;
+    var cleaned = String(input.value || '').replace(/\s/g, '');
+    if (cleaned !== input.value) {
+      input.value = cleaned;
+    }
+  }
+
+  function checkKeywordFieldStopWord(input, showPopup) {
+    sanitizeKeywordInput(input);
+    var token = normalizeKeywordFilter(input.value);
+    if (!token) return true;
+    if (keywordViolatesStopWords(token)) {
+      if (showPopup !== false) showKeywordStopPopup();
+      return false;
+    }
+    return true;
+  }
+
+  function getKeywordTokensFromInputs() {
+    var seen = {};
+    var tokens = [];
+    KEYWORD_FIELD_IDS.forEach(function (id) {
+      var input = document.getElementById(id);
+      if (!input) return;
+      sanitizeKeywordInput(input);
+      var token = normalizeKeywordFilter(input.value);
+      if (!token || seen[token]) return;
+      seen[token] = true;
+      tokens.push(token);
+    });
+    return tokens;
+  }
+
+  function parseKeywordsAttr(raw) {
+    if (!raw) return [];
+    try {
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function fillKeywordInputs(keywords) {
+    clearKeywordInputs();
+    var list = Array.isArray(keywords) ? keywords : [];
+    for (var i = 0; i < KEYWORD_FIELD_IDS.length && i < list.length; i++) {
+      var input = document.getElementById(KEYWORD_FIELD_IDS[i]);
+      if (input) input.value = String(list[i] || '');
+    }
+  }
+
+  function validateKeywordsClient(statusEl) {
+    if (!isKeywordsEnabled()) return true;
+    var tokens = getKeywordTokensFromInputs();
+    if (!tokens.length) {
+      showStatus(statusEl, ERRORS.keywords_required, 'err');
+      return false;
+    }
+    if (tokens.length > KEYWORD_FIELD_IDS.length) {
+      showStatus(statusEl, ERRORS.keywords_limit, 'err');
+      return false;
+    }
+    for (var i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
+      if (!isValidKeywordToken(token)) {
+        showStatus(statusEl, ERRORS.keywords_invalid, 'err');
+        return false;
+      }
+      if (containsLink(token)) {
+        showLinkPopup();
+        showStatus(statusEl, ERRORS.links_forbidden, 'err');
+        return false;
+      }
+      if (keywordViolatesStopWords(token)) {
+        showKeywordStopPopup();
+        showStatus(statusEl, ERRORS.keyword_stop_word, 'err');
+        return false;
+      }
+    }
+    return true;
+  }
 
   /* ─────────────────────────────────────
      PORTFOLIO POPUP (§9)
@@ -2769,7 +3062,9 @@
                   'data-exp="'      + esc(l.experience)   + '" ' +
                   'data-desc="'     + encodeDescriptionAttr(l.description) + '" ' +
                   'data-contact-type="' + esc(l.contact_type) + '" ' +
-                  'data-contacts="' + esc(l.contacts)     + '">' +
+                  'data-contacts="' + esc(l.contacts)     + '" ' +
+                  'data-keywords-enabled="' + ((l.keywords && l.keywords.length) ? 'true' : 'false') + '" ' +
+                  'data-keywords="' + esc(JSON.stringify(l.keywords || [])) + '">' +
                   'Разместить' +
                 '</button>' +
               '</div>';
@@ -2825,7 +3120,9 @@
               experience:   btn.getAttribute('data-exp'),
               description:  normalizeDescription(btn.getAttribute('data-desc')),
               contact_type: btn.getAttribute('data-contact-type'),
-              contacts:     btn.getAttribute('data-contacts')
+              contacts:     btn.getAttribute('data-contacts'),
+              keywords_enabled: btn.getAttribute('data-keywords-enabled') === 'true',
+              keywords:     parseKeywordsAttr(btn.getAttribute('data-keywords'))
             });
           });
         });
@@ -2925,6 +3222,7 @@
     clearStatus(document.getElementById('status'));
     document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
     resetPortfolioState();
+    resetKeywordsState();
     if (keepRetry) {
       document.getElementById('portfolio_enabled').checked = true;
       syncPortfolioCheckboxVisual();
@@ -2970,6 +3268,16 @@
           sel.selectedIndex = i;
           break;
         }
+      }
+    }
+
+    if (prefill.keywords_enabled && prefill.keywords && prefill.keywords.length) {
+      var kwChk = document.getElementById('keywords_enabled');
+      if (kwChk) {
+        kwChk.checked = true;
+        syncKeywordsCheckboxVisual();
+        setKeywordsBlockVisible(true);
+        fillKeywordInputs(prefill.keywords);
       }
     }
 
@@ -3847,6 +4155,7 @@
     document.getElementById('listingForm').reset();
     document.getElementById('avatar_emoji').value = DEFAULT_AVATAR_EMOJI;
     resetPortfolioState();
+    resetKeywordsState();
     clearPendingPortfolioSuccess();
     updateDescriptionCounter();
   }
@@ -3904,7 +4213,9 @@
   function runFreeSubmit(formData, statusEl, submitBtn) {
     var portfolioOn = shouldUploadPortfolio();
     var payload = buildPayload('submit_listing', Object.assign({}, formData, {
-      portfolio_enabled: portfolioOn
+      portfolio_enabled: portfolioOn,
+      keywords_enabled: formData.keywords_enabled === true,
+      keywords: formData.keywords_enabled === true ? (formData.keywords || []) : []
     }));
     if (!payload) {
       showStatus(statusEl, ERRORS.Invalid_initData, 'err');
@@ -4031,6 +4342,41 @@
     }
   })();
 
+  (function initKeywordsUi() {
+    var chk = document.getElementById('keywords_enabled');
+    var aboutBtn = document.getElementById('keywordsAboutBtn');
+
+    if (aboutBtn) {
+      aboutBtn.addEventListener('click', function () {
+        showKeywordsAboutPopup();
+      });
+    }
+
+    if (chk) {
+      syncKeywordsCheckboxVisual();
+      chk.addEventListener('change', function () {
+        syncKeywordsCheckboxVisual();
+        if (chk.checked) {
+          setKeywordsBlockVisible(true);
+        } else {
+          clearKeywordInputs();
+          setKeywordsBlockVisible(false);
+        }
+      });
+    }
+
+    KEYWORD_FIELD_IDS.forEach(function (id) {
+      var input = document.getElementById(id);
+      if (!input) return;
+      input.addEventListener('input', function () {
+        sanitizeKeywordInput(input);
+      });
+      input.addEventListener('blur', function () {
+        checkKeywordFieldStopWord(input);
+      });
+    });
+  })();
+
   /* ─────────────────────────────────────
      FORM HELPERS
   ───────────────────────────────────── */
@@ -4067,6 +4413,7 @@
 
   function getFormData() {
     var form = document.getElementById('listingForm');
+    var keywordsEnabled = isKeywordsEnabled();
     return {
       display_name: form.display_name.value.trim(),
       avatar_emoji: form.avatar_emoji.value,
@@ -4074,7 +4421,9 @@
       experience:   form.experience.value.trim(),
       description:  normalizeDescription(form.description.value).trim(),
       contact_type: form.contact_type.value,
-      contacts:     form.contacts.value.trim()
+      contacts:     form.contacts.value.trim(),
+      keywords_enabled: keywordsEnabled,
+      keywords: keywordsEnabled ? getKeywordTokensFromInputs() : []
     };
   }
 
@@ -4088,6 +4437,9 @@
     if (containsLink(data.display_name) || containsLink(data.description)) {
       showLinkPopup();
       showStatus(statusEl, ERRORS.links_forbidden, 'err');
+      return null;
+    }
+    if (!validateKeywordsClient(statusEl)) {
       return null;
     }
     return data;
@@ -4168,7 +4520,11 @@
       clearStatus(paymentStatusEl);
 
       function proceedToPayment() {
-        var payload = buildPayload('select_payment_method', Object.assign({ payment_method: method }, formData));
+        var payload = buildPayload('select_payment_method', Object.assign({
+          payment_method: method,
+          keywords_enabled: formData.keywords_enabled === true,
+          keywords: formData.keywords_enabled === true ? (formData.keywords || []) : []
+        }, formData));
         if (!payload) {
           showStatus(paymentStatusEl, ERRORS.Invalid_initData, 'err');
           btn.disabled = false;
