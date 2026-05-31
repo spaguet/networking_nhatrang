@@ -295,9 +295,14 @@
     ══════════════════════════════════════════ */
     .listings-sort-bar {
       display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 10px 16px 0;
+    }
+    .listings-sort-row {
+      display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 16px 0;
     }
     .listings-sort-bar label {
       font-size: 0.71rem;
@@ -327,6 +332,68 @@
     }
     .listings-sort-bar select:focus {
       border-color: var(--orange);
+    }
+
+    .listings-keyword-search {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .listings-keyword-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .listings-keyword-row input {
+      flex: 1;
+      font-size: 0.9rem;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background: var(--cream-card);
+      color: var(--text);
+      font-family: 'Onest', inherit;
+      font-weight: 600;
+      outline: none;
+      box-shadow: var(--shadow);
+    }
+    .listings-keyword-row input:focus {
+      border-color: var(--orange);
+    }
+    .listings-keyword-row button {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background: var(--cream-card);
+      color: var(--text-sub);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+    .listings-keyword-row button[hidden] {
+      display: none !important;
+    }
+
+    .card-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .keyword-tag {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface-2, #f0f0f0);
+      border: none;
+      cursor: pointer;
+      color: var(--accent, var(--orange));
+      font-family: inherit;
     }
 
     .listings-wrap {
@@ -1402,12 +1469,22 @@
     <span class="screen-title" id="listingsCatTitle"></span>
   </div>
   <div class="listings-sort-bar" id="listingsSortBar" hidden>
-    <label for="listingsSortSelect">Сортировка</label>
-    <select id="listingsSortSelect">
-      <option value="newest">Сначала новые</option>
-      <option value="oldest">Сначала старые</option>
-      <option value="likes">По лайкам</option>
-    </select>
+    <div class="listings-keyword-search">
+      <label for="listingsKeywordSearch">Поиск по ключевым словам</label>
+      <div class="listings-keyword-row">
+        <input type="search" id="listingsKeywordSearch"
+               placeholder="Точное совпадение слова" autocomplete="off" />
+        <button type="button" id="listingsKeywordClear" hidden aria-label="Сбросить">✕</button>
+      </div>
+    </div>
+    <div class="listings-sort-row">
+      <label for="listingsSortSelect">Сортировка</label>
+      <select id="listingsSortSelect">
+        <option value="newest">Сначала новые</option>
+        <option value="oldest">Сначала старые</option>
+        <option value="likes">По лайкам</option>
+      </select>
+    </div>
   </div>
   <div id="listingsContainer"></div>
 </div>
@@ -1850,6 +1927,11 @@
   var _categoryListings = [];
   var _listingsCurrentPage = 1;
   var _listingsSortMode = 'newest';
+  var _currentCategory = '';
+  var _currentCategoryIcon = '';
+  var _keywordFilter = '';
+  var _pendingKeywordFilter = '';
+  var _keywordSearchDebounce = null;
   var _pinListingId = null;
   var _pinDuration = null;
   var _pinPrices = {};
@@ -1911,6 +1993,32 @@
       refreshSortedListings();
     }
   });
+
+  (function initListingsKeywordSearch() {
+    var input = document.getElementById('listingsKeywordSearch');
+    var clearBtn = document.getElementById('listingsKeywordClear');
+    if (!input) return;
+
+    input.addEventListener('input', function () {
+      clearTimeout(_keywordSearchDebounce);
+      _keywordSearchDebounce = setTimeout(function () {
+        applyKeywordFilter(input.value);
+      }, 300);
+    });
+
+    input.addEventListener('search', function () {
+      if (!input.value) {
+        clearKeywordFilter();
+      }
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        clearKeywordFilter();
+      });
+    }
+  })();
+
   document.getElementById('backFromProfile').addEventListener('click', function () {
     showScreen('main');
   });
@@ -2545,6 +2653,52 @@
   /* ─────────────────────────────────────
      SCREEN 2 — LISTINGS BY CATEGORY
   ───────────────────────────────────── */
+  function getFilteredListingsRaw() {
+    if (!_keywordFilter) return _categoryListingsRaw;
+    return _categoryListingsRaw.filter(function (l) {
+      var list = l.keywords || [];
+      return list.some(function (k) { return k === _keywordFilter; });
+    });
+  }
+
+  function updateKeywordClearVisibility() {
+    var clearBtn = document.getElementById('listingsKeywordClear');
+    var input = document.getElementById('listingsKeywordSearch');
+    if (!clearBtn) return;
+    clearBtn.hidden = !(input && normalizeKeywordFilter(input.value));
+  }
+
+  function applyKeywordFilter(rawKeyword) {
+    var kw = normalizeKeywordFilter(rawKeyword);
+    _keywordFilter = kw;
+    var input = document.getElementById('listingsKeywordSearch');
+    if (input) input.value = kw;
+    updateKeywordClearVisibility();
+    applyListingsSort();
+    showListingsPage(1);
+    window.scrollTo(0, 0);
+  }
+
+  function clearKeywordFilter() {
+    _keywordFilter = '';
+    var input = document.getElementById('listingsKeywordSearch');
+    if (input) input.value = '';
+    updateKeywordClearVisibility();
+    applyListingsSort();
+    showListingsPage(1);
+    window.scrollTo(0, 0);
+  }
+
+  function buildCardKeywordsHtml(keywords) {
+    var list = keywords || [];
+    if (!list.length) return '';
+    var tags = list.map(function (word) {
+      return '<button type="button" class="keyword-tag" data-keyword="' + esc(word) + '">{#' +
+        esc(word) + '}</button>';
+    }).join('');
+    return '<div class="card-keywords">' + tags + '</div>';
+  }
+
   function buildListingCardHtml(l, animIndex) {
     var cardId = String(l.listing_id || '').trim();
     var isPinned = l.pin_status === 'pinned';
@@ -2586,6 +2740,7 @@
               '🖼 Портфолио' +
             '</button>'
           : '') +
+        buildCardKeywordsHtml(l.keywords) +
       '</div>'
     );
   }
@@ -2649,6 +2804,11 @@
         updateCardDescToggle(wrap);
       });
     });
+    document.querySelectorAll('.keyword-tag').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        applyKeywordFilter(btn.getAttribute('data-keyword'));
+      });
+    });
   }
 
   function renderListingsNavigation(totalCount, currentPage, totalPages) {
@@ -2667,8 +2827,9 @@
   }
 
   function applyListingsSort() {
-    var pinned = _categoryListingsRaw.filter(function (l) { return l.pin_status === 'pinned'; });
-    var regular = _categoryListingsRaw.filter(function (l) { return l.pin_status !== 'pinned'; });
+    var source = getFilteredListingsRaw();
+    var pinned = source.filter(function (l) { return l.pin_status === 'pinned'; });
+    var regular = source.filter(function (l) { return l.pin_status !== 'pinned'; });
 
     pinned.sort(function (a, b) {
       return (b.pinned_at || '').localeCompare(a.pinned_at || '');
@@ -2700,6 +2861,17 @@
   function showListingsPage(page, opts) {
     opts = opts || {};
     var listingsContainer = document.getElementById('listingsContainer');
+
+    if (!_categoryListings.length) {
+      if (_keywordFilter) {
+        listingsContainer.innerHTML = emptyState(
+          '🔍',
+          'Ничего не найдено',
+          'Нет анкет с ключевым словом «' + esc(_keywordFilter) + '»'
+        );
+      }
+      return;
+    }
 
     var pinned = _categoryListings.filter(function (l) { return l.pin_status === 'pinned'; });
     var regular = _categoryListings.filter(function (l) { return l.pin_status !== 'pinned'; });
@@ -2759,7 +2931,16 @@
     }
   }
 
-  function openListings(category, icon) {
+  function openListings(category, icon, opts) {
+    opts = opts || {};
+    _currentCategory = category;
+    _currentCategoryIcon = icon || '';
+    _keywordFilter = '';
+    _pendingKeywordFilter = opts.keywordFilter ? normalizeKeywordFilter(opts.keywordFilter) : '';
+    var searchInput = document.getElementById('listingsKeywordSearch');
+    if (searchInput) searchInput.value = '';
+    updateKeywordClearVisibility();
+
     document.getElementById('listingsCatTitle').textContent = icon + '\u00a0' + category;
     var listingsContainer = document.getElementById('listingsContainer');
     var sortBar = document.getElementById('listingsSortBar');
@@ -2804,7 +2985,12 @@
         applyListingsSort();
         document.getElementById('listingsSortBar').hidden = false;
         _listingsCurrentPage = 1;
-        showListingsPage(1);
+        if (_pendingKeywordFilter) {
+          applyKeywordFilter(_pendingKeywordFilter);
+          _pendingKeywordFilter = '';
+        } else {
+          showListingsPage(1);
+        }
       })
       .catch(function (err) {
         clearLoaderTimer();
