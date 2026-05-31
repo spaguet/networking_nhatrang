@@ -9,6 +9,7 @@ import {
 import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStagingB64 } from './portfolio';
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
+import { handleGetFavoritesListings } from './favorites';
 
 export async function routeApiAction(
   body: Record<string, unknown>,
@@ -43,6 +44,8 @@ export async function routeApiAction(
       return handleUploadPortfolioStagingB64(body, env);
     case 'upload_portfolio_b64':
       return handleUploadPortfolioB64(body, env);
+    case 'get_favorites':
+      return handleGetFavoritesListings(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }

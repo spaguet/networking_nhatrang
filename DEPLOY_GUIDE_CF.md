@@ -4,6 +4,7 @@
 > - `migration_to_cf_d1_TZ.md` — полное ТЗ миграции, API-контракт, промпты
 > - `portfolio_TZ.md` — портфолио v1.3 (R2, D1 `listing_media`, multipart upload)
 > - `keywords_system_TZ.md` — ключевые слова v1.1 (D1 `listings.keywords`, поиск в каталоге)
+> - `favorites_system_TZ.md` — избранное v1.3 (D1 `favorites`, GET/POST API, экран «Избранные»)
 > - `DEPLOY_GUIDE_RU.md` — архивный гайд для GAS + Google Sheets
 > - `catalog.html` — Mini App (GitHub Pages), `API_URL` указывает на Worker
 
@@ -69,9 +70,10 @@ npx wrangler d1 execute networking_nhatrang --file=src/db/schema.sql --remote
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/002_portfolio.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/003_backfill_archived_at.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/004_keywords.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/005_favorites.sql
 ```
 
-Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, `admin_links`, **`listing_media`**.  
+Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, **`favorites`**, `admin_links`, **`listing_media`**.  
 В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`).
 
 **Local D1** (`wrangler dev`, без `--remote`):
@@ -188,6 +190,9 @@ var API_URL = 'https://tg-networking-nhatrang.albertkoall.workers.dev';
 
 - POST: `fetch(API_URL + '/api', { method: 'POST', body: JSON.stringify(payload) })`
 - GET лайки: `API_URL + '/api?action=getLikes&initData=...'`
+- GET избранное (счётчики): `API_URL + '/api?action=getFavoriteCounts&initData=...'`
+- GET toggle избранного: `API_URL + '/api?action=toggleFavorite&initData=...&listingId=...&type=favorite|unfavorite'`
+- POST список избранного: `buildPayload('get_favorites')` → `{ ok, listings, totalCount, inactiveCount }`
 - `WEBAPP_SECRET` — синхронизировать с `wrangler secret put WEBAPP_SECRET`
 
 После правок — **push в GitHub** → Pages обновит Mini App (workflow `.github/workflows/pages.yml`).
@@ -235,6 +240,25 @@ Invoke-WebRequest -Uri "https://tg-networking-nhatrang.albertkoall.workers.dev/a
 # Ожидание: { "success": false, "error": "unauthorized" }
 ```
 
+**GET /api** — избранное, без initData:
+
+```powershell
+Invoke-WebRequest -Uri "https://tg-networking-nhatrang.albertkoall.workers.dev/api?action=getFavoriteCounts" -UseBasicParsing
+# Ожидание: { "success": false, "error": "unauthorized" }
+
+Invoke-WebRequest -Uri "https://tg-networking-nhatrang.albertkoall.workers.dev/api?action=toggleFavorite&listingId=test&type=favorite" -UseBasicParsing
+# Ожидание: { "success": false, "error": "unauthorized" }
+```
+
+**POST /api** — `get_favorites` (нужны `secret` + валидный `initData` из Mini App):
+
+```powershell
+$payload = '{"action":"get_favorites","secret":"<WEBAPP_SECRET>","initData":"<initData>","tg_id":123}'
+# Ожидание: { "ok": true, "listings": [...], "totalCount": N, "inactiveCount": M }
+```
+
+С `initData` из Telegram — проверить `favoritedByMe` в `getFavoriteCounts`, `newCount`/`isFavorited` в `toggleFavorite`.
+
 **POST /api** — `get_pin_prices` (регрессия pin):
 
 ```powershell
@@ -265,6 +289,8 @@ $payload = '{"action":"get_listings","category":"Другое","secret":"<WEBAPP
 | 5 | Повторная анкета после free | `check_listing_status` → `paid_mode` |
 | 6 | `select_payment_method` + фото чека | Draft → модерация paid |
 | 7 | Лайк / снять лайк | Счётчик обновляется, KV + D1 |
+| 7a | ⭐ Избранное / снять | Счётчик «В избранном: N», KV `favorites_all` + D1 |
+| 7b | Экран «Избранные» | POST `get_favorites`, сортировка, keyword, unfavorite |
 | 8 | Pin: оплата + approve админом | `pin_status=pinned`, сортировка вверху |
 | 9 | «Связаться с админом» + ответ админа reply | Сообщение доходит пользователю |
 | 10 | Cron maintenance | `npx wrangler triggers schedule` (ручной invoke) или дождаться 00:00 UTC |
@@ -299,6 +325,25 @@ $payload = '{"action":"get_listings","category":"Другое","secret":"<WEBAPP
 | K11 | Старые анкеты | без тегов, `keywords: []` |
 
 > **PR-чеклист:** `worker/src/config.ts` `STOP_WORDS` ↔ `catalog.html` `STOP_WORDS`.
+
+### D2c. Избранное (`favorites_system_TZ.md` §8.5)
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| F1 | Добавить active в избранное | ⭐, счётчик +1, запись в D1 |
+| F2 | Убрать из избранного | ☆, счётчик −1, DELETE |
+| F3 | «Избранные» + сортировка | 20/стр, newest/oldest по `created_at` |
+| F4 | Поиск по keyword на экране избранного | exact match, не каталог |
+| F5 | Архивация / reject карточки | `favorites` очищены (`purgeFavoritesForListing`) |
+| F6 | `inactiveCount > 0` | «Нет активных избранных карточек» |
+| F7 | Unfavorite на экране «Избранные» | карточка исчезает без перезагрузки |
+| F8 | Pinned + ⭐ | 📌 справа, звезда слева (`.is-pinned .favorite-wrap`) |
+| F9 | `favoritesNavPrev` / `Next` | пагинация экрана избранного |
+| F10 | `purgeListing` (hard delete) | `favorites` + KV `favorites_all` инвалидированы |
+
+**Smoke без initData (автоматически):** `getFavoriteCounts` / `toggleFavorite` → `{ success: false, error: "unauthorized" }`.
+
+**Миграция D1:** `005_favorites.sql` (таблица `favorites`, FK `listings` ON DELETE CASCADE, без FK на `users`).
 
 ### D3. Логи в реальном времени
 
@@ -363,4 +408,4 @@ npx wrangler deploy
 
 ---
 
-*Создано в рамках миграции GAS → CF (Промпт 12, `migration_to_cf_d1_TZ.md`). Обновлено 29.05.2026 — портфолио v1.3 (R2, D1 002+003, smoke §13).*
+*Создано в рамках миграции GAS → CF (Промпт 12, `migration_to_cf_d1_TZ.md`). Обновлено 31.05.2026 — избранное v1.3 (D1 005, API getFavoriteCounts/toggleFavorite/get_favorites, smoke §D2c).*

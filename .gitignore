@@ -1,0 +1,13 @@
+# Backend — only in Google Apps Script
+Code.gs
+appsscript.json
+
+# Secrets
+.env
+.env.*
+*.local
+
+# Cloudflare local cache
+.wrangler/
+worker/node_modules/
+worker/.dev.vars

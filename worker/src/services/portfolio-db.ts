@@ -1,4 +1,6 @@
 import type { Env } from '../env';
+import { purgeFavoritesForListing } from '../handlers/favorites';
+import { LIKES_CACHE_KEY } from '../handlers/likes';
 import { logAction } from '../utils/helpers';
 import { deleteR2Keys, putR2 } from './media';
 
@@ -249,6 +251,9 @@ export async function purgeListing(listingId: string, env: Env): Promise<void> {
   if (listing?.tg_id != null) {
     await deleteStagingForTgId(env.PORTFOLIO, Number(listing.tg_id));
   }
+
+  await purgeFavoritesForListing(listingId, env);
+  await env.CACHE.delete(LIKES_CACHE_KEY);
 
   await env.DB.batch([
     env.DB.prepare('DELETE FROM likes WHERE listing_id = ?').bind(listingId),

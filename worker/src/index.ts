@@ -1,5 +1,9 @@
 import type { Env } from './env';
 import { routeApiAction } from './handlers/api';
+import {
+  handleGetFavoriteCounts,
+  handleToggleFavorite,
+} from './handlers/favorites';
 import { handleGetLikes, handleToggleLike } from './handlers/likes';
 import { dailyMaintenance } from './handlers/maintenance';
 import {
@@ -165,6 +169,12 @@ export default {
       }
       if (action === 'toggleLike') {
         return handleToggleLike(request, env);
+      }
+      if (action === 'getFavoriteCounts') {
+        return handleGetFavoriteCounts(request, env);
+      }
+      if (action === 'toggleFavorite') {
+        return handleToggleFavorite(request, env);
       }
       return new Response('Not Found', { status: 404, headers: corsHeaders() });
     }

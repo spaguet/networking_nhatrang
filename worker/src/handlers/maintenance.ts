@@ -1,4 +1,5 @@
 import type { Env } from '../env';
+import { purgeFavoritesForListing } from '../handlers/favorites';
 import { cleanupStaleStaging, purgeListing } from '../services/portfolio-db';
 import { sendMessage } from '../services/telegram-api';
 import { formatDateRu, logAction } from '../utils/helpers';
@@ -78,6 +79,8 @@ export async function dailyMaintenance(env: Env): Promise<void> {
           )
             .bind(listingId)
             .run();
+
+          await purgeFavoritesForListing(listingId, env);
 
           const category = String(row.category || '');
           await sendMessage(

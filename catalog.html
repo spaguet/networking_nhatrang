@@ -113,6 +113,13 @@
       margin-bottom: 24px;
     }
 
+    .hero-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
     .logo-badge {
       display: inline-flex;
       align-items: center;
@@ -409,6 +416,7 @@
     }
 
     .listing-card {
+      position: relative;
       background: var(--cream-card);
       border: 1.5px solid var(--border);
       border-radius: var(--r-card);
@@ -650,6 +658,52 @@
       font-weight: 500;
       color: var(--text-sub);
       white-space: nowrap;
+    }
+
+    .favorite-wrap {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .listing-card.is-pinned .favorite-wrap {
+      left: 10px;
+      right: auto;
+    }
+
+    .favorite-btn {
+      background: rgba(255,255,255,0.85);
+      border: none;
+      border-radius: 50%;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      transition: transform .15s;
+    }
+    .favorite-btn:active { transform: scale(0.92); }
+
+    .favorite-btn .star-icon { opacity: 0.45; filter: grayscale(1); }
+    .favorite-btn.is-favorited .star-icon { opacity: 1; filter: none; }
+
+    .favorite-count-label {
+      font-size: 0.62rem;
+      font-weight: 600;
+      color: rgba(0,0,0,0.45);
+      white-space: nowrap;
+      background: rgba(255,255,255,0.8);
+      padding: 1px 5px;
+      border-radius: 8px;
     }
 
     .copy-btn {
@@ -1473,7 +1527,10 @@
         <div class="logo-badge">Нячанг · Вьетнам</div>
         <div class="logo-title">Место<br><span>Встречи</span></div>
       </div>
-      <button class="profile-btn" id="profileBtn">👤 Профиль</button>
+      <div class="hero-actions">
+        <button class="profile-btn" id="profileBtn">👤 Профиль</button>
+        <button class="profile-btn" id="favoritesBtn">⭐ Избранные</button>
+      </div>
     </div>
     <p class="hero-desc">Каталог специалистов и фрилансеров. Найдите эксперта под свою задачу или предложите свои услуги.</p>
   </div>
@@ -1519,6 +1576,32 @@
     </div>
   </div>
   <div id="listingsContainer"></div>
+</div>
+
+<!-- ═══ SCREEN: FAVORITES ═══ -->
+<div id="screenFavorites" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromFavorites">←</button>
+    <span class="screen-title">Избранные</span>
+  </div>
+  <div class="listings-sort-bar" id="favoritesSortBar">
+    <div class="listings-keyword-search">
+      <label for="favoritesKeywordSearch">Поиск по ключевым словам</label>
+      <div class="listings-keyword-row">
+        <input type="search" id="favoritesKeywordSearch"
+               placeholder="Поиск по ключевому слову" autocomplete="off" />
+        <button type="button" id="favoritesKeywordClear" hidden aria-label="Сбросить">✕</button>
+      </div>
+    </div>
+    <div class="listings-sort-row">
+      <label for="favoritesSortSelect">Сортировка</label>
+      <select id="favoritesSortSelect">
+        <option value="newest">Сначала новые анкеты</option>
+        <option value="oldest">Сначала старые анкеты</option>
+      </select>
+    </div>
+  </div>
+  <div id="favoritesContainer"></div>
 </div>
 
 <!-- ═══ SCREEN 3: PROFILE ═══ -->
@@ -1964,6 +2047,7 @@
   var _keywordFilter = '';
   var _pendingKeywordFilter = '';
   var _keywordSearchDebounce = null;
+  var _favoritesKeywordSearchDebounce = null;
   var _pinListingId = null;
   var _pinDuration = null;
   var _pinPrices = {};
@@ -2007,9 +2091,13 @@
      NAVIGATION
   ───────────────────────────────────── */
   document.getElementById('profileBtn').addEventListener('click', openProfile);
+  document.getElementById('favoritesBtn').addEventListener('click', openFavorites);
   document.getElementById('addResumeBtn').addEventListener('click', function () { goToForm(null); });
 
   document.getElementById('backFromListings').addEventListener('click', function () {
+    showScreen('main');
+  });
+  document.getElementById('backFromFavorites').addEventListener('click', function () {
     showScreen('main');
   });
   document.getElementById('listingsSortSelect').addEventListener('change', function () {
@@ -2051,6 +2139,36 @@
     }
   })();
 
+  document.getElementById('favoritesSortSelect').addEventListener('change', function () {
+    _favoritesSortMode = this.value;
+    applyFavoritesSort();
+    showFavoritesPage(1);
+    window.scrollTo(0, 0);
+  });
+
+  (function initFavoritesKeywordSearch() {
+    var input = document.getElementById('favoritesKeywordSearch');
+    var clearBtn = document.getElementById('favoritesKeywordClear');
+    if (!input) return;
+
+    input.addEventListener('input', function () {
+      clearTimeout(_favoritesKeywordSearchDebounce);
+      _favoritesKeywordSearchDebounce = setTimeout(function () {
+        applyFavoritesKeywordFilter(input.value);
+      }, 300);
+    });
+
+    input.addEventListener('search', function () {
+      if (!input.value) {
+        clearFavoritesKeywordFilter();
+      }
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', clearFavoritesKeywordFilter);
+    }
+  })();
+
   document.getElementById('backFromProfile').addEventListener('click', function () {
     showScreen('main');
   });
@@ -2079,6 +2197,7 @@
   function showScreen(name) {
     document.getElementById('screenMain').hidden     = (name !== 'main');
     document.getElementById('screenListings').hidden = (name !== 'listings');
+    document.getElementById('screenFavorites').hidden = (name !== 'favorites');
     document.getElementById('screenProfile').hidden  = (name !== 'profile');
     document.getElementById('screenForm').hidden     = (name !== 'form');
     document.getElementById('screenPayment').hidden  = (name !== 'payment');
@@ -2766,8 +2885,19 @@
       ? '<div class="card-exp"><span class="card-exp-label">Опыт/стаж:</span> ' + esc(l.experience) + '</div>'
       : '';
     var cardClass = 'listing-card' + (isPinned ? ' is-pinned' : '');
+    var favoriteBlock = cardId
+      ? '<div class="favorite-wrap">' +
+          '<button type="button" id="favorite-btn-' + cardId + '" class="favorite-btn" ' +
+            'aria-label="В избранное" aria-pressed="false">' +
+            '<span class="star-icon" aria-hidden="true">☆</span>' +
+          '</button>' +
+          '<span class="favorite-count-label">В избранном: ' +
+            '<span id="favorite-count-' + cardId + '">0</span></span>' +
+        '</div>'
+      : '';
     return (
       '<div class="' + cardClass + '" style="animation-delay:' + (animIndex * 0.055) + 's">' +
+        favoriteBlock +
         '<div class="card-head">' +
           '<div class="card-avatar">' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '</div>' +
           '<div class="card-head-body">' +
@@ -2847,6 +2977,13 @@
       btn.addEventListener('click', function () {
         var cardId = btn.id.slice('like-btn-'.length);
         if (cardId) toggleLike(cardId);
+      });
+    });
+    document.querySelectorAll('.favorite-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var cardId = btn.id.slice('favorite-btn-'.length);
+        if (cardId) toggleFavorite(cardId);
       });
     });
     document.querySelectorAll('.card-desc-toggle').forEach(function (btn) {
@@ -2959,9 +3096,11 @@
       initCardDescToggles(listingsContainer);
     });
     syncLikeButtonsFromState();
+    syncFavoriteButtonsFromState();
     if (!opts.skipLikesInit) {
-      initLikes().then(function () {
+      Promise.all([initFavoriteCounts(), initLikes()]).then(function () {
         syncLikeButtonsFromState();
+        syncFavoriteButtonsFromState();
         if (_listingsSortMode === 'likes' && !opts.skipResort) {
           applyListingsSort();
           showListingsPage(1, { skipLikesInit: true, skipResort: true });
@@ -3179,6 +3318,416 @@
       likeCountState[cardId] = previousCount;
       renderLikeButton(cardId, previousLiked, previousCount);
     }
+  }
+
+  /* ─────────────────────────────────────
+     FAVORITES MODULE
+  ───────────────────────────────────── */
+  var FAVORITES_ENABLED = true;
+  var myFavorites = new Set();
+  var favoriteCountState = {};
+  var pendingFavorites = {};
+  var _favoritesListingsRaw = [];
+  var _favoritesListings = [];
+  var _favoritesTotalCount = 0;
+  var _favoritesKeywordFilter = '';
+  var _favoritesSortMode = 'newest';
+  var _favoritesCurrentPage = 1;
+  var _favoritesScreenRollback = null;
+
+  function renderFavoriteButton(listingId, isFavorited, count) {
+    var btn = document.getElementById('favorite-btn-' + listingId);
+    var countEl = document.getElementById('favorite-count-' + listingId);
+    if (!btn || !countEl) return;
+    var icon = btn.querySelector('.star-icon');
+    if (isFavorited) {
+      btn.classList.add('is-favorited');
+      btn.setAttribute('aria-pressed', 'true');
+      if (icon) icon.textContent = '⭐';
+    } else {
+      btn.classList.remove('is-favorited');
+      btn.setAttribute('aria-pressed', 'false');
+      if (icon) icon.textContent = '☆';
+    }
+    countEl.textContent = String(count);
+  }
+
+  function syncFavoriteButtonsFromState() {
+    document.querySelectorAll('.favorite-btn').forEach(function (btn) {
+      var listingId = btn.id.slice('favorite-btn-'.length);
+      if (!listingId) return;
+      var count = favoriteCountState[listingId] != null ? favoriteCountState[listingId] : 0;
+      renderFavoriteButton(listingId, myFavorites.has(listingId), count);
+    });
+  }
+
+  async function initFavoriteCounts() {
+    if (!FAVORITES_ENABLED) return;
+    if (!tg || !tg.initData) return;
+
+    try {
+      var res = await fetchWithTimeout(
+        API_URL + '/api?action=getFavoriteCounts&initData=' + encodeURIComponent(tg.initData),
+        5000
+      );
+      var data = await res.json();
+      if (!data.success || !data.favorites) return;
+
+      data.favorites.forEach(function (item) {
+        var listingId = String(item.listingId || '').trim();
+        if (!listingId) return;
+        favoriteCountState[listingId] = item.total;
+        if (item.favoritedByMe) myFavorites.add(listingId);
+        else myFavorites.delete(listingId);
+      });
+    } catch (e) {
+      console.warn('Favorites load failed:', e);
+    }
+  }
+
+  function getFilteredFavoritesRaw() {
+    if (!_favoritesKeywordFilter) return _favoritesListingsRaw.slice();
+    return _favoritesListingsRaw.filter(function (l) {
+      var list = l.keywords || [];
+      return list.some(function (k) { return k === _favoritesKeywordFilter; });
+    });
+  }
+
+  function updateFavoritesKeywordClearVisibility() {
+    var clearBtn = document.getElementById('favoritesKeywordClear');
+    var input = document.getElementById('favoritesKeywordSearch');
+    if (!clearBtn) return;
+    clearBtn.hidden = !(input && normalizeKeywordFilter(input.value));
+  }
+
+  function applyFavoritesSort() {
+    var filtered = getFilteredFavoritesRaw();
+    _favoritesListings = filtered.slice();
+    if (_favoritesSortMode === 'oldest') {
+      _favoritesListings.sort(function (a, b) {
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
+    } else {
+      _favoritesListings.sort(function (a, b) {
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+    }
+  }
+
+  function applyFavoritesKeywordFilter(rawKeyword) {
+    var kw = normalizeKeywordFilter(rawKeyword);
+    _favoritesKeywordFilter = kw;
+    var searchEl = document.getElementById('favoritesKeywordSearch');
+    if (searchEl) searchEl.value = kw;
+    updateFavoritesKeywordClearVisibility();
+    applyFavoritesSort();
+    showFavoritesPage(1);
+    window.scrollTo(0, 0);
+  }
+
+  function clearFavoritesKeywordFilter() {
+    _favoritesKeywordFilter = '';
+    var input = document.getElementById('favoritesKeywordSearch');
+    if (input) input.value = '';
+    updateFavoritesKeywordClearVisibility();
+    applyFavoritesSort();
+    showFavoritesPage(1);
+    window.scrollTo(0, 0);
+  }
+
+  function renderFavoritesNavigation(totalCount, currentPage, totalPages) {
+    if (totalCount <= LISTINGS_PER_PAGE) return '';
+    return (
+      '<nav class="navigation_bar" aria-label="Навигация по страницам">' +
+        '<button type="button" class="nav-bar-btn" id="favoritesNavPrev"' +
+          (currentPage <= 1 ? ' disabled' : '') + '>Назад</button>' +
+        '<span class="nav-page-circle">' + currentPage + '</span>' +
+        '<button type="button" class="nav-bar-btn" id="favoritesNavNext"' +
+          (currentPage >= totalPages ? ' disabled' : '') + '>Далее</button>' +
+      '</nav>'
+    );
+  }
+
+  function bindFavoritesCardEvents() {
+    document.querySelectorAll('#favoritesContainer .copy-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        copyText(btn.getAttribute('data-contacts'));
+      });
+    });
+    document.querySelectorAll('#favoritesContainer .portfolio-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openPortfolioPopup(
+          btn.getAttribute('data-listing-id'),
+          btn.getAttribute('data-name')
+        );
+      });
+    });
+    document.querySelectorAll('#favoritesContainer .like-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cardId = btn.id.slice('like-btn-'.length);
+        if (cardId) toggleLike(cardId);
+      });
+    });
+    document.querySelectorAll('#favoritesContainer .favorite-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var cardId = btn.id.slice('favorite-btn-'.length);
+        if (cardId) toggleFavorite(cardId);
+      });
+    });
+    document.querySelectorAll('#favoritesContainer .card-desc-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var wrap = btn.closest('.card-desc-wrap');
+        var desc = wrap && wrap.querySelector('.card-desc');
+        if (!desc) return;
+        desc.classList.toggle('is-expanded');
+        updateCardDescToggle(wrap);
+      });
+    });
+    document.querySelectorAll('#favoritesContainer .keyword-tag').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        applyFavoritesKeywordFilter(btn.getAttribute('data-keyword'));
+      });
+    });
+  }
+
+  function showFavoritesPage(page) {
+    var container = document.getElementById('favoritesContainer');
+    if (!container) return;
+
+    if (_favoritesTotalCount === 0) {
+      container.innerHTML = emptyState(
+        '⭐',
+        'У вас пока нет избранных',
+        'Нажмите ⭐ на карточке в каталоге'
+      );
+      return;
+    }
+
+    if (!_favoritesListingsRaw.length) {
+      container.innerHTML = emptyState('⭐', 'Нет активных избранных карточек', '');
+      return;
+    }
+
+    if (!_favoritesListings.length) {
+      if (_favoritesKeywordFilter) {
+        container.innerHTML = emptyState(
+          '🔍',
+          'Ничего не найдено',
+          'Нет анкет с ключевым словом «' + esc(_favoritesKeywordFilter) + '»'
+        );
+      }
+      return;
+    }
+
+    var total = _favoritesListings.length;
+    var totalPages = Math.max(1, Math.ceil(total / LISTINGS_PER_PAGE));
+    page = Math.max(1, Math.min(page, totalPages));
+    _favoritesCurrentPage = page;
+
+    var start = (page - 1) * LISTINGS_PER_PAGE;
+    var slice = _favoritesListings.slice(start, start + LISTINGS_PER_PAGE);
+
+    var html = '<div class="listings-wrap">';
+    slice.forEach(function (l, i) {
+      html += buildListingCardHtml(l, i);
+    });
+    html += '</div>';
+    html += renderFavoritesNavigation(total, page, totalPages);
+
+    container.innerHTML = html;
+    bindFavoritesCardEvents();
+    requestAnimationFrame(function () {
+      initCardDescToggles(container);
+    });
+    syncFavoriteButtonsFromState();
+    syncLikeButtonsFromState();
+
+    var prevBtn = document.getElementById('favoritesNavPrev');
+    var nextBtn = document.getElementById('favoritesNavNext');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', function () {
+        showFavoritesPage(_favoritesCurrentPage - 1);
+        window.scrollTo(0, 0);
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener('click', function () {
+        showFavoritesPage(_favoritesCurrentPage + 1);
+        window.scrollTo(0, 0);
+      });
+    }
+  }
+
+  function removeFromFavoritesScreen(listingId) {
+    var screen = document.getElementById('screenFavorites');
+    if (!screen || screen.hidden) return;
+
+    var removed = null;
+    _favoritesListingsRaw = _favoritesListingsRaw.filter(function (l) {
+      if (String(l.listing_id || '') === listingId) {
+        removed = l;
+        return false;
+      }
+      return true;
+    });
+    if (!removed) return;
+
+    _favoritesTotalCount = Math.max(0, _favoritesTotalCount - 1);
+    myFavorites.delete(listingId);
+    _favoritesScreenRollback = {
+      listingId: listingId,
+      listing: removed,
+      totalCount: _favoritesTotalCount + 1,
+    };
+
+    applyFavoritesSort();
+    var totalPages = Math.max(1, Math.ceil(_favoritesListings.length / LISTINGS_PER_PAGE));
+    var nextPage = Math.min(_favoritesCurrentPage, totalPages);
+    showFavoritesPage(nextPage);
+  }
+
+  function restoreFavoritesScreenRollback() {
+    if (!_favoritesScreenRollback) return;
+    _favoritesListingsRaw.push(_favoritesScreenRollback.listing);
+    _favoritesTotalCount = _favoritesScreenRollback.totalCount;
+    myFavorites.add(_favoritesScreenRollback.listingId);
+    _favoritesScreenRollback = null;
+    applyFavoritesSort();
+    showFavoritesPage(_favoritesCurrentPage);
+  }
+
+  function openFavorites() {
+    var container = document.getElementById('favoritesContainer');
+    _favoritesKeywordFilter = '';
+    var searchInput = document.getElementById('favoritesKeywordSearch');
+    if (searchInput) searchInput.value = '';
+    updateFavoritesKeywordClearVisibility();
+    _favoritesSortMode = 'newest';
+    var sortSelect = document.getElementById('favoritesSortSelect');
+    if (sortSelect) sortSelect.value = 'newest';
+
+    showLoaderIn(container);
+    showScreen('favorites');
+
+    var payload = buildPayload('get_favorites');
+    if (!payload) {
+      clearLoaderTimer();
+      container.innerHTML =
+        emptyState('🔒', 'Нет доступа', 'Откройте через Telegram-бота');
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        clearLoaderTimer();
+        if (!data.ok) {
+          var favKey = (data.error || '').replace(/\s/g, '_');
+          container.innerHTML = emptyState(
+            '⚠️',
+            'Ошибка загрузки',
+            data.message || ERRORS[favKey] || data.error || 'Попробуйте позже'
+          );
+          return;
+        }
+
+        _favoritesListingsRaw = data.listings || [];
+        _favoritesTotalCount = data.totalCount != null ? data.totalCount : 0;
+
+        if (_favoritesTotalCount === 0) {
+          container.innerHTML = emptyState(
+            '⭐',
+            'У вас пока нет избранных',
+            'Нажмите ⭐ на карточке в каталоге'
+          );
+          return;
+        }
+
+        if (!_favoritesListingsRaw.length && (data.inactiveCount || 0) > 0) {
+          container.innerHTML = emptyState('⭐', 'Нет активных избранных карточек', '');
+          return;
+        }
+
+        applyFavoritesSort();
+        showFavoritesPage(1);
+        Promise.all([initFavoriteCounts(), initLikes()]).then(function () {
+          syncFavoriteButtonsFromState();
+          syncLikeButtonsFromState();
+        });
+      })
+      .catch(function (err) {
+        clearLoaderTimer();
+        container.innerHTML =
+          emptyState('📡', 'Нет связи с сервером', apiErrorMessage(err));
+      });
+  }
+
+  function toggleFavorite(listingId) {
+    if (!FAVORITES_ENABLED) return;
+    if (pendingFavorites[listingId]) return;
+
+    if (!tg || !tg.initData) {
+      if (tg && tg.showAlert) {
+        tg.showAlert('Войдите через Telegram для избранного');
+      }
+      return;
+    }
+
+    var previousFavorited = myFavorites.has(listingId);
+    var previousCount = favoriteCountState[listingId] != null ? favoriteCountState[listingId] : 0;
+    var action = previousFavorited ? 'unfavorite' : 'favorite';
+    var onFavoritesScreen = document.getElementById('screenFavorites') &&
+      !document.getElementById('screenFavorites').hidden;
+
+    if (previousFavorited) {
+      myFavorites.delete(listingId);
+      favoriteCountState[listingId] = Math.max(0, previousCount - 1);
+    } else {
+      myFavorites.add(listingId);
+      favoriteCountState[listingId] = previousCount + 1;
+    }
+    renderFavoriteButton(listingId, myFavorites.has(listingId), favoriteCountState[listingId]);
+
+    if (previousFavorited && onFavoritesScreen) {
+      removeFromFavoritesScreen(listingId);
+    }
+
+    pendingFavorites[listingId] = true;
+
+    fetchWithTimeout(
+      API_URL + '/api?action=toggleFavorite' +
+        '&initData=' + encodeURIComponent(tg.initData) +
+        '&listingId=' + encodeURIComponent(listingId) +
+        '&type=' + action,
+      8000
+    )
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.success) {
+          throw new Error(data.error || 'backend_error');
+        }
+        favoriteCountState[listingId] = data.newCount;
+        if (data.isFavorited) myFavorites.add(listingId);
+        else myFavorites.delete(listingId);
+        renderFavoriteButton(listingId, data.isFavorited, data.newCount);
+        _favoritesScreenRollback = null;
+      })
+      .catch(function (err) {
+        console.error('Favorite failed:', err);
+        if (tg && tg.showAlert) {
+          tg.showAlert('Не удалось сохранить. Попробуйте снова.');
+        }
+        if (previousFavorited) myFavorites.add(listingId);
+        else myFavorites.delete(listingId);
+        favoriteCountState[listingId] = previousCount;
+        renderFavoriteButton(listingId, previousFavorited, previousCount);
+        if (previousFavorited && onFavoritesScreen) {
+          restoreFavoritesScreenRollback();
+        }
+      })
+      .finally(function () {
+        delete pendingFavorites[listingId];
+      });
   }
 
   /* ─────────────────────────────────────

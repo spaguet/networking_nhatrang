@@ -2,7 +2,7 @@ import type { Env } from '../env';
 import { validateTelegramInitData } from '../utils/auth';
 import { jsonResponse } from '../utils/response';
 
-const LIKES_CACHE_KEY = 'likes_all';
+export const LIKES_CACHE_KEY = 'likes_all';
 const LIKES_CACHE_TTL = 180;
 
 type CachedLikeEntry = {

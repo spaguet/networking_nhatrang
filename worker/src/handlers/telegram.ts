@@ -6,6 +6,7 @@ import {
   getConfig,
 } from '../config';
 import type { Env } from '../env';
+import { purgeFavoritesForListing } from './favorites';
 import {
   cleanupPortfolioOnReject,
   getPortfolioCount,
@@ -893,6 +894,8 @@ async function rejectListing(
   )
     .bind(listingId)
     .run();
+
+  await purgeFavoritesForListing(listingId, env);
 
   const rejectText =
     listing.payment_status === 'paid'
