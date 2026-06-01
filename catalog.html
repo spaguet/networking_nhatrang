@@ -173,6 +173,21 @@
       border-color: var(--orange);
     }
 
+    .messages-btn {
+      position: relative;
+    }
+    .messages-btn.has-unread::after {
+      content: '';
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 2px rgba(20, 20, 28, 0.9);
+    }
+
     /* CTA banner */
     .add-resume-wrap {
       padding: 16px 16px 4px;
@@ -2114,6 +2129,178 @@
 
     [hidden] { display: none !important; }
 
+    .messages-disclaimer {
+      margin: 12px 16px 8px;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border-radius: 12px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: var(--text-sub);
+    }
+    .messages-list { padding: 0 12px 24px; }
+    .messages-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .messages-item:active { border-color: var(--orange); }
+    .messages-item-avatar {
+      font-size: 1.75rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .messages-item-body { flex: 1; min-width: 0; }
+    .messages-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .messages-item-name {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .messages-item-time {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      flex-shrink: 0;
+    }
+    .messages-item-preview {
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .messages-item-unread .messages-item-preview {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .messages-item-unread .messages-item-name::after {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin-left: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      vertical-align: middle;
+    }
+
+    .chat-header-title {
+      flex: 1;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 8px;
+    }
+    .chat-thread {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .chat-screen-body {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 56px);
+      max-height: calc(100vh - 56px);
+    }
+    .chat-bubble {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .chat-bubble-mine {
+      align-self: flex-end;
+      background: var(--orange);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-bubble-other {
+      align-self: flex-start;
+      background: var(--surface2);
+      color: var(--text);
+      border-bottom-left-radius: 4px;
+    }
+    .chat-bubble-time {
+      display: block;
+      font-size: 0.68rem;
+      opacity: 0.75;
+      margin-top: 4px;
+    }
+    .chat-input-bar {
+      padding: 10px 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .chat-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .chat-input {
+      flex: 1;
+      min-height: 44px;
+      max-height: 120px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      resize: none;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .chat-send-btn {
+      flex-shrink: 0;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 12px;
+      background: var(--orange);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .chat-send-btn:disabled,
+    .chat-input:disabled {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+    .chat-expired-hint {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      text-align: center;
+      padding: 0 12px 8px;
+    }
+
   </style>
 </head>
 <body>
@@ -2132,6 +2319,7 @@
       <div class="hero-actions">
         <button class="profile-btn" id="profileBtn">👤 Профиль</button>
         <button class="profile-btn" id="favoritesBtn">⭐ Избранные</button>
+        <button class="profile-btn messages-btn" id="messagesBtn" type="button">💬 Мои сообщения</button>
         <button class="profile-btn admin-btn" id="adminBtn" hidden type="button">🛠 Админ</button>
       </div>
     </div>
@@ -2205,6 +2393,39 @@
     </div>
   </div>
   <div id="favoritesContainer"></div>
+</div>
+
+<!-- ═══ SCREEN: MESSAGES ═══ -->
+<div id="screenMessages" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromMessages" type="button">←</button>
+    <span class="screen-title">Мои сообщения</span>
+  </div>
+  <p class="messages-disclaimer">
+    Переписка в приложении автоматически удалится через <strong>7 дней</strong> с момента
+    <strong>первого</strong> сообщения в чате. Ссылки в сообщениях запрещены.
+  </p>
+  <div id="messagesListContainer" class="messages-list"></div>
+</div>
+
+<!-- ═══ SCREEN: CHAT ═══ -->
+<div id="screenChat" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromChat" type="button">←</button>
+    <span class="chat-header-title" id="chatHeaderTitle"></span>
+    <span style="width:40px;flex-shrink:0" aria-hidden="true"></span>
+  </div>
+  <div class="chat-screen-body">
+    <div id="chatThread" class="chat-thread"></div>
+    <p id="chatExpiredHint" class="chat-expired-hint" hidden>Срок переписки истёк</p>
+    <div class="chat-input-bar">
+      <div class="chat-input-row">
+        <textarea id="chatInput" class="chat-input" rows="2" maxlength="500"
+                  placeholder="Сообщение…"></textarea>
+        <button type="button" class="chat-send-btn" id="chatSendBtn">Отправить</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ SCREEN 3: PROFILE ═══ -->
@@ -2979,7 +3200,13 @@
     telegram_verify_required: 'Нажмите «Проверить Telegram-ник» перед отправкой анкеты.',
     telegram_no_username: 'У вашего аккаунта Telegram нет @ника. Создайте его в настройках Telegram, затем введите сюда и проверьте снова.',
     telegram_verify_rate_limit: 'Слишком много проверок. Попробуйте через час.',
-    messaging_not_available: 'In-app переписка для этого типа контакта недоступна.'
+    messaging_not_available: 'In-app переписка для этого типа контакта недоступна.',
+    conversation_closed: 'Переписка закрыта.',
+    conversation_expired: 'Срок переписки истёк. Новые сообщения отправить нельзя.',
+    message_too_long: 'Сообщение слишком длинное (макс. 500 символов).',
+    message_rate_limit: 'Лимит сообщений на сегодня исчерпан. Попробуйте завтра.',
+    not_found: 'Диалог не найден.',
+    forbidden: 'Нет доступа к этой переписке.'
   };
 
   var ADMIN_ERRORS = {
@@ -3156,6 +3383,23 @@
   ───────────────────────────────────── */
   document.getElementById('profileBtn').addEventListener('click', openProfile);
   document.getElementById('favoritesBtn').addEventListener('click', openFavorites);
+  document.getElementById('messagesBtn').addEventListener('click', openMessagesScreen);
+  document.getElementById('backFromMessages').addEventListener('click', function () {
+    showScreen('main');
+  });
+  document.getElementById('backFromChat').addEventListener('click', function () {
+    showScreen(_chatBackScreen);
+    if (_chatBackScreen === 'messages') {
+      loadMessagesList();
+    }
+  });
+  document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+  document.getElementById('chatInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
   document.getElementById('addResumeBtn').addEventListener('click', function () {
     clearFormEditMode();
     goToForm(null);
@@ -3263,9 +3507,12 @@
   });
 
   function showScreen(name) {
+    _activeScreenName = name;
     document.getElementById('screenMain').hidden     = (name !== 'main');
     document.getElementById('screenListings').hidden = (name !== 'listings');
     document.getElementById('screenFavorites').hidden = (name !== 'favorites');
+    document.getElementById('screenMessages').hidden = (name !== 'messages');
+    document.getElementById('screenChat').hidden = (name !== 'chat');
     document.getElementById('screenProfile').hidden  = (name !== 'profile');
     document.getElementById('screenForm').hidden     = (name !== 'form');
     document.getElementById('screenPayment').hidden  = (name !== 'payment');
@@ -3274,6 +3521,18 @@
     document.getElementById('screenAdminLogin').hidden = (name !== 'adminLogin');
     document.getElementById('screenAdminChangePassword').hidden = (name !== 'adminChangePassword');
     document.getElementById('screenAdmin').hidden = (name !== 'admin');
+
+    if (name === 'main') {
+      startMessagingUnreadPoll();
+    } else {
+      stopMessagingUnreadPoll();
+    }
+    if (name !== 'chat') {
+      stopMessagingChatPoll();
+    }
+    if (name === 'messages') {
+      loadMessagesList();
+    }
   }
 
   /* ─────────────────────────────────────
@@ -4397,6 +4656,336 @@
     });
   }
 
+  /* ─────────────────────────────────────
+     IN-APP MESSAGING (user_messaging_TZ §4.3, §5.1–5.4)
+  ───────────────────────────────────── */
+  function getMyTgId() {
+    var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    return user && user.id ? Number(user.id) : 0;
+  }
+
+  function formatMessageTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var now = new Date();
+    var sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) {
+      return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) +
+      ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function conversationListTime(conv) {
+    return formatMessageTime(conv.last_message_at || conv.created_at);
+  }
+
+  function conversationDisplayName(conv) {
+    return (conv.listing_display_name || 'Анкета').trim() || 'Анкета';
+  }
+
+  function conversationAvatar(conv) {
+    var emoji = (conv.listing_avatar_emoji || '').trim();
+    return emoji || '💬';
+  }
+
+  function setMessagesUnreadBadge(hasUnread) {
+    var btn = document.getElementById('messagesBtn');
+    if (!btn) return;
+    btn.classList.toggle('has-unread', !!hasUnread);
+  }
+
+  function refreshMessagingUnread() {
+    if (!tg || !tg.initData) return;
+    var payload = buildPayload('get_messaging_unread');
+    if (!payload) return;
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok) {
+          setMessagesUnreadBadge(data.has_unread);
+        }
+      })
+      .catch(function () { /* ignore polling errors */ });
+  }
+
+  function startMessagingUnreadPoll() {
+    stopMessagingUnreadPoll();
+    refreshMessagingUnread();
+    _messagingUnreadTimer = setInterval(function () {
+      if (_activeScreenName !== 'main' || document.hidden) return;
+      refreshMessagingUnread();
+    }, 15000);
+  }
+
+  function stopMessagingUnreadPoll() {
+    if (_messagingUnreadTimer) {
+      clearInterval(_messagingUnreadTimer);
+      _messagingUnreadTimer = null;
+    }
+  }
+
+  function stopMessagingChatPoll() {
+    if (_messagingChatPollTimer) {
+      clearInterval(_messagingChatPollTimer);
+      _messagingChatPollTimer = null;
+    }
+  }
+
+  function startMessagingChatPoll() {
+    stopMessagingChatPoll();
+    _messagingChatPollTimer = setInterval(function () {
+      if (_activeScreenName !== 'chat' || document.hidden || !_activeChatConversationId) return;
+      pollChatMessages();
+    }, 8000);
+  }
+
+  function showMessagingTtlToast(conversationId) {
+    var key = MSG_TTL_TOAST_PREFIX + conversationId;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, '1');
+    } catch (e) { /* ignore */ }
+    showToast('Переписка удалится через 7 дней с первого сообщения');
+  }
+
+  function setChatExpiredUi(expired) {
+    _activeChatExpired = !!expired;
+    var input = document.getElementById('chatInput');
+    var sendBtn = document.getElementById('chatSendBtn');
+    var hint = document.getElementById('chatExpiredHint');
+    if (input) input.disabled = expired;
+    if (sendBtn) sendBtn.disabled = expired;
+    if (hint) hint.hidden = !expired;
+  }
+
+  function renderChatMessages(messages) {
+    var thread = document.getElementById('chatThread');
+    if (!thread) return;
+    var myId = getMyTgId();
+    if (!messages || !messages.length) {
+      thread.innerHTML = '<div class="empty-sub" style="text-align:center;padding:24px 0">' +
+        'Напишите первое сообщение</div>';
+      return;
+    }
+    thread.innerHTML = messages.map(function (m) {
+      var mine = Number(m.sender_tg_id) === myId;
+      var cls = mine ? 'chat-bubble chat-bubble-mine' : 'chat-bubble chat-bubble-other';
+      return '<div class="' + cls + '">' +
+        esc(m.body) +
+        '<span class="chat-bubble-time">' + esc(formatMessageTime(m.created_at)) + '</span>' +
+      '</div>';
+    }).join('');
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  function applyChatOpenResult(data, backScreen) {
+    if (!data.ok || !data.conversation) {
+      var errKey = (data.error || '').replace(/\s/g, '_');
+      showToast(data.message || ERRORS[errKey] || 'Не удалось открыть чат');
+      return;
+    }
+    var conv = data.conversation;
+    _activeChatConversationId = conv.conversation_id;
+    _activeChatTitle = conversationDisplayName(conv);
+    _chatBackScreen = backScreen || 'messages';
+    document.getElementById('chatHeaderTitle').textContent = _activeChatTitle;
+    var expired = !!(data.expired || conv.expired);
+    setChatExpiredUi(expired);
+    renderChatMessages(data.messages || []);
+    document.getElementById('chatInput').value = '';
+    showScreen('chat');
+    showMessagingTtlToast(conv.conversation_id);
+    markConversationRead(conv.conversation_id);
+    startMessagingChatPoll();
+  }
+
+  function markConversationRead(conversationId) {
+    var payload = buildPayload('mark_conversation_read', { conversation_id: conversationId });
+    if (!payload) return;
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok) {
+          setMessagesUnreadBadge(data.has_unread);
+        }
+      })
+      .catch(function () { /* ignore */ });
+  }
+
+  function pollChatMessages() {
+    if (!_activeChatConversationId) return;
+    var payload = buildPayload('get_messages', {
+      conversation_id: _activeChatConversationId,
+      limit: 50
+    });
+    if (!payload) return;
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok || _activeScreenName !== 'chat') return;
+        if (data.expired) setChatExpiredUi(true);
+        renderChatMessages(data.messages || []);
+        if (data.messages && data.messages.length) {
+          markConversationRead(_activeChatConversationId);
+        }
+      })
+      .catch(function () { /* ignore */ });
+  }
+
+  function openChatByConversationId(conversationId, title, backScreen) {
+    _activeChatConversationId = conversationId;
+    _activeChatTitle = title || 'Чат';
+    _chatBackScreen = backScreen || 'messages';
+    document.getElementById('chatHeaderTitle').textContent = _activeChatTitle;
+    document.getElementById('chatThread').innerHTML =
+      '<div class="loader"><div class="loader-spinner"></div><div class="loader-text">Загрузка…</div></div>';
+    showScreen('chat');
+    setChatExpiredUi(false);
+
+    var payload = buildPayload('get_messages', { conversation_id: conversationId, limit: 50 });
+    if (!payload) {
+      showToast('Откройте через Telegram-бота');
+      showScreen('messages');
+      return;
+    }
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          var errKey = (data.error || '').replace(/\s/g, '_');
+          showToast(data.message || ERRORS[errKey] || 'Не удалось загрузить чат');
+          showScreen('messages');
+          return;
+        }
+        setChatExpiredUi(!!data.expired);
+        renderChatMessages(data.messages || []);
+        showMessagingTtlToast(conversationId);
+        markConversationRead(conversationId);
+        startMessagingChatPoll();
+      })
+      .catch(function (err) {
+        showToast(apiErrorMessage(err));
+        showScreen('messages');
+      });
+  }
+
+  function openMessagesScreen() {
+    _chatBackScreen = 'main';
+    showScreen('messages');
+  }
+
+  function loadMessagesList() {
+    var container = document.getElementById('messagesListContainer');
+    if (!container) return;
+    container.innerHTML =
+      '<div class="loader"><div class="loader-spinner"></div><div class="loader-text">Загрузка…</div></div>';
+
+    var payload = buildPayload('list_my_conversations');
+    if (!payload) {
+      container.innerHTML = emptyState('💬', 'Нет доступа', 'Откройте каталог через Telegram-бота');
+      return;
+    }
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          var errKey = (data.error || '').replace(/\s/g, '_');
+          container.innerHTML = emptyState('⚠️', 'Ошибка', data.message || ERRORS[errKey] || 'Попробуйте позже');
+          return;
+        }
+        renderMessagesList(data.conversations || []);
+      })
+      .catch(function (err) {
+        container.innerHTML = emptyState('⚠️', 'Ошибка', apiErrorMessage(err));
+      });
+  }
+
+  function renderMessagesList(conversations) {
+    var container = document.getElementById('messagesListContainer');
+    if (!container) return;
+    if (!conversations.length) {
+      container.innerHTML = emptyState('💬', 'У вас пока нет переписок', '');
+      return;
+    }
+    container.innerHTML = conversations.map(function (conv) {
+      var unreadCls = conv.unread ? ' messages-item-unread' : '';
+      var preview = (conv.last_message_preview || '').trim() || 'Нет сообщений';
+      return '<button type="button" class="messages-item' + unreadCls + '" ' +
+        'data-conversation-id="' + esc(conv.conversation_id) + '" ' +
+        'data-title="' + esc(conversationDisplayName(conv)) + '">' +
+        '<span class="messages-item-avatar">' + esc(conversationAvatar(conv)) + '</span>' +
+        '<span class="messages-item-body">' +
+          '<span class="messages-item-top">' +
+            '<span class="messages-item-name">' + esc(conversationDisplayName(conv)) + '</span>' +
+            '<span class="messages-item-time">' + esc(conversationListTime(conv)) + '</span>' +
+          '</span>' +
+          '<span class="messages-item-preview">' + esc(preview) + '</span>' +
+        '</span>' +
+      '</button>';
+    }).join('');
+
+    container.querySelectorAll('.messages-item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cid = btn.getAttribute('data-conversation-id');
+        var title = btn.getAttribute('data-title') || 'Чат';
+        if (cid) openChatByConversationId(cid, title, 'messages');
+      });
+    });
+  }
+
+  function sendChatMessage() {
+    if (_activeChatExpired || !_activeChatConversationId) return;
+    var input = document.getElementById('chatInput');
+    var body = (input && input.value || '').trim();
+    if (!body) return;
+    if (containsLink(body)) {
+      showLinkPopup();
+      return;
+    }
+    var payload = buildPayload('send_message', {
+      conversation_id: _activeChatConversationId,
+      body: body
+    });
+    if (!payload) {
+      showToast('Откройте через Telegram-бота');
+      return;
+    }
+    document.getElementById('chatSendBtn').disabled = true;
+    apiPost(payload)
+      .then(function (data) {
+        document.getElementById('chatSendBtn').disabled = _activeChatExpired;
+        if (!data.ok) {
+          var errKey = (data.error || '').replace(/\s/g, '_');
+          if (errKey === 'links_forbidden') {
+            showLinkPopup();
+          } else {
+            showToast(data.message || ERRORS[errKey] || 'Не удалось отправить');
+          }
+          return;
+        }
+        if (input) input.value = '';
+        pollChatMessages();
+        refreshMessagingUnread();
+      })
+      .catch(function (err) {
+        document.getElementById('chatSendBtn').disabled = _activeChatExpired;
+        showToast(apiErrorMessage(err));
+      });
+  }
+
+  function openInAppChatFromCard(listingId) {
+    var backScreen = _activeScreenName === 'favorites' ? 'favorites' : 'listings';
+    var payload = buildPayload('open_conversation', { listing_id: listingId });
+    if (!payload) {
+      showToast('Откройте через Telegram-бота');
+      return;
+    }
+    apiPost(payload)
+      .then(function (data) {
+        applyChatOpenResult(data, backScreen);
+      })
+      .catch(function (err) {
+        showToast(apiErrorMessage(err));
+      });
+  }
+
   function openTelegramChatFromCard(listingId) {
     var payload = buildPayload('resolve_telegram_chat', { listing_id: listingId });
     if (!payload) {
@@ -4424,11 +5013,6 @@
       .catch(function (err) {
         showToast(apiErrorMessage(err));
       });
-  }
-
-  function openInAppChatFromCard(listingId) {
-    /* Prompt 6: open_conversation → #screenChat */
-    void listingId;
   }
 
   function bindListingCardEvents() {
@@ -4817,6 +5401,15 @@
   var _favoritesKeywordFilter = '';
   var _favoritesSortMode = 'newest';
   var _favoritesCurrentPage = 1;
+
+  var _activeScreenName = 'main';
+  var _messagingUnreadTimer = null;
+  var _messagingChatPollTimer = null;
+  var _activeChatConversationId = null;
+  var _activeChatExpired = false;
+  var _activeChatTitle = '';
+  var _chatBackScreen = 'messages';
+  var MSG_TTL_TOAST_PREFIX = 'msg_ttl_toast_';
   var _favoritesScreenRollback = null;
 
   function renderFavoriteButton(listingId, isFavorited, count) {
@@ -8113,6 +8706,13 @@
   checkBanOnInit();
   refreshMyListingIds();
   initAdminAccess();
+  startMessagingUnreadPoll();
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && _activeScreenName === 'main') {
+      refreshMessagingUnread();
+    }
+  });
 </script>
 </body>
 </html>
