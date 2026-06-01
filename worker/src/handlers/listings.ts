@@ -90,7 +90,7 @@ function formatEditPaymentLabel(paymentStatus: string): string {
   return paymentStatus === 'paid' ? 'Платное' : 'Бесплатное';
 }
 
-function buildEditModerationAdminText(
+export function buildEditModerationAdminText(
   draftId: string,
   parentId: string,
   tgId: number,

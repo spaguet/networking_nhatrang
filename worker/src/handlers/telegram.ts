@@ -4,25 +4,42 @@ import {
   type AppConfig,
   type QrPaymentMethod,
   getConfig,
+  getConfigWithSettings,
 } from '../config';
 import type { Env } from '../env';
 import { purgeFavoritesForListing } from './favorites';
 import {
   cleanupPortfolioOnReject,
+  deleteMediaByListing,
   getPortfolioCount,
   promoteStaging,
 } from '../services/portfolio-db';
 import type { AdminLink } from '../types';
 import {
+  invalidateAppSettingsCache,
+  qrSettingKey,
+  upsertAppSetting,
+} from '../services/app-settings';
+import {
   answerCallbackQuery,
+  banConfirmKeyboard,
   contactBanKeyboard,
   editMessageReplyMarkup,
+  editMessageText,
   moderationKeyboard,
   pinModerationKeyboard,
   sendMessage,
+  sendModerationPhotoToAdmins,
+  sendModerationToAdmins,
   sendPhoto,
+  sendToAllAdmins,
   type ReplyKeyboardMarkup,
 } from '../services/telegram-api';
+import {
+  getAdminRole,
+  isAdmin,
+  isGrandAdmin,
+} from '../utils/admin-auth';
 import { decodeDescriptionNewlines } from '../utils/description';
 import {
   formatKeywordsModerationLine,
@@ -35,6 +52,7 @@ import {
   formatDateRu,
   getPinDurationLabel,
   getPinPriceByDuration,
+  isStaffTgId,
   isUserBanned,
   logAction,
   paymentMethodLabel,
@@ -54,6 +72,8 @@ const WEBHOOK_DEDUP_TTL = 21600;
 
 /** Текст кнопки reply-клавиатуры (нажатие приходит как message.text). */
 const CONTACT_ADMIN_BUTTON = '📩 Написать администратору';
+const GRAND_ADMIN_ONLY_MESSAGE =
+  'Доступно только главному администратору.';
 
 interface TelegramUser {
   id: number;
@@ -367,12 +387,13 @@ async function startContactAdmin(tgId: number, env: Env): Promise<void> {
   );
 }
 
-function buildQrStatusText(config: AppConfig): string {
+async function buildQrStatusText(env: Env): Promise<string> {
+  const config = await getConfigWithSettings(env);
   const lines = ['📷 Статус QR-кодов:', ''];
   QR_PAYMENT_METHODS.forEach((m) => {
-    const id = config.qr[m.propertyKey];
+    const id = config.qr[m.methodKey];
     lines.push(m.sendCaption);
-    lines.push(`  ${m.propertyKey}: ${id ? id : '❌ не задан'}`);
+    lines.push(`  ${m.methodKey}: ${id ? id : '❌ не задан'}`);
     lines.push('');
   });
   lines.push(
@@ -389,36 +410,71 @@ async function sendQrSetupHint(adminChatId: number | string, env: Env): Promise<
       (m) => `• ${m.captions[0]} — ${m.sendCaption}`,
     ),
     '',
-    'Worker v1: сохранение через wrangler secret put (см. /qr_help)',
-    'Команда /qr_status — проверить сохранённые file_id',
+    'Фото сохраняется в настройках (D1). Команда /qr_status — проверить file_id.',
   ];
   await sendMessage(adminChatId, lines.join('\n'), null, env);
+}
+
+async function canBanTarget(
+  bannerTgId: number,
+  targetTgId: number,
+  db: D1Database,
+): Promise<{ ok: boolean; message?: string }> {
+  if (targetTgId === bannerTgId) {
+    return { ok: false, message: 'Нельзя забанить себя' };
+  }
+  if (!(await isStaffTgId(db, targetTgId))) {
+    return { ok: true };
+  }
+  const targetRole = await getAdminRole(db, targetTgId);
+  if (targetRole === 'grand_admin') {
+    return { ok: false, message: 'Нельзя забанить главного администратора' };
+  }
+  if (!(await isGrandAdmin(db, bannerTgId))) {
+    return {
+      ok: false,
+      message: 'Только главный администратор может забанить администратора',
+    };
+  }
+  return { ok: true };
 }
 
 async function handleAdminTextCommand(
   message: TelegramMessage,
   env: Env,
 ): Promise<boolean> {
-  const config = getConfig(env);
-  const command = getMessageCommand(message);
-
-  if (command === '/qr_status' || command === '/qr') {
-    await sendMessage(config.adminTgId, buildQrStatusText(config), null, env);
-    return true;
+  const fromId = message.from?.id;
+  if (fromId == null) {
+    return false;
   }
 
-  if (command === '/qr_help') {
-    await sendQrSetupHint(config.adminTgId, env);
+  const command = getMessageCommand(message);
+  const chatId = message.chat.id;
+
+  if (command === '/qr_status' || command === '/qr' || command === '/qr_help') {
+    if (!(await isGrandAdmin(env.DB, fromId))) {
+      if (await isAdmin(env.DB, fromId)) {
+        await sendMessage(chatId, GRAND_ADMIN_ONLY_MESSAGE, null, env);
+        return true;
+      }
+      return false;
+    }
+    if (command === '/qr_help') {
+      await sendQrSetupHint(chatId, env);
+    } else {
+      await sendMessage(chatId, await buildQrStatusText(env), null, env);
+    }
     return true;
   }
 
   if (command === '/admin') {
-    await sendMessage(
-      config.adminTgId,
-      '🛠 Команды администратора:\n/qr_help — подписи для QR\n/qr_status — проверка file_id\n/admin — это меню',
-      null,
-      env,
-    );
+    if (!(await isAdmin(env.DB, fromId))) {
+      return false;
+    }
+    const menuText = (await isGrandAdmin(env.DB, fromId))
+      ? '🛠 Команды администратора:\n/qr_help — подписи для QR\n/qr_status — проверка file_id\n/admin — это меню'
+      : '🛠 Модерация анкет — в сообщениях бота с кнопками.\nРазбан и настройки — в Mini App → «Админ».';
+    await sendMessage(chatId, menuText, null, env);
     return true;
   }
 
@@ -429,8 +485,12 @@ async function handleAdminQrPhoto(
   message: TelegramMessage,
   env: Env,
 ): Promise<boolean> {
-  const config = getConfig(env);
-  if (message.from?.id !== config.adminTgId) {
+  const fromId = message.from?.id;
+  if (fromId == null) {
+    return false;
+  }
+
+  if (!(await isAdmin(env.DB, fromId))) {
     return false;
   }
 
@@ -444,18 +504,24 @@ async function handleAdminQrPhoto(
     return false;
   }
 
+  const chatId = message.chat.id;
+
+  if (!(await isGrandAdmin(env.DB, fromId))) {
+    await sendMessage(chatId, GRAND_ADMIN_ONLY_MESSAGE, null, env);
+    return true;
+  }
+
   const fileId = photos[photos.length - 1].file_id;
+  const key = qrSettingKey(method.methodKey);
+  await upsertAppSetting(env.DB, key, fileId, fromId);
+  await invalidateAppSettingsCache(env);
   await sendMessage(
-    config.adminTgId,
-    `ℹ️ Worker v1: QR сохраняются через wrangler secret put (hot-reload через KV — v2).\n\n` +
-      `Ключ: ${method.propertyKey}\n` +
-      `Подпись: ${method.captions[0]}\n` +
-      `file_id из этого фото:\n${fileId}\n\n` +
-      `Команда:\nwrangler secret put ${method.propertyKey}`,
+    chatId,
+    `✅ QR сохранён (${method.sendCaption}).\nКлюч: ${key}\nfile_id: ${fileId}`,
     null,
     env,
   );
-  await logAction(config.adminTgId, `set_${method.propertyKey}_hint`, fileId, env.DB);
+  await logAction(fromId, 'admin_qr_upload_bot', method.methodKey, env.DB);
   return true;
 }
 
@@ -487,19 +553,30 @@ async function forwardContactToAdmin(
     '↩️ Ответьте на это сообщение (Reply), чтобы ответ ушёл пользователю.';
   const banKeyboard = contactBanKeyboard(tgId);
 
-  let adminMsgId: number | null = null;
-
   if (message.photo?.length) {
     const fileId = message.photo[message.photo.length - 1].file_id;
     const userCaption = message.caption ? `\n\nТекст: ${message.caption}` : '';
-    adminMsgId = await sendPhoto(config.adminTgId, fileId, header + userCaption, banKeyboard, env);
+    const adminMsgIds = await sendModerationPhotoToAdmins(
+      env.DB,
+      env,
+      fileId,
+      header + userCaption,
+      banKeyboard,
+    );
+    for (let i = 0; i < adminMsgIds.length; i++) {
+      await saveAdminLink(adminMsgIds[i], tgId, 'contact', '', env);
+    }
   } else {
     const body = message.text || message.caption || '(пустое сообщение)';
-    adminMsgId = await sendMessage(config.adminTgId, `${header}\n\n${body}`, banKeyboard, env);
-  }
-
-  if (adminMsgId) {
-    await saveAdminLink(adminMsgId, tgId, 'contact', '', env);
+    const adminMsgIds = await sendModerationToAdmins(
+      env.DB,
+      env,
+      `${header}\n\n${body}`,
+      banKeyboard,
+    );
+    for (let i = 0; i < adminMsgIds.length; i++) {
+      await saveAdminLink(adminMsgIds[i], tgId, 'contact', '', env);
+    }
   }
 
   await clearSession(tgId, env);
@@ -517,8 +594,8 @@ async function handleAdminReply(
   message: TelegramMessage,
   env: Env,
 ): Promise<boolean> {
-  const config = getConfig(env);
-  if (message.from?.id !== config.adminTgId) {
+  const fromId = message.from?.id;
+  if (fromId == null || !(await isAdmin(env.DB, fromId))) {
     return false;
   }
 
@@ -557,7 +634,7 @@ async function handleAdminReply(
 
   if (delivered) {
     await sendMessage(
-      config.adminTgId,
+      fromId,
       `✅ Ответ доставлен пользователю ${userTgId} (тип: ${link.link_type})`,
       null,
       env,
@@ -583,7 +660,7 @@ async function handlePinProofPhoto(
     return false;
   }
 
-  const config = getConfig(env);
+  const config = await getConfigWithSettings(env);
   const user = message.from;
   if (!user || !message.photo?.length) {
     return false;
@@ -610,12 +687,12 @@ async function handlePinProofPhoto(
     `Стоимость: ${price}\n\n` +
     '↩️ Чек оплаты выше.';
 
-  await sendPhoto(
-    config.adminTgId,
+  await sendModerationPhotoToAdmins(
+    env.DB,
+    env,
     fileId,
     caption,
     pinModerationKeyboard(listingId, pinDuration),
-    env,
   );
 
   await clearSession(tgId, env);
@@ -694,7 +771,6 @@ async function handlePaymentProofPhoto(
     return false;
   }
 
-  const config = getConfig(env);
   const fileId = message.photo[message.photo.length - 1].file_id;
   const userRef = formatUserRef(user);
 
@@ -706,11 +782,11 @@ async function handlePaymentProofPhoto(
       includePending: true,
     });
 
-    await sendMessage(
-      config.adminTgId,
+    await sendModerationToAdmins(
+      env.DB,
+      env,
       formatListingAdminText(listingId, tgId, draft, 'paid', userRef),
       null,
-      env,
     );
 
     const photoCaption =
@@ -719,15 +795,15 @@ async function handlePaymentProofPhoto(
       `Анкета: ${listingId}\n` +
       `Способ: ${paymentMethodLabel(draft.payment_method)}`;
 
-    const adminMsgId = await sendPhoto(
-      config.adminTgId,
+    const adminMsgIds = await sendModerationPhotoToAdmins(
+      env.DB,
+      env,
       fileId,
       photoCaption,
       await moderationKeyboard(listingId, portfolioCount, tgId, env),
-      env,
     );
-    if (adminMsgId) {
-      await saveAdminLink(adminMsgId, tgId, 'payment_proof', listingId, env);
+    for (let i = 0; i < adminMsgIds.length; i++) {
+      await saveAdminLink(adminMsgIds[i], tgId, 'payment_proof', listingId, env);
     }
 
     await clearSession(tgId, env);
@@ -749,8 +825,9 @@ async function handlePaymentProofPhoto(
     includePending: true,
   });
   if (listingData) {
-    await sendMessage(
-      config.adminTgId,
+    await sendModerationToAdmins(
+      env.DB,
+      env,
       formatListingAdminText(
         listingId,
         listingData.tg_id,
@@ -759,7 +836,6 @@ async function handlePaymentProofPhoto(
         userRef,
       ),
       null,
-      env,
     );
   }
 
@@ -768,15 +844,15 @@ async function handlePaymentProofPhoto(
     `${userRef}\n\n` +
     `Анкета: ${listingId}\n\n` +
     '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.';
-  const adminMsgId = await sendPhoto(
-    config.adminTgId,
+  const adminMsgIds = await sendModerationPhotoToAdmins(
+    env.DB,
+    env,
     fileId,
     caption,
     await moderationKeyboard(listingId, portfolioCount, tgId, env),
-    env,
   );
-  if (adminMsgId) {
-    await saveAdminLink(adminMsgId, tgId, 'payment_proof', listingId, env);
+  for (let i = 0; i < adminMsgIds.length; i++) {
+    await saveAdminLink(adminMsgIds[i], tgId, 'payment_proof', listingId, env);
   }
 
   await clearSession(tgId, env);
@@ -801,8 +877,7 @@ async function handleUserContactMessage(
     return false;
   }
 
-  const config = getConfig(env);
-  if (user.id === config.adminTgId) {
+  if (await isAdmin(env.DB, user.id)) {
     return false;
   }
 
@@ -854,6 +929,166 @@ async function handleUserTextMessage(
   return false;
 }
 
+interface ListingStatusRow {
+  tg_id: number;
+  payment_status: string;
+  status: string;
+}
+
+interface EditDraftRow {
+  listing_id: string;
+  tg_id: number;
+  replaces_listing_id: string;
+  display_name: string;
+  category: string;
+  description: string;
+  experience: string | null;
+  contact_type: string;
+  contacts: string;
+  avatar_emoji: string | null;
+  keywords: string;
+  status: string;
+}
+
+async function approveListingEdit(
+  draftId: string,
+  adminChatId: number | string,
+  messageId: number,
+  callbackQueryId: string,
+  env: Env,
+): Promise<void> {
+  const draft = await env.DB.prepare(
+    `SELECT listing_id, tg_id, replaces_listing_id, display_name, category, description,
+            experience, contact_type, contacts, avatar_emoji, keywords, status
+     FROM listings WHERE listing_id = ?`,
+  )
+    .bind(draftId)
+    .first<EditDraftRow>();
+
+  if (!draft || draft.status !== 'edit_pending') {
+    await answerCallbackQuery(callbackQueryId, 'Черновик не найден', env);
+    return;
+  }
+
+  const parentId = String(draft.replaces_listing_id || '');
+  const parent = await env.DB.prepare(
+    'SELECT listing_id, tg_id, status FROM listings WHERE listing_id = ?',
+  )
+    .bind(parentId)
+    .first<{ listing_id: string; tg_id: number; status: string }>();
+
+  if (!parent || parent.status !== 'active' || parent.tg_id !== draft.tg_id) {
+    await answerCallbackQuery(
+      callbackQueryId,
+      'Родительская анкета недоступна',
+      env,
+    );
+    return;
+  }
+
+  await env.DB.prepare(
+    `UPDATE listings SET
+       display_name = ?, category = ?, description = ?, experience = ?,
+       contact_type = ?, contacts = ?, avatar_emoji = ?, keywords = ?
+     WHERE listing_id = ?`,
+  )
+    .bind(
+      draft.display_name,
+      draft.category,
+      draft.description,
+      draft.experience || '',
+      draft.contact_type,
+      draft.contacts,
+      draft.avatar_emoji,
+      draft.keywords,
+      parentId,
+    )
+    .run();
+
+  const draftHasMedia = await env.DB.prepare(
+    'SELECT 1 AS ok FROM listing_media WHERE listing_id = ? LIMIT 1',
+  )
+    .bind(draftId)
+    .first<{ ok: number }>();
+
+  if (draftHasMedia) {
+    await deleteMediaByListing(parentId, env.DB, env.PORTFOLIO);
+    await env.DB.prepare(
+      'UPDATE listing_media SET listing_id = ? WHERE listing_id = ?',
+    )
+      .bind(parentId, draftId)
+      .run();
+    await env.DB.prepare(
+      `UPDATE listing_media SET status = 'active'
+       WHERE listing_id = ? AND status = 'pending'`,
+    )
+      .bind(parentId)
+      .run();
+  }
+
+  await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?')
+    .bind(draftId)
+    .run();
+
+  await sendMessage(
+    draft.tg_id,
+    '✅ Изменения одобрены и опубликованы в каталоге. Срок размещения не изменился.',
+    null,
+    env,
+  );
+  await editMessageReplyMarkup(adminChatId, messageId, null, env);
+  await answerCallbackQuery(callbackQueryId, 'Правки опубликованы ✅', env);
+  await logAction(draft.tg_id, 'approve_edit', `${draftId} → ${parentId}`, env.DB);
+}
+
+async function rejectListingEdit(
+  draftId: string,
+  adminChatId: number | string,
+  messageId: number,
+  callbackQueryId: string,
+  env: Env,
+): Promise<void> {
+  const draft = await env.DB.prepare(
+    `SELECT listing_id, tg_id, replaces_listing_id, status
+     FROM listings WHERE listing_id = ?`,
+  )
+    .bind(draftId)
+    .first<{
+      listing_id: string;
+      tg_id: number;
+      replaces_listing_id: string;
+      status: string;
+    }>();
+
+  if (!draft || draft.status !== 'edit_pending') {
+    await answerCallbackQuery(callbackQueryId, 'Черновик не найден', env);
+    return;
+  }
+
+  const parent = await env.DB.prepare(
+    'SELECT edits_remaining FROM listings WHERE listing_id = ?',
+  )
+    .bind(draft.replaces_listing_id)
+    .first<{ edits_remaining: number | null }>();
+
+  await cleanupPortfolioOnReject(draftId, draft.tg_id, env);
+  await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?')
+    .bind(draftId)
+    .run();
+
+  const remaining = parent?.edits_remaining ?? 0;
+  await sendMessage(
+    draft.tg_id,
+    '❌ Редактирование отклонено. В каталоге по-прежнему прежняя версия. ' +
+      `Попытка редактирования использована. Осталось правок: ${remaining}.`,
+    null,
+    env,
+  );
+  await editMessageReplyMarkup(adminChatId, messageId, null, env);
+  await answerCallbackQuery(callbackQueryId, 'Правки отклонены ❌', env);
+  await logAction(draft.tg_id, 'reject_edit', draftId, env.DB);
+}
+
 async function approveListing(
   listingId: string,
   adminChatId: number | string,
@@ -862,13 +1097,24 @@ async function approveListing(
   env: Env,
 ): Promise<void> {
   const listing = await env.DB.prepare(
-    'SELECT tg_id, payment_status FROM listings WHERE listing_id = ?',
+    'SELECT tg_id, payment_status, status FROM listings WHERE listing_id = ?',
   )
     .bind(listingId)
-    .first<{ tg_id: number; payment_status: string }>();
+    .first<ListingStatusRow>();
 
   if (!listing) {
     await answerCallbackQuery(callbackQueryId, 'Анкета не найдена', env);
+    return;
+  }
+
+  if (listing.status === 'edit_pending') {
+    await approveListingEdit(
+      listingId,
+      adminChatId,
+      messageId,
+      callbackQueryId,
+      env,
+    );
     return;
   }
 
@@ -878,7 +1124,8 @@ async function approveListing(
 
   await env.DB.prepare(
     `UPDATE listings
-     SET status = 'active', created_at = ?, expires_at = ?
+     SET status = 'active', created_at = ?, expires_at = ?,
+         edits_remaining = COALESCE(edits_remaining, 3)
      WHERE listing_id = ?`,
   )
     .bind(today.toISOString(), expires.toISOString(), listingId)
@@ -926,13 +1173,24 @@ async function rejectListing(
   env: Env,
 ): Promise<void> {
   const listing = await env.DB.prepare(
-    'SELECT tg_id, payment_status FROM listings WHERE listing_id = ?',
+    'SELECT tg_id, payment_status, status FROM listings WHERE listing_id = ?',
   )
     .bind(listingId)
-    .first<{ tg_id: number; payment_status: string }>();
+    .first<ListingStatusRow>();
 
   if (!listing) {
     await answerCallbackQuery(callbackQueryId, 'Анкета не найдена', env);
+    return;
+  }
+
+  if (listing.status === 'edit_pending') {
+    await rejectListingEdit(
+      listingId,
+      adminChatId,
+      messageId,
+      callbackQueryId,
+      env,
+    );
     return;
   }
 
@@ -959,43 +1217,89 @@ async function rejectListing(
 
 async function banUserByAdmin(
   userTgId: number,
+  bannedBy: number,
   adminChatId: number | string,
-  messageId: number,
+  sourceMessageId: number,
+  confirmMessageId: number | null,
   callbackQueryId: string,
   env: Env,
 ): Promise<void> {
-  const config = getConfig(env);
-
-  if (userTgId === config.adminTgId) {
-    await answerCallbackQuery(callbackQueryId, 'Нельзя забанить администратора', env);
+  const banCheck = await canBanTarget(bannedBy, userTgId, env.DB);
+  if (!banCheck.ok) {
+    await answerCallbackQuery(callbackQueryId, banCheck.message ?? 'Нельзя забанить', env);
     return;
   }
 
-  await banUser(userTgId, '', '', env.DB);
+  await banUser(userTgId, '', '', bannedBy, env.DB);
   await clearSession(userTgId, env);
 
   await sendMessage(userTgId, '🚫 Ваш телеграм-аккаунт забанен.', null, env);
-  await editMessageReplyMarkup(adminChatId, messageId, null, env);
+  await editMessageReplyMarkup(adminChatId, sourceMessageId, null, env);
+  if (confirmMessageId != null) {
+    await editMessageText(
+      adminChatId,
+      confirmMessageId,
+      '🚫 Пользователь забанен.',
+      null,
+      env,
+    );
+  }
   await answerCallbackQuery(callbackQueryId, 'Пользователь забанен 🚫', env);
   await logAction(userTgId, 'ban', '', env.DB);
-  await sendMessage(
-    config.adminTgId,
+  await sendToAllAdmins(
+    env.DB,
+    env,
     `🚫 Пользователь ${userTgId} забанен.`,
+  );
+}
+
+async function askBanUserConfirmation(
+  userTgId: number,
+  adminChatId: number | string,
+  sourceMessageId: number,
+  callbackQueryId: string,
+  env: Env,
+  bannerTgId: number,
+): Promise<void> {
+  const banCheck = await canBanTarget(bannerTgId, userTgId, env.DB);
+  if (!banCheck.ok) {
+    await answerCallbackQuery(callbackQueryId, banCheck.message ?? 'Нельзя забанить', env);
+    return;
+  }
+
+  await sendMessage(
+    adminChatId,
+    'Вы уверены, что хотите забанить пользователя?',
+    banConfirmKeyboard(userTgId, sourceMessageId),
+    env,
+  );
+  await answerCallbackQuery(callbackQueryId, undefined, env);
+}
+
+async function cancelBanUserConfirmation(
+  adminChatId: number | string,
+  confirmMessageId: number,
+  callbackQueryId: string,
+  env: Env,
+): Promise<void> {
+  await editMessageText(
+    adminChatId,
+    confirmMessageId,
+    'Отменено.',
     null,
     env,
   );
+  await answerCallbackQuery(callbackQueryId, 'Отменено', env);
 }
 
 async function handleBannedUserInteraction(
   update: Record<string, unknown>,
   env: Env,
 ): Promise<boolean> {
-  const config = getConfig(env);
-
   const callbackQuery = update.callback_query as TelegramCallbackQuery | undefined;
   if (callbackQuery) {
     const fromId = callbackQuery.from.id;
-    if (fromId === config.adminTgId) {
+    if (await isAdmin(env.DB, fromId)) {
       return false;
     }
     if (!(await isUserBanned(fromId, env.DB))) {
@@ -1019,7 +1323,7 @@ async function handleBannedUserInteraction(
   }
 
   const fromId = message.from.id;
-  if (fromId === config.adminTgId) {
+  if (await isAdmin(env.DB, fromId)) {
     return false;
   }
   if (!(await isUserBanned(fromId, env.DB))) {
@@ -1053,7 +1357,6 @@ async function handleCallbackQuery(
   callbackQuery: TelegramCallbackQuery,
   env: Env,
 ): Promise<void> {
-  const config = getConfig(env);
   const fromId = callbackQuery.from.id;
   const data = callbackQuery.data || '';
 
@@ -1063,7 +1366,7 @@ async function handleCallbackQuery(
     return;
   }
 
-  if (fromId !== config.adminTgId) {
+  if (!(await isAdmin(env.DB, fromId))) {
     await answerCallbackQuery(callbackQuery.id, 'Нет доступа', env);
     return;
   }
@@ -1115,7 +1418,40 @@ async function handleCallbackQuery(
       await answerCallbackQuery(callbackQuery.id, 'Некорректный ID', env);
       return;
     }
-    await banUserByAdmin(userTgId, chatId, messageId, callbackQuery.id, env);
+    await askBanUserConfirmation(
+      userTgId,
+      chatId,
+      messageId,
+      callbackQuery.id,
+      env,
+      fromId,
+    );
+    return;
+  }
+
+  if (data.startsWith('ban_ok_')) {
+    const parts = data.substring('ban_ok_'.length);
+    const lastUnderscore = parts.lastIndexOf('_');
+    const userTgId = Number(parts.substring(0, lastUnderscore));
+    const sourceMessageId = Number(parts.substring(lastUnderscore + 1));
+    if (!userTgId || !sourceMessageId) {
+      await answerCallbackQuery(callbackQuery.id, 'Некорректные данные', env);
+      return;
+    }
+    await banUserByAdmin(
+      userTgId,
+      fromId,
+      chatId,
+      sourceMessageId,
+      messageId,
+      callbackQuery.id,
+      env,
+    );
+    return;
+  }
+
+  if (data.startsWith('ban_no_')) {
+    await cancelBanUserConfirmation(chatId, messageId, callbackQuery.id, env);
     return;
   }
 
@@ -1150,13 +1486,12 @@ export async function handleTelegramUpdate(
       return;
     }
 
-    const config = getConfig(env);
     const fromId = message.from?.id;
     if (fromId == null) {
       return;
     }
 
-    if (fromId === config.adminTgId && message.reply_to_message) {
+    if (message.reply_to_message && (await isAdmin(env.DB, fromId))) {
       if (await handleAdminReply(message, env)) {
         return;
       }
@@ -1172,14 +1507,16 @@ export async function handleTelegramUpdate(
       if (await handlePaymentProofPhoto(message, env)) {
         return;
       }
-      if (fromId === config.adminTgId) {
-        await sendQrSetupHint(config.adminTgId, env);
+      if (await isGrandAdmin(env.DB, fromId)) {
+        await sendQrSetupHint(fromId, env);
+      } else if (await isAdmin(env.DB, fromId)) {
+        await sendMessage(fromId, GRAND_ADMIN_ONLY_MESSAGE, null, env);
       }
       return;
     }
 
     if (message.text) {
-      if (fromId === config.adminTgId && (await handleAdminTextCommand(message, env))) {
+      if (await handleAdminTextCommand(message, env)) {
         return;
       }
       await handleUserTextMessage(message, env);

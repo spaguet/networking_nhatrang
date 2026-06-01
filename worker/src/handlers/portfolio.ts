@@ -12,7 +12,11 @@ import {
   portfolioObjectKey,
   stagingObjectKey,
 } from '../services/portfolio-db';
-import { moderationKeyboard, sendMessage } from '../services/telegram-api';
+import {
+  moderationKeyboard,
+  sendMessage,
+  sendModerationToAdmins,
+} from '../services/telegram-api';
 import { getUserIdFromInitData, validateInitData } from '../utils/auth';
 import { decodeDescriptionNewlines } from '../utils/description';
 import { formatKeywordsModerationLine, parseKeywordsJson } from '../utils/keywords';
@@ -25,6 +29,7 @@ import {
   verifySignedMediaRequest,
 } from '../utils/portfolio-auth';
 import { jsonResponse } from '../utils/response';
+import { buildEditModerationAdminText } from './listings';
 import { saveAdminLink } from './telegram';
 
 const MAX_PHOTOS = 5;
@@ -450,13 +455,14 @@ function buildFreeModerationAdminText(
   );
 }
 
-async function sendDeferredFreeNotify(
+async function sendDeferredListingNotify(
   listingId: string,
   tgId: number,
   env: Env,
 ): Promise<void> {
   const listing = await env.DB.prepare(
-    `SELECT display_name, category, description, experience, contact_type, contacts, keywords
+    `SELECT display_name, category, description, experience, contact_type, contacts,
+            keywords, payment_status, status, replaces_listing_id
      FROM listings WHERE listing_id = ?`,
   )
     .bind(listingId)
@@ -468,22 +474,63 @@ async function sendDeferredFreeNotify(
       contact_type: string | null;
       contacts: string;
       keywords: string;
+      payment_status: string;
+      status: string;
+      replaces_listing_id: string | null;
     }>();
 
   if (!listing) {
     return;
   }
 
-  const adminText = buildFreeModerationAdminText(listingId, tgId, listing);
   const portfolioCount = await getPortfolioCount(listingId, env.DB, { includePending: true });
-  const adminMsgId = await sendMessage(
-    env.ADMIN_TG_ID,
+
+  if (listing.status === 'edit_pending') {
+    const parentId = String(listing.replaces_listing_id || '');
+    const adminText = buildEditModerationAdminText(
+      listingId,
+      parentId,
+      tgId,
+      String(listing.payment_status || 'free'),
+      {
+        display_name: listing.display_name,
+        category: listing.category,
+        description: listing.description,
+        experience: listing.experience || '',
+        contact_type: listing.contact_type || '',
+        contacts: listing.contacts,
+        avatar_emoji: '',
+        keywords: parseKeywordsJson(listing.keywords),
+      },
+    );
+    const adminMsgIds = await sendModerationToAdmins(
+      env.DB,
+      env,
+      adminText,
+      await moderationKeyboard(listingId, portfolioCount, tgId, env),
+    );
+    for (let i = 0; i < adminMsgIds.length; i++) {
+      await saveAdminLink(adminMsgIds[i], tgId, 'listing', listingId, env);
+    }
+
+    await sendMessage(
+      tgId,
+      'Изменения отправлены на модерацию. В каталоге пока отображается прежняя версия анкеты.',
+      null,
+      env,
+    );
+    return;
+  }
+
+  const adminText = buildFreeModerationAdminText(listingId, tgId, listing);
+  const adminMsgIds = await sendModerationToAdmins(
+    env.DB,
+    env,
     adminText,
     await moderationKeyboard(listingId, portfolioCount, tgId, env),
-    env,
   );
-  if (adminMsgId) {
-    await saveAdminLink(adminMsgId, tgId, 'listing', listingId, env);
+  for (let i = 0; i < adminMsgIds.length; i++) {
+    await saveAdminLink(adminMsgIds[i], tgId, 'listing', listingId, env);
   }
 
   await sendMessage(
@@ -498,10 +545,14 @@ function listingUploadError(status: string | undefined): Response {
   if (!status) {
     return jsonResponse({ ok: false, error: 'portfolio_listing_not_found' });
   }
-  if (status !== 'on_moderation') {
+  if (status !== 'on_moderation' && status !== 'edit_pending') {
     return jsonResponse({ ok: false, error: 'portfolio_wrong_status' });
   }
   return jsonResponse({ ok: false, error: 'portfolio_listing_not_found' });
+}
+
+function isPortfolioUploadStatus(status: string): boolean {
+  return status === 'on_moderation' || status === 'edit_pending';
 }
 
 export async function handleUploadPortfolio(
@@ -551,7 +602,7 @@ export async function handleUploadPortfolio(
       return jsonResponse({ ok: false, error: 'portfolio_not_owner' });
     }
 
-    if (listing.status !== 'on_moderation') {
+    if (!isPortfolioUploadStatus(listing.status)) {
       return listingUploadError(listing.status);
     }
 
@@ -595,7 +646,7 @@ export async function handleUploadPortfolio(
 
     const notify = await shouldSendDeferredNotify(listingId, env);
     if (notify) {
-      await sendDeferredFreeNotify(listingId, tgId, env);
+      await sendDeferredListingNotify(listingId, tgId, env);
     }
 
     await logAction(tgId, 'upload_portfolio', listingId, env.DB);
@@ -782,7 +833,7 @@ export async function handleUploadPortfolioB64(
       return jsonResponse({ ok: false, error: 'portfolio_not_owner' });
     }
 
-    if (listing.status !== 'on_moderation') {
+    if (!isPortfolioUploadStatus(listing.status)) {
       return listingUploadError(listing.status);
     }
 
@@ -825,7 +876,7 @@ export async function handleUploadPortfolioB64(
 
     const notify = await shouldSendDeferredNotify(listingId, env);
     if (notify) {
-      await sendDeferredFreeNotify(listingId, tgId, env);
+      await sendDeferredListingNotify(listingId, tgId, env);
     }
 
     await logAction(tgId, 'upload_portfolio_b64', listingId, env.DB);
