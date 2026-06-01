@@ -36,6 +36,7 @@ import {
   type ReplyKeyboardMarkup,
 } from '../services/telegram-api';
 import {
+  canBanTarget,
   getAdminRole,
   isAdmin,
   isGrandAdmin,
@@ -414,30 +415,6 @@ async function sendQrSetupHint(adminChatId: number | string, env: Env): Promise<
     'Фото сохраняется в настройках (D1). Команда /qr_status — проверить file_id.',
   ];
   await sendMessage(adminChatId, lines.join('\n'), null, env);
-}
-
-async function canBanTarget(
-  bannerTgId: number,
-  targetTgId: number,
-  db: D1Database,
-): Promise<{ ok: boolean; message?: string }> {
-  if (targetTgId === bannerTgId) {
-    return { ok: false, message: 'Нельзя забанить себя' };
-  }
-  if (!(await isStaffTgId(db, targetTgId))) {
-    return { ok: true };
-  }
-  const targetRole = await getAdminRole(db, targetTgId);
-  if (targetRole === 'grand_admin') {
-    return { ok: false, message: 'Нельзя забанить главного администратора' };
-  }
-  if (!(await isGrandAdmin(db, bannerTgId))) {
-    return {
-      ok: false,
-      message: 'Только главный администратор может забанить администратора',
-    };
-  }
-  return { ok: true };
 }
 
 async function handleAdminTextCommand(

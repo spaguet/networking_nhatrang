@@ -1,7 +1,7 @@
 import type { Env } from '../env';
 import type { AdminRole } from '../types';
 import { getUserIdFromInitData, validateMiniAppRequest } from './auth';
-import { isUserBanned } from './helpers';
+import { isStaffTgId, isUserBanned } from './helpers';
 import { jsonResponse } from './response';
 
 const PBKDF2_ITERATIONS = 100_000;
@@ -240,6 +240,31 @@ export async function isGrandAdmin(
     return false;
   }
   return true;
+}
+
+/** Self-ban / staff guards — shared by bot and admin_punish_from_complaint. */
+export async function canBanTarget(
+  bannerTgId: number,
+  targetTgId: number,
+  db: D1Database,
+): Promise<{ ok: boolean; message?: string }> {
+  if (targetTgId === bannerTgId) {
+    return { ok: false, message: 'Нельзя забанить себя' };
+  }
+  if (!(await isStaffTgId(db, targetTgId))) {
+    return { ok: true };
+  }
+  const targetRole = await getAdminRole(db, targetTgId);
+  if (targetRole === 'grand_admin') {
+    return { ok: false, message: 'Нельзя забанить главного администратора' };
+  }
+  if (!(await isGrandAdmin(db, bannerTgId))) {
+    return {
+      ok: false,
+      message: 'Только главный администратор может забанить администратора',
+    };
+  }
+  return { ok: true };
 }
 
 export async function resolveAdminLabel(

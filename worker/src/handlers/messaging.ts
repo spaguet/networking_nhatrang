@@ -2,20 +2,26 @@ import type { Env } from '../env';
 import { validateMiniAppRequest } from '../utils/auth';
 import { rejectIfBanned } from '../utils/helpers';
 import {
+  checkComplaintRateLimit,
   checkMessageRateLimit,
   computeConversationId,
   countUnreadConversations,
   fetchMessagesForConversation,
   generateMessageId,
+  incrementComplaintRateLimit,
   incrementMessageRateLimit,
   isConversationExpired,
   isConversationUnread,
   loadConversationForParticipant,
   messagePreview,
+  MESSAGE_MAX_LEN,
   MESSAGE_TTL_MS,
   type ConversationRow,
   validateMessageBody,
 } from '../utils/messaging-helpers';
+import { containsLink } from '../utils/links';
+import { sendToAllAdmins } from '../services/telegram-api';
+import { logAction } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
 import {
   checkTelegramVerifyRateLimit,
@@ -602,6 +608,91 @@ export async function handleMarkConversationRead(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('handleMarkConversationRead:', msg);
+    return jsonResponse({ ok: false, error: 'server_error' });
+  }
+}
+
+const COMPLAINT_ADMIN_PUSH =
+  'Подана жалоба. Для рассмотрения жалобы войдите в профиль администратора.';
+
+function validateComplaintBody(
+  raw: unknown,
+): { ok: true; body: string } | { ok: false; error: string } {
+  const body = String(raw ?? '').trim();
+  if (!body) {
+    return { ok: false, error: 'validation' };
+  }
+  if (body.length > MESSAGE_MAX_LEN) {
+    return { ok: false, error: 'message_too_long' };
+  }
+  if (containsLink(body)) {
+    return { ok: false, error: 'links_forbidden' };
+  }
+  return { ok: true, body };
+}
+
+export async function handleSubmitMessageComplaint(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  try {
+    const authResult = await authMessagingRequest(body, env);
+    if (!authResult.ok) {
+      return authResult.response;
+    }
+    const tgId = authResult.tgId;
+
+    const conversationId = String(body.conversation_id ?? '').trim();
+    if (!conversationId) {
+      return jsonResponse({ ok: false, error: 'missing_params' });
+    }
+
+    const validation = validateComplaintBody(body.body);
+    if (!validation.ok) {
+      return jsonResponse({ ok: false, error: validation.error });
+    }
+
+    const rate = await checkComplaintRateLimit(tgId, env);
+    if (!rate.allowed) {
+      return jsonResponse({ ok: false, error: 'complaint_rate_limit' });
+    }
+
+    const conversation = await loadConversationForParticipant(conversationId, tgId, env.DB);
+    if (!conversation) {
+      return jsonResponse({ ok: false, error: 'not_found' });
+    }
+    if (conversation.status === 'closed') {
+      return jsonResponse({ ok: false, error: 'conversation_closed' });
+    }
+
+    const complaintId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await env.DB.prepare(
+      `INSERT INTO message_complaints (
+         complaint_id, conversation_id, reporter_tg_id, body, created_at,
+         participant_a_tg_id, participant_b_tg_id, status
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open')`,
+    )
+      .bind(
+        complaintId,
+        conversationId,
+        tgId,
+        validation.body,
+        now,
+        conversation.owner_tg_id,
+        conversation.peer_tg_id,
+      )
+      .run();
+
+    await incrementComplaintRateLimit(tgId, env);
+    await sendToAllAdmins(env.DB, env, COMPLAINT_ADMIN_PUSH);
+    await logAction(tgId, 'message_complaint', conversationId, env.DB);
+
+    return jsonResponse({ ok: true, complaint_id: complaintId });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('handleSubmitMessageComplaint:', msg);
     return jsonResponse({ ok: false, error: 'server_error' });
   }
 }

@@ -20,6 +20,7 @@ import {
   handleOpenConversation,
   handleResolveTelegramChat,
   handleSendMessage,
+  handleSubmitMessageComplaint,
   handleVerifyTelegramContact,
 } from './messaging';
 
@@ -81,6 +82,8 @@ export async function routeApiAction(
       return handleGetMessagingUnread(body, env);
     case 'mark_conversation_read':
       return handleMarkConversationRead(body, env);
+    case 'submit_message_complaint':
+      return handleSubmitMessageComplaint(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }

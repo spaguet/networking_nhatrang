@@ -1566,6 +1566,65 @@
     .admin-modal-actions { display: flex; gap: 8px; margin-top: 16px; }
     .admin-modal-actions .btn { flex: 1; }
 
+    .admin-complaints-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .admin-complaints-table th,
+    .admin-complaints-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    .admin-complaints-table th {
+      font-size: 0.68rem;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .admin-complaint-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .admin-complaint-action-btn {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.72rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .admin-complaint-action-btn.primary {
+      border-color: rgba(224, 90, 40, 0.45);
+      color: var(--orange);
+    }
+    .admin-chat-log-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 16px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .admin-chat-log-actions .btn { flex: 1; min-width: 120px; }
+    .admin-punish-btn {
+      background: #dc2626;
+      color: #fff;
+      border: none;
+    }
+    .admin-punish-btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .complaint-char-counter {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      text-align: right;
+      margin-top: 4px;
+    }
+
     .field-item .field-error {
       font-size: 0.75rem;
       color: var(--c-err);
@@ -2294,6 +2353,20 @@
       opacity: 0.45;
       pointer-events: none;
     }
+    .chat-complaint-btn {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border: 1px solid rgba(224, 90, 40, 0.45);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--orange);
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .chat-complaint-btn:active { opacity: 0.75; }
     .chat-expired-hint {
       font-size: 0.78rem;
       color: var(--text-sub);
@@ -2413,7 +2486,7 @@
   <div class="screen-header">
     <button class="back-btn" id="backFromChat" type="button">←</button>
     <span class="chat-header-title" id="chatHeaderTitle"></span>
-    <span style="width:40px;flex-shrink:0" aria-hidden="true"></span>
+    <button type="button" class="chat-complaint-btn" id="chatComplaintBtn">Пожаловаться</button>
   </div>
   <div class="chat-screen-body">
     <div id="chatThread" class="chat-thread"></div>
@@ -2894,6 +2967,23 @@
   </div>
 </div>
 
+<!-- COMPLAINT MODAL -->
+<div id="complaintModal" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="complaintModalTitle">
+    <h3 class="popup-title" id="complaintModalTitle">Жалоба на переписку</h3>
+    <p class="popup-text">Опишите проблему (до 500 символов). Ссылки запрещены.</p>
+    <div class="field-item" style="margin-top:12px;">
+      <textarea id="complaintText" class="chat-input" rows="4" maxlength="500"
+                placeholder="Текст жалобы…"></textarea>
+      <div class="complaint-char-counter"><span id="complaintCharCount">0</span>/500</div>
+    </div>
+    <div class="admin-modal-actions">
+      <button type="button" id="complaintCancelBtn" class="btn btn-outline">Отмена</button>
+      <button type="button" id="complaintSubmitBtn" class="btn btn-cta">Отправить жалобу</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADMIN: setup password (grand_admin first run) -->
 <div id="adminSetupPasswordModal" class="popup-overlay" hidden>
   <div class="popup" role="dialog" aria-labelledby="adminSetupTitle">
@@ -3005,6 +3095,16 @@
       </div>
     </section>
 
+    <section class="admin-section">
+      <div class="admin-section-title">Жалобы на переписку</div>
+      <p class="admin-section-hint">Открытые жалобы из in-app чата.</p>
+      <div id="adminComplaintsLoader" class="loader" hidden>
+        <div class="spinner"></div>
+        <p class="loader-text">Загрузка…</p>
+      </div>
+      <div id="adminComplaintsContainer"></div>
+    </section>
+
     <section class="admin-section" data-admin-grand-only hidden>
       <div class="admin-section-title">Цены размещений</div>
       <div class="admin-settings-grid">
@@ -3094,6 +3194,31 @@
       </div>
       <div id="adminAdminsContainer"></div>
     </section>
+  </div>
+</div>
+
+<!-- ADMIN: chat log (read-only) -->
+<div id="screenAdminChatLog" class="screen" hidden>
+  <div class="screen-header">
+    <button class="back-btn" id="backFromAdminChatLog" type="button">←</button>
+    <span class="screen-title">Лог переписки</span>
+  </div>
+  <div class="chat-screen-body">
+    <div id="adminChatLogThread" class="chat-thread"></div>
+    <div class="admin-chat-log-actions">
+      <button type="button" class="btn btn-outline" id="adminChatLogBackBtn">Назад</button>
+      <button type="button" class="btn admin-punish-btn" id="adminPunishBtnA">Казнить контакт А</button>
+      <button type="button" class="btn admin-punish-btn" id="adminPunishBtnB">Казнить контакт Б</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN: complaint body modal -->
+<div id="adminComplaintBodyModal" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="adminComplaintBodyTitle">
+    <h3 class="popup-title" id="adminComplaintBodyTitle">Текст жалобы</h3>
+    <p class="popup-text" id="adminComplaintBodyText"></p>
+    <button type="button" id="adminComplaintBodyClose" class="btn btn-cta" style="width:100%;margin-top:14px;flex:none;">Закрыть</button>
   </div>
 </div>
 
@@ -3205,6 +3330,7 @@
     conversation_expired: 'Срок переписки истёк. Новые сообщения отправить нельзя.',
     message_too_long: 'Сообщение слишком длинное (макс. 500 символов).',
     message_rate_limit: 'Лимит сообщений на сегодня исчерпан. Попробуйте завтра.',
+    complaint_rate_limit: 'Лимит жалоб на сегодня исчерпан (не более 3). Попробуйте завтра.',
     not_found: 'Диалог не найден.',
     forbidden: 'Нет доступа к этой переписке.'
   };
@@ -3268,6 +3394,8 @@
   var _adminBannedTotal = 0;
   var _adminPendingQrMethod = '';
   var _adminConfirmSaveCallback = null;
+  var _adminChatLogComplaintId = null;
+  var _adminChatLogContext = null;
 
   var appMode = 'free';
   var _formReturnScreen = 'main';
@@ -3394,6 +3522,10 @@
     }
   });
   document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+  document.getElementById('chatComplaintBtn').addEventListener('click', openComplaintModal);
+  document.getElementById('complaintCancelBtn').addEventListener('click', closeComplaintModal);
+  document.getElementById('complaintSubmitBtn').addEventListener('click', submitComplaint);
+  document.getElementById('complaintText').addEventListener('input', updateComplaintCharCount);
   document.getElementById('chatInput').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -3521,6 +3653,7 @@
     document.getElementById('screenAdminLogin').hidden = (name !== 'adminLogin');
     document.getElementById('screenAdminChangePassword').hidden = (name !== 'adminChangePassword');
     document.getElementById('screenAdmin').hidden = (name !== 'admin');
+    document.getElementById('screenAdminChatLog').hidden = (name !== 'adminChatLog');
 
     if (name === 'main') {
       startMessagingUnreadPoll();
@@ -4969,6 +5102,73 @@
         showToast(apiErrorMessage(err));
       });
   }
+
+  function updateComplaintCharCount() {
+    var ta = document.getElementById('complaintText');
+    var counter = document.getElementById('complaintCharCount');
+    if (!ta || !counter) return;
+    counter.textContent = String((ta.value || '').length);
+  }
+
+  function openComplaintModal() {
+    if (!_activeChatConversationId) return;
+    var modal = document.getElementById('complaintModal');
+    var ta = document.getElementById('complaintText');
+    if (ta) ta.value = '';
+    updateComplaintCharCount();
+    if (modal) modal.hidden = false;
+  }
+
+  function closeComplaintModal() {
+    var modal = document.getElementById('complaintModal');
+    if (modal) modal.hidden = true;
+  }
+
+  function submitComplaint() {
+    if (!_activeChatConversationId) return;
+    var ta = document.getElementById('complaintText');
+    var body = (ta && ta.value || '').trim();
+    if (!body) {
+      showToast('Введите текст жалобы');
+      return;
+    }
+    if (containsLink(body)) {
+      showLinkPopup();
+      return;
+    }
+    var payload = buildPayload('submit_message_complaint', {
+      conversation_id: _activeChatConversationId,
+      body: body
+    });
+    if (!payload) {
+      showToast('Откройте через Telegram-бота');
+      return;
+    }
+    document.getElementById('complaintSubmitBtn').disabled = true;
+    apiPost(payload)
+      .then(function (data) {
+        document.getElementById('complaintSubmitBtn').disabled = false;
+        if (!data.ok) {
+          var errKey = (data.error || '').replace(/\s/g, '_');
+          if (errKey === 'links_forbidden') {
+            showLinkPopup();
+          } else {
+            showToast(data.message || ERRORS[errKey] || 'Не удалось отправить жалобу');
+          }
+          return;
+        }
+        closeComplaintModal();
+        showToast('Жалоба отправлена');
+      })
+      .catch(function (err) {
+        document.getElementById('complaintSubmitBtn').disabled = false;
+        showToast(apiErrorMessage(err));
+      });
+  }
+
+  document.getElementById('complaintModal').addEventListener('click', function (e) {
+    if (e.target === this) closeComplaintModal();
+  });
 
   function openInAppChatFromCard(listingId) {
     var backScreen = _activeScreenName === 'favorites' ? 'favorites' : 'listings';
@@ -8183,6 +8383,203 @@
       });
   }
 
+  function shortenConversationId(id) {
+    if (!id || id.length <= 12) return id || '—';
+    return id.slice(0, 8) + '…' + id.slice(-4);
+  }
+
+  function renderMessageComplaints(complaints) {
+    var container = document.getElementById('adminComplaintsContainer');
+    if (!container) return;
+    if (!complaints || complaints.length === 0) {
+      container.innerHTML = '<div class="admin-banned-empty">Нет открытых жалоб</div>';
+      return;
+    }
+    var html = '<table class="admin-complaints-table"><thead><tr>' +
+      '<th>ID диалога</th><th>Контакт А</th><th>Контакт Б</th><th>Дата</th><th>Подал</th><th></th>' +
+      '</tr></thead><tbody>';
+    complaints.forEach(function (c) {
+      html += '<tr data-complaint-id="' + esc(c.complaint_id) + '">' +
+        '<td>' + esc(shortenConversationId(c.conversation_id)) + '</td>' +
+        '<td>' + esc(String(c.participant_a_tg_id)) + '</td>' +
+        '<td>' + esc(String(c.participant_b_tg_id)) + '</td>' +
+        '<td>' + esc(formatAdminDateTime(c.created_at)) + '</td>' +
+        '<td>' + esc(String(c.reporter_tg_id)) + '</td>' +
+        '<td><div class="admin-complaint-actions">' +
+          '<button type="button" class="admin-complaint-action-btn" data-complaint-body="' + esc(c.complaint_id) + '">Текст жалобы</button>' +
+          '<button type="button" class="admin-complaint-action-btn primary" data-complaint-log="' + esc(c.complaint_id) + '">Просмотреть лог чата</button>' +
+        '</div></td></tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    container.querySelectorAll('[data-complaint-body]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cid = btn.getAttribute('data-complaint-body');
+        if (cid) showAdminComplaintBody(cid);
+      });
+    });
+    container.querySelectorAll('[data-complaint-log]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cid = btn.getAttribute('data-complaint-log');
+        if (cid) openAdminChatLog(cid);
+      });
+    });
+  }
+
+  function loadMessageComplaints() {
+    var loader = document.getElementById('adminComplaintsLoader');
+    var container = document.getElementById('adminComplaintsContainer');
+    if (loader) loader.hidden = false;
+    if (container) container.innerHTML = '';
+
+    var payload = buildAdminPayload('admin_list_message_complaints');
+    if (!payload) {
+      if (loader) loader.hidden = true;
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          if (handleAdminAuthError(data) === 'session_expired') {
+            showScreen('adminLogin');
+          }
+          return;
+        }
+        renderMessageComplaints(data.complaints || []);
+      })
+      .catch(function () {
+        if (container) {
+          container.innerHTML = '<div class="admin-banned-empty">Не удалось загрузить жалобы</div>';
+        }
+      })
+      .finally(function () {
+        if (loader) loader.hidden = true;
+      });
+  }
+
+  function showAdminComplaintBody(complaintId) {
+    var payload = buildAdminPayload('admin_get_complaint_body', { complaint_id: complaintId });
+    if (!payload) return;
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(handleAdminAuthError(data), data.message));
+          return;
+        }
+        document.getElementById('adminComplaintBodyText').textContent = data.body || '';
+        document.getElementById('adminComplaintBodyModal').hidden = false;
+      })
+      .catch(function () {
+        showToast('Не удалось загрузить текст жалобы');
+      });
+  }
+
+  function canAdminPunishTarget(targetTgId, ctx) {
+    if (!ctx || !targetTgId) return false;
+    var myId = getMyTgId();
+    if (myId && Number(targetTgId) === Number(myId)) return false;
+    if (ctx.punished_tg_id && Number(ctx.punished_tg_id) === Number(targetTgId)) return false;
+    var isStaff = false;
+    if (Number(targetTgId) === Number(ctx.participant_a_tg_id)) {
+      isStaff = !!ctx.participant_a_is_staff;
+    } else if (Number(targetTgId) === Number(ctx.participant_b_tg_id)) {
+      isStaff = !!ctx.participant_b_is_staff;
+    }
+    if (isStaff && _adminRole !== 'grand_admin') return false;
+    return true;
+  }
+
+  function updateAdminPunishButtons(ctx) {
+    var btnA = document.getElementById('adminPunishBtnA');
+    var btnB = document.getElementById('adminPunishBtnB');
+    if (!btnA || !btnB || !ctx) return;
+    var aId = ctx.participant_a_tg_id;
+    var bId = ctx.participant_b_tg_id;
+    btnA.textContent = 'Казнить А (owner): ' + aId;
+    btnB.textContent = 'Казнить Б (peer): ' + bId;
+    btnA.disabled = !canAdminPunishTarget(aId, ctx);
+    btnB.disabled = !canAdminPunishTarget(bId, ctx);
+  }
+
+  function renderAdminChatLogMessages(messages, ctx) {
+    var thread = document.getElementById('adminChatLogThread');
+    if (!thread) return;
+    if (!messages || !messages.length) {
+      thread.innerHTML = '<div class="empty-sub" style="text-align:center;padding:24px 0">Сообщений нет или диалог удалён</div>';
+      updateAdminPunishButtons(ctx);
+      return;
+    }
+    thread.innerHTML = messages.map(function (m) {
+      var isA = Number(m.sender_tg_id) === Number(ctx.participant_a_tg_id);
+      var side = isA ? 'А' : 'Б';
+      return '<div class="chat-bubble chat-bubble-other">' +
+        '<span style="font-size:0.68rem;opacity:0.7;display:block;margin-bottom:2px">Контакт ' + esc(side) + ' · ' + esc(String(m.sender_tg_id)) + '</span>' +
+        esc(m.body) +
+        '<span class="chat-bubble-time">' + esc(formatMessageTime(m.created_at)) + '</span>' +
+      '</div>';
+    }).join('');
+    thread.scrollTop = thread.scrollHeight;
+    updateAdminPunishButtons(ctx);
+  }
+
+  function openAdminChatLog(complaintId) {
+    _adminChatLogComplaintId = complaintId;
+    _adminChatLogContext = null;
+    var thread = document.getElementById('adminChatLogThread');
+    if (thread) {
+      thread.innerHTML = '<div class="loader"><div class="loader-spinner"></div><div class="loader-text">Загрузка…</div></div>';
+    }
+    showScreen('adminChatLog');
+
+    var payload = buildAdminPayload('admin_get_conversation_log', { complaint_id: complaintId });
+    if (!payload) {
+      showScreen('admin');
+      return;
+    }
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(handleAdminAuthError(data), data.message));
+          showScreen('admin');
+          return;
+        }
+        _adminChatLogContext = data;
+        renderAdminChatLogMessages(data.messages || [], data);
+      })
+      .catch(function () {
+        showToast('Не удалось загрузить лог');
+        showScreen('admin');
+      });
+  }
+
+  function adminPunishFromComplaint(targetTgId) {
+    if (!_adminChatLogComplaintId || !targetTgId) return;
+    if (!confirm('Заблокировать пользователя ' + targetTgId + '? Он не сможет пользоваться Mini App.')) {
+      return;
+    }
+    var payload = buildAdminPayload('admin_punish_from_complaint', {
+      complaint_id: _adminChatLogComplaintId,
+      target_tg_id: targetTgId
+    });
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(handleAdminAuthError(data), data.message));
+          return;
+        }
+        showToast('Пользователь заблокирован');
+        showScreen('admin');
+        loadMessageComplaints();
+        loadBannedUsers(_adminBannedPage);
+      })
+      .catch(function () {
+        showToast('Не удалось выполнить блокировку');
+      });
+  }
+
   function renderAdminsList(admins) {
     var container = document.getElementById('adminAdminsContainer');
     if (!container) return;
@@ -8279,6 +8676,7 @@
     renderAdminDashboard();
     showScreen('admin');
     loadBannedUsers(1);
+    loadMessageComplaints();
     loadAdminSettings();
     loadAdminsList();
   }
@@ -8593,6 +8991,24 @@
     else showScreen('adminLogin');
   });
   document.getElementById('backFromAdmin').addEventListener('click', function () { showScreen('main'); });
+  document.getElementById('backFromAdminChatLog').addEventListener('click', function () { showScreen('admin'); });
+  document.getElementById('adminChatLogBackBtn').addEventListener('click', function () { showScreen('admin'); });
+  document.getElementById('adminPunishBtnA').addEventListener('click', function () {
+    if (_adminChatLogContext) {
+      adminPunishFromComplaint(_adminChatLogContext.participant_a_tg_id);
+    }
+  });
+  document.getElementById('adminPunishBtnB').addEventListener('click', function () {
+    if (_adminChatLogContext) {
+      adminPunishFromComplaint(_adminChatLogContext.participant_b_tg_id);
+    }
+  });
+  document.getElementById('adminComplaintBodyClose').addEventListener('click', function () {
+    document.getElementById('adminComplaintBodyModal').hidden = true;
+  });
+  document.getElementById('adminComplaintBodyModal').addEventListener('click', function (e) {
+    if (e.target === this) this.hidden = true;
+  });
   document.getElementById('adminLoginSubmitBtn').addEventListener('click', function () {
     adminLogin(document.getElementById('adminLoginPassword').value);
   });

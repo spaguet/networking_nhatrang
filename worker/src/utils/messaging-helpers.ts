@@ -7,6 +7,8 @@ export const MESSAGE_PREVIEW_LEN = 80;
 export const MESSAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MESSAGE_RATE_LIMIT_MAX = 50;
 export const MESSAGE_RATE_LIMIT_TTL_SEC = 25 * 3600;
+export const COMPLAINT_RATE_LIMIT_MAX = 3;
+export const COMPLAINT_RATE_LIMIT_TTL_SEC = 25 * 3600;
 
 export interface ConversationRow {
   conversation_id: string;
@@ -115,6 +117,30 @@ export async function incrementMessageRateLimit(tgId: number, env: Env): Promise
   });
 }
 
+function complaintRateLimitKey(tgId: number): string {
+  const dateUtc = new Date().toISOString().slice(0, 10);
+  return `complaint_rate:${tgId}:${dateUtc}`;
+}
+
+export async function checkComplaintRateLimit(
+  tgId: number,
+  env: Env,
+): Promise<{ allowed: boolean }> {
+  const key = complaintRateLimitKey(tgId);
+  const raw = await env.CACHE.get(key);
+  const count = raw ? Number(raw) : 0;
+  return { allowed: count < COMPLAINT_RATE_LIMIT_MAX };
+}
+
+export async function incrementComplaintRateLimit(tgId: number, env: Env): Promise<void> {
+  const key = complaintRateLimitKey(tgId);
+  const raw = await env.CACHE.get(key);
+  const count = raw ? Number(raw) : 0;
+  await env.CACHE.put(key, String(count + 1), {
+    expirationTtl: COMPLAINT_RATE_LIMIT_TTL_SEC,
+  });
+}
+
 export function isConversationParticipant(conversation: ConversationRow, tgId: number): boolean {
   return conversation.owner_tg_id === tgId || conversation.peer_tg_id === tgId;
 }
@@ -176,6 +202,23 @@ export async function fetchMessagesForConversation(
        ORDER BY created_at ASC`,
     )
     .bind(conversationId, safeLimit)
+    .all<MessageRow>();
+
+  return result.results ?? [];
+}
+
+export async function fetchAllMessagesForConversation(
+  db: D1Database,
+  conversationId: string,
+): Promise<MessageRow[]> {
+  const result = await db
+    .prepare(
+      `SELECT message_id, conversation_id, sender_tg_id, body, created_at
+       FROM messages
+       WHERE conversation_id = ?
+       ORDER BY created_at ASC`,
+    )
+    .bind(conversationId)
     .all<MessageRow>();
 
   return result.results ?? [];

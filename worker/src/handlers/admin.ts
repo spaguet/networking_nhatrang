@@ -12,6 +12,7 @@ import {
   assertAdminSession,
   assertGrandAdminSession,
   assertLoginAllowed,
+  canBanTarget,
   clearLoginFailures,
   createAdminSession,
   deleteAdminSession,
@@ -27,16 +28,21 @@ import {
 } from '../utils/admin-auth';
 import { getUserIdFromInitData, validateMiniAppRequest } from '../utils/auth';
 import {
+  banUser,
   ensureUser,
   findQrMethodByKey,
   isStaffTgId,
   logAction,
   unbanUser,
 } from '../utils/helpers';
+import { fetchAllMessagesForConversation } from '../utils/messaging-helpers';
 import { jsonResponse } from '../utils/response';
+import { clearSession } from './sessions';
 
 const UNBAN_MESSAGE =
   '✅ Доступ к «Место Встречи» восстановлен. Вы снова можете пользоваться сервисом.';
+
+const BAN_USER_MESSAGE = '🚫 Ваш телеграм-аккаунт забанен.';
 
 const BANNED_PAGE_SIZE = 20;
 const MAX_QR_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -809,6 +815,192 @@ export async function handleAdminRemoveAdmin(
   return jsonResponse({ ok: true, removed: { tgId: targetTgId } });
 }
 
+interface MessageComplaintRow {
+  complaint_id: string;
+  conversation_id: string;
+  reporter_tg_id: number;
+  body: string;
+  created_at: string;
+  participant_a_tg_id: number;
+  participant_b_tg_id: number;
+  status: string;
+  resolved_at: string | null;
+  resolved_by: number | null;
+  punished_tg_id: number | null;
+}
+
+export async function handleAdminListMessageComplaints(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT complaint_id, conversation_id, reporter_tg_id, created_at,
+            participant_a_tg_id, participant_b_tg_id, punished_tg_id
+     FROM message_complaints
+     WHERE status = 'open'
+     ORDER BY created_at DESC`,
+  ).all<{
+    complaint_id: string;
+    conversation_id: string;
+    reporter_tg_id: number;
+    created_at: string;
+    participant_a_tg_id: number;
+    participant_b_tg_id: number;
+    punished_tg_id: number | null;
+  }>();
+
+  return jsonResponse({ ok: true, complaints: results ?? [] });
+}
+
+export async function handleAdminGetComplaintBody(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const complaintId = String(body.complaint_id ?? '').trim();
+  if (!complaintId) {
+    return jsonResponse({ ok: false, error: 'missing_params' }, 400);
+  }
+
+  const row = await env.DB.prepare(
+    'SELECT body FROM message_complaints WHERE complaint_id = ?',
+  )
+    .bind(complaintId)
+    .first<{ body: string }>();
+
+  if (!row) {
+    return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+
+  return jsonResponse({ ok: true, body: row.body });
+}
+
+export async function handleAdminGetConversationLog(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const complaintId = String(body.complaint_id ?? '').trim();
+  if (!complaintId) {
+    return jsonResponse({ ok: false, error: 'missing_params' }, 400);
+  }
+
+  const complaint = await env.DB.prepare(
+    `SELECT complaint_id, conversation_id, participant_a_tg_id, participant_b_tg_id,
+            punished_tg_id, status
+     FROM message_complaints WHERE complaint_id = ?`,
+  )
+    .bind(complaintId)
+    .first<MessageComplaintRow>();
+
+  if (!complaint) {
+    return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+
+  const messages = await fetchAllMessagesForConversation(
+    env.DB,
+    complaint.conversation_id,
+  );
+
+  const participantAIsStaff = await isStaffTgId(env.DB, complaint.participant_a_tg_id);
+  const participantBIsStaff = await isStaffTgId(env.DB, complaint.participant_b_tg_id);
+
+  return jsonResponse({
+    ok: true,
+    complaint_id: complaint.complaint_id,
+    conversation_id: complaint.conversation_id,
+    participant_a_tg_id: complaint.participant_a_tg_id,
+    participant_b_tg_id: complaint.participant_b_tg_id,
+    participant_a_is_staff: participantAIsStaff,
+    participant_b_is_staff: participantBIsStaff,
+    punished_tg_id: complaint.punished_tg_id,
+    status: complaint.status,
+    messages,
+  });
+}
+
+export async function handleAdminPunishFromComplaint(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const complaintId = String(body.complaint_id ?? '').trim();
+  const targetTgId = parsePositiveInt(body.target_tg_id ?? body.targetTgId);
+  if (!complaintId || !targetTgId) {
+    return jsonResponse({ ok: false, error: 'missing_params' }, 400);
+  }
+
+  const complaint = await env.DB.prepare(
+    `SELECT complaint_id, conversation_id, participant_a_tg_id, participant_b_tg_id,
+            status, punished_tg_id
+     FROM message_complaints WHERE complaint_id = ?`,
+  )
+    .bind(complaintId)
+    .first<MessageComplaintRow>();
+
+  if (!complaint) {
+    return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+  if (complaint.status !== 'open') {
+    return jsonResponse({ ok: false, error: 'invalid_target' }, 400);
+  }
+
+  if (
+    targetTgId !== complaint.participant_a_tg_id &&
+    targetTgId !== complaint.participant_b_tg_id
+  ) {
+    return jsonResponse({ ok: false, error: 'invalid_target' }, 400);
+  }
+
+  const banCheck = await canBanTarget(session.tgId, targetTgId, env.DB);
+  if (!banCheck.ok) {
+    return jsonResponse({ ok: false, error: 'forbidden', message: banCheck.message }, 403);
+  }
+
+  await ensureUser(targetTgId, '', '', env.DB);
+  await banUser(targetTgId, '', '', session.tgId, env.DB);
+  await clearSession(targetTgId, env);
+  await sendMessage(targetTgId, BAN_USER_MESSAGE, null, env);
+
+  const now = new Date().toISOString();
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE message_complaints
+       SET status = 'resolved', punished_tg_id = ?, resolved_by = ?, resolved_at = ?
+       WHERE conversation_id = ? AND status = 'open'`,
+    ).bind(targetTgId, session.tgId, now, complaint.conversation_id),
+    env.DB.prepare(
+      `UPDATE conversations SET status = 'closed' WHERE conversation_id = ?`,
+    ).bind(complaint.conversation_id),
+  ]);
+
+  await logAction(session.tgId, 'admin_punish_complaint', String(targetTgId), env.DB);
+
+  return jsonResponse({ ok: true, punished_tg_id: targetTgId });
+}
+
 /** Routes admin_* actions; returns null if action is not admin-related. */
 export async function routeAdminAction(
   body: Record<string, unknown>,
@@ -850,6 +1042,14 @@ export async function routeAdminAction(
       return handleAdminAddAdmin(body, env);
     case 'admin_remove_admin':
       return handleAdminRemoveAdmin(body, env);
+    case 'admin_list_message_complaints':
+      return handleAdminListMessageComplaints(body, env);
+    case 'admin_get_complaint_body':
+      return handleAdminGetComplaintBody(body, env);
+    case 'admin_get_conversation_log':
+      return handleAdminGetConversationLog(body, env);
+    case 'admin_punish_from_complaint':
+      return handleAdminPunishFromComplaint(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }
