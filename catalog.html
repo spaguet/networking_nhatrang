@@ -1694,6 +1694,106 @@
       line-height: 1.45;
       padding: 0 2px;
     }
+    .field-hint-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--orange);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      font-size: inherit;
+      font-family: inherit;
+      font-weight: 600;
+    }
+    .field-hint-link:active {
+      opacity: 0.75;
+    }
+    .contact-hint-telegram {
+      padding: 12px 14px;
+      background: rgba(255, 122, 26, 0.08);
+      border: 1px solid rgba(255, 122, 26, 0.22);
+      border-radius: 12px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .contact-hint-telegram p {
+      margin: 0 0 8px;
+    }
+    .contact-hint-telegram p:last-child {
+      margin-bottom: 0;
+    }
+    .contact-hint-title {
+      font-weight: 700;
+      margin-bottom: 6px !important;
+    }
+    .telegram-username-banner {
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: rgba(234, 179, 8, 0.12);
+      border: 1px solid rgba(234, 179, 8, 0.35);
+      border-radius: 12px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+    }
+    .telegram-username-banner-title {
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .telegram-username-banner-note {
+      font-size: 0.72rem;
+      color: var(--text-sub);
+      margin-top: 8px;
+    }
+    .telegram-username-banner-btn {
+      margin-top: 10px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--orange);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .verify-telegram-btn {
+      margin-top: 10px;
+      width: 100%;
+    }
+    .verify-telegram-btn:disabled {
+      opacity: 0.55;
+    }
+    .telegram-verify-status {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      font-weight: 600;
+    }
+    .telegram-verify-status.ok {
+      background: rgba(34, 197, 94, 0.12);
+      color: #15803d;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .telegram-verify-status.err {
+      background: rgba(239, 68, 68, 0.1);
+      color: #b91c1c;
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+    .telegram-submit-checklist {
+      font-size: 0.74rem;
+      color: var(--text-sub);
+      line-height: 1.55;
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+    .telegram-submit-checklist.done {
+      color: #15803d;
+    }
 
     .field-item.field-avatar {
       max-width: 108px;
@@ -2171,16 +2271,37 @@
         <div class="field-item">
           <label for="contact_type">Тип контакта</label>
           <select id="contact_type" name="contact_type" required>
-            <option value="" disabled selected>Выберите тип</option>
-            <option value="Telegram">Telegram</option>
+            <option value="" disabled>Выберите тип</option>
+            <option value="Telegram" selected>Telegram</option>
             <option value="Whatsapp">Whatsapp</option>
             <option value="Email">Email</option>
           </select>
         </div>
 
+        <div id="contactHintTelegram" class="contact-hint-telegram">
+          <p class="contact-hint-title">Нужен ваш публичный @ник в Telegram</p>
+          <p>Это имя пользователя в Telegram (не номер телефона). По нему вас найдут в каталоге и смогут написать в личку.<br>
+          <strong>Примеры:</strong> <code>@ivan_spec</code> или <code>ivan_spec</code><br>
+          Ник должен быть <strong>у вас в профиле Telegram</strong> и <strong>совпадать</strong> с тем, что вы вводите здесь.</p>
+          <p class="field-hint">
+            <button type="button" class="field-hint-link" id="telegramUsernameHelpBtn">Как задать @ник в Telegram?</button>
+          </p>
+        </div>
+
         <div class="field-item">
           <label for="contacts">Контакт</label>
-          <input id="contacts" name="contacts" required maxlength="500" placeholder="Telegram, email, WhatsApp" />
+          <div id="telegramUsernameBanner" class="telegram-username-banner" hidden>
+            <div class="telegram-username-banner-title">⚠️ Сначала создайте @ник в Telegram</div>
+            <p>Сейчас у вашего аккаунта нет имени пользователя (@ник). Без него анкету с контактом Telegram отправить нельзя — вас не смогут найти для переписки.</p>
+            <button type="button" class="telegram-username-banner-btn" id="telegramBannerHelpBtn">Как создать @ник</button>
+            <p class="telegram-username-banner-note">После создания ника закройте и снова откройте каталог из бота</p>
+          </div>
+          <input id="contacts" name="contacts" required maxlength="500" placeholder="@ваш_ник" />
+          <span class="field-hint" id="telegramAutofillHint" hidden>Подставлен ник из вашего Telegram. Если меняли ник — обновите поле и нажмите «Проверить»</span>
+          <div id="telegramVerifyBlock">
+            <button type="button" class="btn btn-outline verify-telegram-btn" id="verifyTelegramBtn">Проверить Telegram-ник</button>
+            <div id="telegramVerifyStatus" class="telegram-verify-status" hidden role="status"></div>
+          </div>
         </div>
 
         <div class="field-item field-keywords">
@@ -2226,6 +2347,11 @@
 
       </div>
 
+      <div id="telegramSubmitChecklist" class="telegram-submit-checklist" hidden>
+        ☐ Задан @ник в настройках Telegram<br>
+        ☐ Тот же @ник указан в поле «Контакт»<br>
+        ☐ Нажата кнопка «Проверить Telegram-ник» — зелёная галочка
+      </div>
       <div id="freeActions">
         <button type="submit" class="btn btn-cta" id="submitBtn">Отправить на модерацию</button>
       </div>
@@ -2839,7 +2965,13 @@
     user_banned:            'Ваш телеграм-аккаунт забанен',
     no_edits_remaining:     'Лимит редактирований исчерпан',
     edit_already_pending:   'Дождитесь проверки предыдущих изменений',
-    listing_not_active:     'Редактировать можно только активную анкету'
+    listing_not_active:     'Редактировать можно только активную анкету',
+    invalid_telegram_username: 'Укажите ник латиницей: буквы, цифры, подчёркивание. От 5 до 32 символов, например @ivan_spec.',
+    telegram_contact_not_found: 'Такой @ник в Telegram не найден. Проверьте написание или задайте ник в настройках Telegram.',
+    telegram_username_mismatch: 'Этот @ник принадлежит другому аккаунту. Введите свой ник из профиля Telegram.',
+    telegram_verify_required: 'Нажмите «Проверить Telegram-ник» перед отправкой анкеты.',
+    telegram_no_username: 'У вашего аккаунта Telegram нет @ника. Создайте его в настройках Telegram, затем введите сюда и проверьте снова.',
+    telegram_verify_rate_limit: 'Слишком много проверок. Попробуйте через час.'
   };
 
   var ADMIN_ERRORS = {
@@ -2908,6 +3040,11 @@
   var _pendingPortfolioListingId = null;
   var formEditMode = false;
   var formEditParentId = null;
+  var telegramContactVerified = false;
+  var telegramVerifiedUsername = '';
+  var _telegramNotFoundAlertShown = false;
+  var _telegramContactsSnapshot = '';
+  var TELEGRAM_USERNAME_RE = /^@?[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
   var _editsInfoContinue = null;
   var PORTFOLIO_MAX_FILES = 5;
   var PORTFOLIO_MAX_BYTES = 8 * 1024 * 1024;
@@ -3238,6 +3375,260 @@
 
   function hideKeywordsAboutPopup() {
     document.getElementById('keywordsAboutPopup').hidden = true;
+  }
+
+  var TELEGRAM_USERNAME_HELP_TEXT =
+    'Как получить @ник (имя пользователя):\n\n' +
+    '1. Откройте Telegram (не этот каталог).\n' +
+    '2. Настройки → Имя пользователя (Username).\n' +
+    '3. Придумайте свободный ник латиницей, например ivan_spec.\n' +
+    '4. Сохраните.\n' +
+    '5. Вернитесь в каталог из бота и укажите тот же ник в анкете.\n' +
+    '6. Нажмите «Проверить Telegram-ник».\n\n' +
+    'Важно: номер телефона или имя «Иван» — это не @ник.';
+
+  var TELEGRAM_USERNAME_HELP_ALERT =
+    'Создайте @ник в Telegram: Настройки → Имя пользователя. ' +
+    'Затем вернитесь в каталог и проверьте ник в анкете.';
+
+  function showTelegramUsernameHelpPopup() {
+    if (tg && tg.showPopup) {
+      var buttons = [{ type: 'ok', text: 'OK' }];
+      if (tg.openTelegramLink) {
+        buttons.unshift({ id: 'settings', type: 'default', text: 'Открыть настройки' });
+      }
+      tg.showPopup({
+        title: 'Как задать @ник в Telegram',
+        message: TELEGRAM_USERNAME_HELP_TEXT,
+        buttons: buttons
+      }, function (btnId) {
+        if (btnId === 'settings' && tg.openTelegramLink) {
+          tg.openTelegramLink('tg://settings');
+        }
+      });
+      return;
+    }
+    if (tg && tg.showAlert) {
+      tg.showAlert(TELEGRAM_USERNAME_HELP_TEXT);
+    }
+  }
+
+  function isTelegramContactType() {
+    var sel = document.getElementById('contact_type');
+    return sel && sel.value === 'Telegram';
+  }
+
+  function hasTelegramUsernameInInitData() {
+    var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    return !!(user && user.username);
+  }
+
+  function resetTelegramVerifyState() {
+    telegramContactVerified = false;
+    telegramVerifiedUsername = '';
+    _telegramContactsSnapshot = '';
+    var statusEl = document.getElementById('telegramVerifyStatus');
+    if (statusEl) {
+      statusEl.hidden = true;
+      statusEl.textContent = '';
+      statusEl.className = 'telegram-verify-status';
+    }
+    updateTelegramSubmitChecklist();
+  }
+
+  function setTelegramVerifyStatus(type, html) {
+    var statusEl = document.getElementById('telegramVerifyStatus');
+    if (!statusEl) return;
+    statusEl.hidden = false;
+    statusEl.className = 'telegram-verify-status ' + type;
+    statusEl.innerHTML = html;
+  }
+
+  function updateTelegramSubmitChecklist() {
+    var checklist = document.getElementById('telegramSubmitChecklist');
+    if (!checklist) return;
+    if (!isTelegramContactType()) {
+      checklist.hidden = true;
+      return;
+    }
+    if (telegramContactVerified) {
+      checklist.hidden = true;
+      return;
+    }
+    checklist.hidden = false;
+    checklist.className = 'telegram-submit-checklist';
+    var hasInitUsername = hasTelegramUsernameInInitData();
+    checklist.innerHTML =
+      (hasInitUsername ? '☑' : '☐') + ' Задан @ник в настройках Telegram<br>' +
+      '☐ Тот же @ник указан в поле «Контакт»<br>' +
+      '☐ Нажата кнопка «Проверить Telegram-ник» — зелёная галочка';
+  }
+
+  function syncTelegramContactUi() {
+    var isTelegram = isTelegramContactType();
+    var hint = document.getElementById('contactHintTelegram');
+    var verifyBlock = document.getElementById('telegramVerifyBlock');
+    var banner = document.getElementById('telegramUsernameBanner');
+    var autofillHint = document.getElementById('telegramAutofillHint');
+    var contactsInput = document.getElementById('contacts');
+    var verifyBtn = document.getElementById('verifyTelegramBtn');
+    var noUsername = isTelegram && !hasTelegramUsernameInInitData();
+
+    if (hint) hint.hidden = !isTelegram;
+    if (verifyBlock) verifyBlock.hidden = !isTelegram;
+    if (banner) banner.hidden = !noUsername;
+
+    if (contactsInput) {
+      contactsInput.placeholder = isTelegram
+        ? '@ваш_ник'
+        : 'Telegram, email, WhatsApp';
+    }
+
+    if (autofillHint) {
+      var showAutofill = isTelegram &&
+        hasTelegramUsernameInInitData() &&
+        contactsInput &&
+        contactsInput.value.trim().length > 0;
+      autofillHint.hidden = !showAutofill;
+    }
+
+    if (verifyBtn) {
+      if (!isTelegram) {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Проверить Telegram-ник';
+      } else if (noUsername) {
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Сначала задайте @ник в Telegram';
+      } else {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Проверить Telegram-ник';
+      }
+    }
+
+    updateTelegramSubmitChecklist();
+  }
+
+  function autofillTelegramUsername() {
+    if (!isTelegramContactType()) return;
+    var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    var contactsInput = document.getElementById('contacts');
+    if (!user || !user.username || !contactsInput) return;
+    if (!contactsInput.value.trim()) {
+      contactsInput.value = '@' + user.username;
+    }
+    syncTelegramContactUi();
+  }
+
+  function onTelegramContactFieldChanged() {
+    var contactsInput = document.getElementById('contacts');
+    var current = contactsInput ? contactsInput.value.trim() : '';
+    if (telegramContactVerified && current !== _telegramContactsSnapshot) {
+      resetTelegramVerifyState();
+    }
+    syncTelegramContactUi();
+  }
+
+  function validateTelegramContactClient(statusEl) {
+    if (!isTelegramContactType()) return true;
+    if (!hasTelegramUsernameInInitData()) {
+      showStatus(statusEl, ERRORS.telegram_no_username, 'err');
+      return false;
+    }
+    var contacts = document.getElementById('contacts').value.trim();
+    if (!contacts) {
+      showStatus(statusEl, ERRORS.validation, 'err');
+      return false;
+    }
+    if (containsLink(contacts)) {
+      showLinkPopup();
+      showStatus(statusEl, ERRORS.links_forbidden, 'err');
+      return false;
+    }
+    if (!telegramContactVerified) {
+      showStatus(statusEl, ERRORS.telegram_verify_required, 'err');
+      updateTelegramSubmitChecklist();
+      return false;
+    }
+    return true;
+  }
+
+  function runVerifyTelegramContact() {
+    var statusEl = document.getElementById('status');
+    var verifyBtn = document.getElementById('verifyTelegramBtn');
+    if (!isTelegramContactType()) return;
+    if (!hasTelegramUsernameInInitData()) {
+      showStatus(statusEl, ERRORS.telegram_no_username, 'err');
+      return;
+    }
+    var contacts = document.getElementById('contacts').value.trim();
+    if (!contacts) {
+      showStatus(statusEl, ERRORS.validation, 'err');
+      return;
+    }
+    if (containsLink(contacts)) {
+      showLinkPopup();
+      showStatus(statusEl, ERRORS.links_forbidden, 'err');
+      return;
+    }
+    if (!TELEGRAM_USERNAME_RE.test(contacts)) {
+      telegramContactVerified = false;
+      telegramVerifiedUsername = '';
+      _telegramContactsSnapshot = '';
+      setTelegramVerifyStatus('err', esc(ERRORS.invalid_telegram_username));
+      updateTelegramSubmitChecklist();
+      return;
+    }
+
+    var payload = buildPayload('verify_telegram_contact', { contacts: contacts });
+    if (!payload) {
+      showStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return;
+    }
+
+    if (verifyBtn) verifyBtn.disabled = true;
+    clearStatus(statusEl);
+
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok) {
+          telegramContactVerified = true;
+          telegramVerifiedUsername = data.username || contacts.replace(/^@/, '');
+          _telegramContactsSnapshot = contacts;
+          setTelegramVerifyStatus(
+            'ok',
+            '✓ Ник @' + esc(telegramVerifiedUsername) + ' проверен. Это ваш аккаунт Telegram.'
+          );
+          updateTelegramSubmitChecklist();
+          return;
+        }
+        telegramContactVerified = false;
+        telegramVerifiedUsername = '';
+        var key = (data.error || '').replace(/\s/g, '_');
+        var msg = data.message || ERRORS[key] || data.error || 'Не удалось подтвердить ник';
+        setTelegramVerifyStatus('err', esc(msg));
+        if (key === 'telegram_contact_not_found') {
+          if (!_telegramNotFoundAlertShown && tg && tg.showAlert) {
+            _telegramNotFoundAlertShown = true;
+            tg.showAlert(TELEGRAM_USERNAME_HELP_ALERT);
+          }
+        }
+        updateTelegramSubmitChecklist();
+      })
+      .catch(function (err) {
+        telegramContactVerified = false;
+        setTelegramVerifyStatus('err', esc(apiErrorMessage(err)));
+        updateTelegramSubmitChecklist();
+      })
+      .finally(function () {
+        syncTelegramContactUi();
+      });
+  }
+
+  function initTelegramContactForm() {
+    resetTelegramVerifyState();
+    _telegramNotFoundAlertShown = false;
+    syncTelegramContactUi();
+    autofillTelegramUsername();
   }
 
   function showFormRulesPopup() {
@@ -5159,6 +5550,7 @@
       truncateField('display_name');
       updateDescriptionCounter();
       syncLinkFieldPrev();
+      initTelegramContactForm();
       return;
     }
 
@@ -5205,6 +5597,7 @@
     Object.keys(FIELD_CHAR_LIMITS).forEach(truncateField);
     updateDescriptionCounter();
     syncLinkFieldPrev();
+    initTelegramContactForm();
     updateSubmitBtnLabel();
   }
 
@@ -6088,6 +6481,7 @@
     clearPendingPortfolioSuccess();
     clearFormEditMode();
     updateDescriptionCounter();
+    initTelegramContactForm();
   }
 
   function handlePortfolioUploadResult(data, listingId, statusEl, onSuccess) {
@@ -6386,6 +6780,42 @@
     });
   })();
 
+  (function initTelegramContactUi() {
+    var contactTypeSel = document.getElementById('contact_type');
+    var contactsInput = document.getElementById('contacts');
+    var verifyBtn = document.getElementById('verifyTelegramBtn');
+    var helpBtn = document.getElementById('telegramUsernameHelpBtn');
+    var bannerHelpBtn = document.getElementById('telegramBannerHelpBtn');
+
+    if (contactTypeSel) {
+      contactTypeSel.addEventListener('change', function () {
+        resetTelegramVerifyState();
+        syncTelegramContactUi();
+        autofillTelegramUsername();
+      });
+    }
+    if (contactsInput) {
+      contactsInput.addEventListener('input', onTelegramContactFieldChanged);
+    }
+    if (verifyBtn) {
+      verifyBtn.addEventListener('click', runVerifyTelegramContact);
+    }
+    if (helpBtn) {
+      helpBtn.addEventListener('click', showTelegramUsernameHelpPopup);
+    }
+    if (bannerHelpBtn) {
+      bannerHelpBtn.addEventListener('click', showTelegramUsernameHelpPopup);
+    }
+    if (tg && tg.onEvent) {
+      tg.onEvent('viewportChanged', function () {
+        if (!document.getElementById('screenForm').hidden) {
+          syncTelegramContactUi();
+        }
+      });
+    }
+    initTelegramContactForm();
+  })();
+
   /* ─────────────────────────────────────
      FORM HELPERS
   ───────────────────────────────────── */
@@ -6449,6 +6879,9 @@
       return null;
     }
     if (!validateKeywordsClient(statusEl)) {
+      return null;
+    }
+    if (!validateTelegramContactClient(statusEl)) {
       return null;
     }
     return data;
