@@ -9,26 +9,30 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- listings
+-- status: on_moderation | active | archived | rejected | edit_pending
+--   edit_pending — draft edit (not in catalog/profile list); parent active row stays visible until approve
 CREATE TABLE IF NOT EXISTS listings (
-  listing_id      TEXT PRIMARY KEY,
-  tg_id           INTEGER NOT NULL,
-  display_name    TEXT NOT NULL,
-  category        TEXT NOT NULL,
-  description     TEXT NOT NULL,
-  experience      TEXT,
-  contact_type    TEXT NOT NULL,
-  contacts        TEXT NOT NULL,
-  status          TEXT NOT NULL DEFAULT 'on_moderation',
-  payment_status  TEXT NOT NULL DEFAULT 'free',
-  created_at      TEXT,
-  expires_at      TEXT,
-  submitted_at    TEXT NOT NULL,
-  avatar_emoji    TEXT,
-  pin_status      TEXT NOT NULL DEFAULT 'regular',
-  pinned_at       TEXT,
-  pin_expires_at  TEXT,
-  archived_at     TEXT,
-  keywords        TEXT NOT NULL DEFAULT '[]',
+  listing_id          TEXT PRIMARY KEY,
+  tg_id               INTEGER NOT NULL,
+  display_name        TEXT NOT NULL,
+  category            TEXT NOT NULL,
+  description         TEXT NOT NULL,
+  experience          TEXT,
+  contact_type        TEXT NOT NULL,
+  contacts            TEXT NOT NULL,
+  status              TEXT NOT NULL DEFAULT 'on_moderation',
+  payment_status      TEXT NOT NULL DEFAULT 'free',
+  created_at          TEXT,
+  expires_at          TEXT,
+  submitted_at        TEXT NOT NULL,
+  avatar_emoji        TEXT,
+  pin_status          TEXT NOT NULL DEFAULT 'regular',
+  pinned_at           TEXT,
+  pin_expires_at      TEXT,
+  archived_at         TEXT,
+  keywords            TEXT NOT NULL DEFAULT '[]',
+  edits_remaining     INTEGER,
+  replaces_listing_id TEXT,
   FOREIGN KEY (tg_id) REFERENCES users(tg_id)
 );
 
@@ -38,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_listings_tg_id    ON listings(tg_id);
 CREATE INDEX IF NOT EXISTS idx_listings_pin      ON listings(pin_status, status);
 CREATE INDEX IF NOT EXISTS idx_listings_expires  ON listings(expires_at);
 CREATE INDEX IF NOT EXISTS idx_listings_archived_at ON listings(archived_at) WHERE status = 'archived';
+CREATE INDEX IF NOT EXISTS idx_listings_edit_pending ON listings(tg_id, status) WHERE status = 'edit_pending';
+CREATE INDEX IF NOT EXISTS idx_listings_replaces ON listings(replaces_listing_id) WHERE replaces_listing_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_listings_one_edit_pending_per_user ON listings(tg_id) WHERE status = 'edit_pending';
 
 -- listing_media (portfolio photos; see migrations/002_portfolio.sql)
 CREATE TABLE IF NOT EXISTS listing_media (
