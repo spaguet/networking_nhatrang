@@ -12,7 +12,16 @@ import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStag
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
 import { handleGetFavoritesListings } from './favorites';
-import { handleResolveTelegramChat, handleVerifyTelegramContact } from './messaging';
+import {
+  handleGetMessages,
+  handleGetMessagingUnread,
+  handleListMyConversations,
+  handleMarkConversationRead,
+  handleOpenConversation,
+  handleResolveTelegramChat,
+  handleSendMessage,
+  handleVerifyTelegramContact,
+} from './messaging';
 
 export async function routeApiAction(
   body: Record<string, unknown>,
@@ -60,6 +69,18 @@ export async function routeApiAction(
       return handleVerifyTelegramContact(body, env);
     case 'resolve_telegram_chat':
       return handleResolveTelegramChat(body, env);
+    case 'open_conversation':
+      return handleOpenConversation(body, env);
+    case 'send_message':
+      return handleSendMessage(body, env);
+    case 'get_messages':
+      return handleGetMessages(body, env);
+    case 'list_my_conversations':
+      return handleListMyConversations(body, env);
+    case 'get_messaging_unread':
+      return handleGetMessagingUnread(body, env);
+    case 'mark_conversation_read':
+      return handleMarkConversationRead(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }

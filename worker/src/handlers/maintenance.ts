@@ -181,6 +181,7 @@ export async function dailyMaintenance(env: Env): Promise<void> {
   await cleanupStaleEditPending(env);
   await purgeArchivedListings(env);
   await cleanupStaleStaging(env, 7);
+  await purgeExpiredConversations(env);
 }
 
 interface StaleEditRow {
@@ -235,6 +236,71 @@ async function cleanupStaleEditPending(env: Env): Promise<void> {
 
 interface ArchivedListingRow {
   listing_id: string;
+}
+
+interface EligibleConversationRow {
+  conversation_id: string;
+}
+
+/** Purge in-app conversations past TTL or empty >7d; skip open complaints (user_messaging_TZ.md §4.6). */
+async function purgeExpiredConversations(env: Env): Promise<void> {
+  let purged = 0;
+
+  try {
+    const now = new Date().toISOString();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const result = await env.DB.prepare(
+      `SELECT c.conversation_id
+       FROM conversations c
+       WHERE (
+         (c.expires_at IS NOT NULL AND c.expires_at < ?)
+         OR (c.first_message_at IS NULL AND c.created_at < ?)
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM message_complaints mc
+         WHERE mc.conversation_id = c.conversation_id AND mc.status = 'open'
+       )`,
+    )
+      .bind(now, sevenDaysAgo)
+      .all<EligibleConversationRow>();
+
+    const rows = result.results ?? [];
+    if (rows.length === 0) {
+      return;
+    }
+
+    const ids = rows.map((row) => String(row.conversation_id));
+    const placeholders = ids.map(() => '?').join(', ');
+
+    await env.DB.prepare(`DELETE FROM conversations WHERE conversation_id IN (${placeholders})`)
+      .bind(...ids)
+      .run();
+
+    await env.DB.prepare(
+      `UPDATE message_complaints
+       SET status = 'expired'
+       WHERE conversation_id IN (${placeholders}) AND status = 'open'`,
+    )
+      .bind(...ids)
+      .run();
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await env.DB.prepare(
+      `DELETE FROM message_complaints
+       WHERE status = 'expired' AND created_at < ?`,
+    )
+      .bind(thirtyDaysAgo)
+      .run();
+
+    purged = ids.length;
+    if (purged > 0) {
+      await logAction(0, 'purge_conversations', `{ purged: ${purged} }`, env.DB);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logAction(0, 'error', `purgeExpiredConversations: ${msg}`, env.DB);
+  }
 }
 
 async function purgeArchivedListings(env: Env): Promise<void> {
