@@ -1,7 +1,7 @@
 # ТЗ: Редактирование мини-резюме (3 раза) — Нетворкинг Нячанг
 ### Feature Spec для Cursor · Версия 1.5
 
-> **Статус:** не реализовано (документ для разработки).  
+> **Статус:** реализовано (v1.5, 01.06.2026). Деплой: `DEPLOY_GUIDE_CF.md` §D2e.  
 > **Стек:** Cloudflare Worker + D1 + R2, фронт `catalog.html`.  
 > **Связанные ТЗ:** `networking_nhatrang_tz.md`, `portfolio_TZ.md`, `pinned_listings_TZ.md`, `keywords_system_TZ.md`.
 

@@ -6,6 +6,7 @@ compatibility_date = "2024-01-01"
 binding = "DB"
 database_name = "networking_nhatrang"
 database_id = "da3337f2-02ad-49ef-b577-09916aa08763"
+migrations_dir = "src/db/migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"

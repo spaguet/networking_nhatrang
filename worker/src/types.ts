@@ -1,9 +1,24 @@
+export type AdminRole = 'grand_admin' | 'admin';
+
+export interface Admin {
+  tg_id: number;
+  role: AdminRole;
+  password_hash: string | null;
+  password_salt: string | null;
+  created_at: string;
+  created_by: number | null;
+  updated_at: string;
+}
+
 export interface User {
   tg_id: number;
   username: string | null;
   first_name: string;
   reg_date: string;
   free_used: number;
+  banned?: number;
+  banned_at?: string | null;
+  banned_by?: number | null;
 }
 
 export interface Listing {

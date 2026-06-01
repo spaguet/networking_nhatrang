@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfigWithSettings } from '../config';
 import type { Env } from '../env';
 import {
   answerCallbackQuery,
@@ -44,7 +44,7 @@ export async function handleGetPinPrices(
       return jsonResponse({ ok: false, error: 'Invalid_initData' });
     }
 
-    const config = getConfig(env);
+    const config = await getConfigWithSettings(env);
     return jsonResponse({
       ok: true,
       week: {
@@ -87,7 +87,7 @@ export async function handleSelectPinPaymentMethod(
       return jsonResponse({ ok: false, error: auth.error });
     }
 
-    const config = getConfig(env);
+    const config = await getConfigWithSettings(env);
     const tgId = Number(body.tg_id);
     const listingId = String(body.listing_id ?? '').trim();
     const pinDuration = String(body.pin_duration ?? '').trim().toLowerCase();
@@ -143,7 +143,7 @@ export async function handleSelectPinPaymentMethod(
       return jsonResponse({ ok: false, error: 'invalid_payment_method' });
     }
 
-    const fileId = config.qr[method.propertyKey];
+    const fileId = config.qr[method.methodKey];
     if (!fileId) {
       return jsonResponse({
         ok: false,

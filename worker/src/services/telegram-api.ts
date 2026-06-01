@@ -1,5 +1,6 @@
 import { getConfig } from '../config';
 import type { Env } from '../env';
+import { isAdmin } from '../utils/admin-auth';
 import { createAdminPortfolioToken, getMiniAppPortfolioUrl } from '../utils/portfolio-auth';
 import { logAction } from '../utils/helpers';
 
@@ -123,6 +124,20 @@ export function contactBanKeyboard(userTgId: number): InlineKeyboardMarkup {
   };
 }
 
+export function banConfirmKeyboard(
+  userTgId: number,
+  sourceMessageId: number,
+): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: 'Забанить', callback_data: `ban_ok_${userTgId}_${sourceMessageId}` },
+        { text: 'Простить', callback_data: `ban_no_${sourceMessageId}` },
+      ],
+    ],
+  };
+}
+
 export function pinModerationKeyboard(
   listingId: string,
   pinDuration: string,
@@ -233,6 +248,99 @@ export async function editMessageReplyMarkup(
       env.DB,
     );
   }
+}
+
+export async function editMessageText(
+  chatId: number | string,
+  messageId: number,
+  text: string,
+  replyMarkup: InlineKeyboardMarkup | null | undefined,
+  env: Env,
+): Promise<void> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    reply_markup: replyMarkup ?? { inline_keyboard: [] },
+  };
+  const result = await telegramRequest('editMessageText', payload, env);
+  if (!result.ok) {
+    await logAction(
+      0,
+      'error',
+      `editMessageText failed: ${result.description ?? 'unknown'}`,
+      env.DB,
+    );
+  }
+}
+
+/** Active admins (in `admins`, not banned in `users`). */
+export async function getAdminIds(db: D1Database): Promise<number[]> {
+  const { results } = await db
+    .prepare('SELECT tg_id FROM admins')
+    .all<{ tg_id: number }>();
+
+  const ids: number[] = [];
+  if (!results) {
+    return ids;
+  }
+  for (let i = 0; i < results.length; i++) {
+    const tgId = results[i].tg_id;
+    if (await isAdmin(db, tgId)) {
+      ids.push(tgId);
+    }
+  }
+  return ids;
+}
+
+export async function sendModerationToAdmins(
+  db: D1Database,
+  env: Env,
+  text: string,
+  replyMarkup?: TelegramReplyMarkup | null,
+): Promise<number[]> {
+  const adminIds = await getAdminIds(db);
+  const messageIds: number[] = [];
+  for (let i = 0; i < adminIds.length; i++) {
+    const msgId = await sendMessage(adminIds[i], text, replyMarkup ?? null, env);
+    if (msgId != null) {
+      messageIds.push(msgId);
+    }
+  }
+  return messageIds;
+}
+
+export async function sendModerationPhotoToAdmins(
+  db: D1Database,
+  env: Env,
+  fileId: string,
+  caption: string,
+  replyMarkup?: TelegramReplyMarkup | null,
+): Promise<number[]> {
+  const adminIds = await getAdminIds(db);
+  const messageIds: number[] = [];
+  for (let i = 0; i < adminIds.length; i++) {
+    const msgId = await sendPhoto(
+      adminIds[i],
+      fileId,
+      caption,
+      replyMarkup ?? null,
+      env,
+    );
+    if (msgId != null) {
+      messageIds.push(msgId);
+    }
+  }
+  return messageIds;
+}
+
+/** Plain text to every active admin (e.g. ban confirmation). */
+export async function sendToAllAdmins(
+  db: D1Database,
+  env: Env,
+  text: string,
+): Promise<void> {
+  await sendModerationToAdmins(db, env, text, null);
 }
 
 export async function answerCallbackQuery(

@@ -280,10 +280,38 @@ export async function banUser(
   tgId: number,
   username: string,
   firstName: string,
+  bannedBy: number,
   db: D1Database,
 ): Promise<void> {
   await ensureUser(tgId, username, firstName, db);
-  await db.prepare('UPDATE users SET banned = 1 WHERE tg_id = ?').bind(tgId).run();
+  const bannedAt = new Date().toISOString();
+  await db
+    .prepare(
+      'UPDATE users SET banned = 1, banned_at = ?, banned_by = ? WHERE tg_id = ?',
+    )
+    .bind(bannedAt, bannedBy, tgId)
+    .run();
+}
+
+export async function unbanUser(tgId: number, db: D1Database): Promise<void> {
+  await db
+    .prepare(
+      'UPDATE users SET banned = 0, banned_at = NULL, banned_by = NULL WHERE tg_id = ?',
+    )
+    .bind(tgId)
+    .run();
+}
+
+export async function isStaffTgId(
+  db: D1Database,
+  tgId: number,
+): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT 1 AS ok FROM admins WHERE tg_id = ? LIMIT 1')
+    .bind(tgId)
+    .first<{ ok: number }>();
+
+  return row?.ok === 1;
 }
 
 export function bannedApiResponse(): Response {

@@ -5,7 +5,9 @@ CREATE TABLE IF NOT EXISTS users (
   first_name  TEXT NOT NULL,
   reg_date    TEXT NOT NULL,
   free_used   INTEGER NOT NULL DEFAULT 0,
-  banned      INTEGER NOT NULL DEFAULT 0
+  banned      INTEGER NOT NULL DEFAULT 0,
+  banned_at   TEXT,
+  banned_by   INTEGER
 );
 
 -- listings
@@ -112,4 +114,25 @@ CREATE TABLE IF NOT EXISTS admin_links (
   link_type        TEXT,
   listing_id       TEXT,
   created_at       TEXT NOT NULL
+);
+
+-- admins (grand_admin / admin roles; admin_profile_TZ.md)
+CREATE TABLE IF NOT EXISTS admins (
+  tg_id          INTEGER PRIMARY KEY,
+  role           TEXT NOT NULL CHECK (role IN ('grand_admin', 'admin')),
+  password_hash  TEXT,
+  password_salt  TEXT,
+  created_at     TEXT NOT NULL,
+  created_by     INTEGER,
+  updated_at     TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_admins_role ON admins(role);
+
+-- app_settings (dynamic prices / QR file_ids; D1 priority over env)
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by INTEGER NOT NULL
 );

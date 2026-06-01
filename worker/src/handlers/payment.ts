@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfigWithSettings } from '../config';
 import type { Env } from '../env';
 import { sendPhoto } from '../services/telegram-api';
 import { validateMiniAppRequest } from '../utils/auth';
@@ -104,7 +104,7 @@ export async function handleSelectPaymentMethod(
       return jsonResponse({ ok: false, error: auth.error });
     }
 
-    const config = getConfig(env);
+    const config = await getConfigWithSettings(env);
     const tgId = Number(body.tg_id);
     const username = String(body.username || '');
     const firstName = String(body.first_name || '');
@@ -140,7 +140,7 @@ export async function handleSelectPaymentMethod(
       return jsonResponse({ ok: false, error: 'invalid_payment_method' });
     }
 
-    const fileId = config.qr[method.propertyKey];
+    const fileId = config.qr[method.methodKey];
     if (!fileId) {
       return jsonResponse({
         ok: false,

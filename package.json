@@ -1,0 +1,13 @@
+{
+  "name": "networking",
+  "private": true,
+  "scripts": {
+    "test:admin": "playwright test tests/admin-profile.spec.ts",
+    "test:admin:headed": "playwright test tests/admin-profile.spec.ts --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  }
+}
