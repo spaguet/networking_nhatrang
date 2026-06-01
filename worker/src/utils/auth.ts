@@ -167,6 +167,26 @@ export async function validateTelegramInitData(
   return { valid: true, userId };
 }
 
+/** Extract Telegram username from Mini App initData (unsigned parse). */
+export function getUsernameFromInitData(initData: string): string | null {
+  if (!initData) {
+    return null;
+  }
+
+  const params = parseInitDataParams(initData);
+  try {
+    if (params.user) {
+      const user = JSON.parse(params.user) as { username?: string };
+      const username = user?.username?.trim();
+      return username || null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 /** Extract Telegram user id from Mini App initData (unsigned parse). */
 export function getUserIdFromInitData(initData: string): number | null {
   if (!initData) {

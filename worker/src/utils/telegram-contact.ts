@@ -1,4 +1,5 @@
 import type { Env } from '../env';
+import { getUserIdFromInitData, getUsernameFromInitData } from './auth';
 import { containsLink } from './links';
 
 const USERNAME_RE = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
@@ -82,15 +83,22 @@ export function buildTelegramChatUrl(params: {
   throw new InvalidTelegramUsernameError('no_chat_target');
 }
 
+function telegramIdsEqual(a: unknown, b: unknown): boolean {
+  return a != null && b != null && String(a) === String(b);
+}
+
 async function getChatByUsername(
   env: Env,
   username: string,
 ): Promise<TelegramGetChatResult> {
-  const url =
-    `https://api.telegram.org/bot${env.BOT_TOKEN}/getChat?chat_id=@${encodeURIComponent(username)}`;
+  const url = `https://api.telegram.org/bot${env.BOT_TOKEN}/getChat`;
 
   try {
-    const response = await fetch(url, { method: 'GET' });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: `@${username}` }),
+    });
     const text = await response.text();
     try {
       return JSON.parse(text) as TelegramGetChatResult;
@@ -108,12 +116,26 @@ export async function verifyTelegramContactForOwner(
   env: Env,
   tgId: number,
   contacts: string,
+  initData?: string,
 ): Promise<VerifyTelegramContactResult> {
   let username: string;
   try {
     username = parseTelegramUsername(contacts);
   } catch {
     return { ok: false, error: 'invalid_telegram_username' };
+  }
+
+  if (initData) {
+    const initUsername = getUsernameFromInitData(initData);
+    const initUserId = getUserIdFromInitData(initData);
+    if (
+      initUsername &&
+      initUserId != null &&
+      initUsername.toLowerCase() === username.toLowerCase() &&
+      telegramIdsEqual(initUserId, tgId)
+    ) {
+      return { ok: true, username: initUsername };
+    }
   }
 
   if (!env.BOT_TOKEN) {
@@ -125,7 +147,7 @@ export async function verifyTelegramContactForOwner(
     return { ok: false, error: 'telegram_contact_not_found' };
   }
 
-  if (chat.result.id !== tgId) {
+  if (!telegramIdsEqual(chat.result.id, tgId)) {
     return { ok: false, error: 'telegram_username_mismatch' };
   }
 

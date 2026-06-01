@@ -59,6 +59,7 @@ export async function ensureTelegramListingContact(
   tgId: number,
   contactType: string,
   contacts: string,
+  initData?: string,
 ): Promise<EnsureTelegramListingContactResult> {
   if (contactType !== 'Telegram') {
     return {
@@ -68,7 +69,7 @@ export async function ensureTelegramListingContact(
     };
   }
 
-  const result = await verifyTelegramContactForOwner(env, tgId, contacts);
+  const result = await verifyTelegramContactForOwner(env, tgId, contacts, initData);
   if (!result.ok) {
     return {
       ok: false,

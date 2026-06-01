@@ -329,6 +329,7 @@ export async function handleSubmitListing(
       tgId,
       form.contact_type,
       form.contacts,
+      String(body.initData ?? ''),
     );
     if (!tgVerify.ok) {
       return jsonResponse({
@@ -524,6 +525,7 @@ export async function handleSubmitListingEdit(
         tgId,
         form.contact_type,
         form.contacts,
+        String(body.initData ?? ''),
       );
       if (!tgVerify.ok) {
         return jsonResponse({

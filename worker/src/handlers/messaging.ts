@@ -84,7 +84,8 @@ export async function handleVerifyTelegramContact(
       });
     }
 
-    const result = await verifyTelegramContactForOwner(env, tgId, contacts);
+    const initData = String(body.initData ?? '');
+    const result = await verifyTelegramContactForOwner(env, tgId, contacts, initData);
     await incrementTelegramVerifyRateLimit(tgId, env);
 
     if (!result.ok) {
