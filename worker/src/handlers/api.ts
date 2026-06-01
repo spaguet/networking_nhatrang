@@ -12,6 +12,7 @@ import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStag
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
 import { handleGetFavoritesListings } from './favorites';
+import { handleVerifyTelegramContact } from './messaging';
 
 export async function routeApiAction(
   body: Record<string, unknown>,
@@ -55,6 +56,8 @@ export async function routeApiAction(
       return handleUploadPortfolioB64(body, env);
     case 'get_favorites':
       return handleGetFavoritesListings(body, env);
+    case 'verify_telegram_contact':
+      return handleVerifyTelegramContact(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }

@@ -58,6 +58,7 @@ import {
   paymentMethodLabel,
   setUserFreeUsed,
 } from '../utils/helpers';
+import { ensureTelegramListingContact } from '../utils/telegram-listing-verify';
 import { pinApproveListing, pinRejectListing } from './pins';
 import {
   clearSession,
@@ -711,6 +712,10 @@ async function insertPaidListing(
   tgId: number,
   user: TelegramUser,
   env: Env,
+  telegramVerify: {
+    telegram_username_verified: string | null;
+    telegram_verified_at: string | null;
+  },
 ): Promise<void> {
   const now = new Date().toISOString();
   await ensureUser(
@@ -724,8 +729,9 @@ async function insertPaidListing(
     `INSERT INTO listings (
       listing_id, tg_id, display_name, category, description, experience,
       contact_type, contacts, status, payment_status, created_at, expires_at,
-      submitted_at, avatar_emoji, pin_status, keywords
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'paid', NULL, NULL, ?, ?, 'regular', ?)`,
+      submitted_at, avatar_emoji, pin_status, keywords,
+      telegram_username_verified, telegram_verified_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'paid', NULL, NULL, ?, ?, 'regular', ?, ?, ?)`,
   )
     .bind(
       draft.listing_id,
@@ -739,6 +745,8 @@ async function insertPaidListing(
       now,
       draft.avatar_emoji || DEFAULT_AVATAR_EMOJI,
       serializeKeywords(draft.keywords ?? []),
+      telegramVerify.telegram_username_verified,
+      telegramVerify.telegram_verified_at,
     )
     .run();
 }
@@ -776,7 +784,17 @@ async function handlePaymentProofPhoto(
 
   if (draft.type === 'paid_listing') {
     const listingId = draft.listing_id;
-    await insertPaidListing(draft, tgId, user, env);
+    const tgVerify = await ensureTelegramListingContact(
+      env,
+      tgId,
+      String(draft.contact_type || ''),
+      String(draft.contacts || ''),
+    );
+    if (!tgVerify.ok) {
+      await sendMessage(tgId, tgVerify.message, null, env);
+      return true;
+    }
+    await insertPaidListing(draft, tgId, user, env, tgVerify);
     await promoteStaging(tgId, listingId, env);
     const portfolioCount = await getPortfolioCount(listingId, env.DB, {
       includePending: true,

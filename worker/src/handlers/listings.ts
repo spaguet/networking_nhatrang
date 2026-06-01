@@ -26,6 +26,7 @@ import {
   rejectIfBanned,
 } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
+import { ensureTelegramListingContact } from '../utils/telegram-listing-verify';
 import { type ListingFormFields, validateListingForm } from '../utils/validation';
 import { cleanupPortfolioOnReject } from '../services/portfolio-db';
 import { purgeFavoritesForListing } from './favorites';
@@ -323,6 +324,20 @@ export async function handleSubmitListing(
       });
     }
 
+    const tgVerify = await ensureTelegramListingContact(
+      env,
+      tgId,
+      form.contact_type,
+      form.contacts,
+    );
+    if (!tgVerify.ok) {
+      return jsonResponse({
+        ok: false,
+        error: tgVerify.error,
+        message: tgVerify.message,
+      });
+    }
+
     const listingId = generateId(tgId);
     const now = new Date().toISOString();
     const portfolioEnabled = body.portfolio_enabled === true;
@@ -331,8 +346,9 @@ export async function handleSubmitListing(
       `INSERT INTO listings (
         listing_id, tg_id, display_name, category, description, experience,
         contact_type, contacts, status, payment_status, created_at, expires_at,
-        submitted_at, avatar_emoji, pin_status, keywords
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'free', NULL, NULL, ?, ?, 'regular', ?)`,
+        submitted_at, avatar_emoji, pin_status, keywords,
+        telegram_username_verified, telegram_verified_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'on_moderation', 'free', NULL, NULL, ?, ?, 'regular', ?, ?, ?)`,
     )
       .bind(
         listingId,
@@ -346,6 +362,8 @@ export async function handleSubmitListing(
         now,
         form.avatar_emoji,
         serializeKeywords(form.keywords),
+        tgVerify.telegram_username_verified,
+        tgVerify.telegram_verified_at,
       )
       .run();
 
@@ -481,6 +499,59 @@ export async function handleSubmitListingEdit(
       });
     }
 
+    const parentContact = await env.DB.prepare(
+      `SELECT contact_type, contacts FROM listings WHERE listing_id = ?`,
+    )
+      .bind(parentListingId)
+      .first<{ contact_type: string | null; contacts: string }>();
+
+    const contactChanged =
+      !parentContact ||
+      String(parentContact.contact_type || '') !== form.contact_type ||
+      String(parentContact.contacts || '') !== form.contacts;
+
+    const needsTelegramVerify =
+      form.contact_type === 'Telegram' && contactChanged;
+
+    let tgVerifyFields = {
+      telegram_username_verified: null as string | null,
+      telegram_verified_at: null as string | null,
+    };
+
+    if (needsTelegramVerify) {
+      const tgVerify = await ensureTelegramListingContact(
+        env,
+        tgId,
+        form.contact_type,
+        form.contacts,
+      );
+      if (!tgVerify.ok) {
+        return jsonResponse({
+          ok: false,
+          error: tgVerify.error,
+          message: tgVerify.message,
+        });
+      }
+      tgVerifyFields = {
+        telegram_username_verified: tgVerify.telegram_username_verified,
+        telegram_verified_at: tgVerify.telegram_verified_at,
+      };
+    } else if (form.contact_type === 'Telegram' && parentContact) {
+      const prev = await env.DB.prepare(
+        `SELECT telegram_username_verified, telegram_verified_at
+         FROM listings WHERE listing_id = ?`,
+      )
+        .bind(parentListingId)
+        .first<{
+          telegram_username_verified: string | null;
+          telegram_verified_at: string | null;
+        }>();
+      tgVerifyFields = {
+        telegram_username_verified: prev?.telegram_username_verified ?? null,
+        telegram_verified_at: prev?.telegram_verified_at ?? null,
+      };
+    }
+
     const draftId = generateId(tgId);
     const now = new Date().toISOString();
     const portfolioEnabled = body.portfolio_enabled === true;
@@ -490,8 +561,9 @@ export async function handleSubmitListingEdit(
       `INSERT INTO listings (
         listing_id, tg_id, display_name, category, description, experience,
         contact_type, contacts, status, payment_status, created_at, expires_at,
-        submitted_at, avatar_emoji, pin_status, keywords, replaces_listing_id, edits_remaining
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'edit_pending', ?, NULL, NULL, ?, ?, 'regular', ?, ?, NULL)`,
+        submitted_at, avatar_emoji, pin_status, keywords, replaces_listing_id, edits_remaining,
+        telegram_username_verified, telegram_verified_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'edit_pending', ?, NULL, NULL, ?, ?, 'regular', ?, ?, NULL, ?, ?)`,
     ).bind(
       draftId,
       tgId,
@@ -506,6 +578,8 @@ export async function handleSubmitListingEdit(
       form.avatar_emoji,
       serializeKeywords(form.keywords),
       parent.listing_id,
+      tgVerifyFields.telegram_username_verified,
+      tgVerifyFields.telegram_verified_at,
     );
 
     const updateStmt = env.DB.prepare(
