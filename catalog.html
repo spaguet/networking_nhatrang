@@ -472,6 +472,47 @@
       opacity: 1;
     }
 
+    .edit-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      line-height: 1.3;
+    }
+    .edit-btn:disabled,
+    .edit-btn.is-exhausted {
+      background: #9A8E87;
+      cursor: default;
+      opacity: 1;
+    }
+    .edit-btn-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+    .edit-btn-meta {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .edit-btn.is-exhausted .edit-btn-meta,
+    .edit-btn:disabled .edit-btn-meta {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .p-edit-hint {
+      font-size: 0.78rem;
+      color: var(--c-warn);
+      margin-top: 10px;
+      line-height: 1.45;
+    }
+
+    .portfolio-edit-hint {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+
     .p-pin-meta {
       font-size: 0.78rem;
       color: var(--orange);
@@ -2173,6 +2214,7 @@
             <span class="portfolio-toggle-text">Добавить портфолио (до 5 фото)</span>
           </label>
           <p class="field-hint">Необязательно. Фото работ, примеров услуг или вашего профиля. Без ссылок и запрещённого контента.</p>
+          <p class="field-hint portfolio-edit-hint" id="portfolioEditHint" hidden>Чтобы заменить фото, отметьте галочку и загрузите новые. Если не загружать — текущие фото в каталоге сохранятся.</p>
           <div id="portfolioUploadBlock" hidden>
             <div id="portfolioSlots"></div>
             <input type="file" id="portfolioFileInput" accept="image/jpeg,image/jpg,image/png,image/webp,image/*" hidden />
@@ -2364,6 +2406,35 @@
     <h3 class="popup-title" id="linkPopupTitle">Ссылки запрещены</h3>
     <p class="popup-text">Ссылки не разрешены к использованию в полях «Имя для каталога» и «О себе и услугах».</p>
     <button type="button" id="linkPopupOk" class="btn btn-primary">Понятно</button>
+  </div>
+</div>
+
+<!-- EDITS INFO POPUP (новое размещение) -->
+<div id="editsInfoPopup" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="editsInfoTitle" aria-modal="true">
+    <div class="popup-icon">✏️</div>
+    <h3 class="popup-title" id="editsInfoTitle">Редактирование после публикации</h3>
+    <p class="popup-text">
+      После размещения мини-резюме в каталоге вы сможете изменить текст
+      <strong>до 3 раз</strong> (кнопка в «Мой профиль»).
+      Пока правки проверяются, в каталоге остаётся прежняя версия.
+      Если модератор <strong>отклонит редактирование</strong>, попытка всё равно будет засчитана.
+    </p>
+    <button type="button" id="editsInfoOk" class="btn btn-primary">Понятно</button>
+  </div>
+</div>
+
+<!-- EDITS WAIT MODERATION POPUP (on_moderation) -->
+<div id="editsWaitModerationPopup" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="editsWaitModerationTitle" aria-modal="true">
+    <div class="popup-icon">⏳</div>
+    <h3 class="popup-title" id="editsWaitModerationTitle">Редактирование пока недоступно</h3>
+    <p class="popup-text">
+      Эта анкета ещё на проверке модератором и не опубликована в каталоге.
+      Редактировать можно только <strong>активное</strong> мини-резюме — после одобрения
+      в «Мой профиль» появится кнопка «Редактировать» (до 3 раз).
+    </p>
+    <button type="button" id="editsWaitModerationOk" class="btn btn-primary">Понятно</button>
   </div>
 </div>
 
@@ -2765,7 +2836,10 @@
     keywords_invalid:       'Ключевое слово: только буквы, одно слово, до 15 символов.',
     keywords_required:      'Укажите хотя бы одно ключевое слово или снимите галочку «Ключевые слова».',
     keywords_limit:         'Не более 5 ключевых слов.',
-    user_banned:            'Ваш телеграм-аккаунт забанен'
+    user_banned:            'Ваш телеграм-аккаунт забанен',
+    no_edits_remaining:     'Лимит редактирований исчерпан',
+    edit_already_pending:   'Дождитесь проверки предыдущих изменений',
+    listing_not_active:     'Редактировать можно только активную анкету'
   };
 
   var ADMIN_ERRORS = {
@@ -2832,6 +2906,9 @@
   var _formReturnScreen = 'main';
   var _formPrefill = null;
   var _pendingPortfolioListingId = null;
+  var formEditMode = false;
+  var formEditParentId = null;
+  var _editsInfoContinue = null;
   var PORTFOLIO_MAX_FILES = 5;
   var PORTFOLIO_MAX_BYTES = 8 * 1024 * 1024;
   var PORTFOLIO_UPLOAD_MAX_EDGE = 1280;
@@ -2934,7 +3011,10 @@
   ───────────────────────────────────── */
   document.getElementById('profileBtn').addEventListener('click', openProfile);
   document.getElementById('favoritesBtn').addEventListener('click', openFavorites);
-  document.getElementById('addResumeBtn').addEventListener('click', function () { goToForm(null); });
+  document.getElementById('addResumeBtn').addEventListener('click', function () {
+    clearFormEditMode();
+    goToForm(null);
+  });
 
   document.getElementById('backFromListings').addEventListener('click', function () {
     showScreen('main');
@@ -3015,6 +3095,7 @@
     showScreen('main');
   });
   document.getElementById('backFromForm').addEventListener('click', function () {
+    clearFormEditMode();
     showScreen(_formReturnScreen);
   });
 
@@ -3091,6 +3172,35 @@
   document.getElementById('linkPopupOk').addEventListener('click', hideLinkPopup);
   document.getElementById('linkPopup').addEventListener('click', function (e) {
     if (e.target === this) hideLinkPopup();
+  });
+
+  function showEditsInfoPopup(onContinue) {
+    _editsInfoContinue = onContinue || null;
+    document.getElementById('editsInfoPopup').hidden = false;
+  }
+
+  function hideEditsInfoPopup() {
+    document.getElementById('editsInfoPopup').hidden = true;
+    var cb = _editsInfoContinue;
+    _editsInfoContinue = null;
+    if (cb) cb();
+  }
+
+  function showEditsWaitModerationPopup() {
+    document.getElementById('editsWaitModerationPopup').hidden = false;
+  }
+
+  function hideEditsWaitModerationPopup() {
+    document.getElementById('editsWaitModerationPopup').hidden = true;
+  }
+
+  document.getElementById('editsInfoOk').addEventListener('click', hideEditsInfoPopup);
+  document.getElementById('editsInfoPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideEditsInfoPopup();
+  });
+  document.getElementById('editsWaitModerationOk').addEventListener('click', hideEditsWaitModerationPopup);
+  document.getElementById('editsWaitModerationPopup').addEventListener('click', function (e) {
+    if (e.target === this) hideEditsWaitModerationPopup();
   });
 
   function normalizeKeywordFilter(raw) {
@@ -4716,6 +4826,49 @@
             }
           }
 
+          var editBtnHtml = '';
+          if (isActive || l.status === 'on_moderation') {
+            if (l.status === 'on_moderation') {
+              editBtnHtml =
+                '<button type="button" class="edit-btn pin-btn" data-action="edit-wait">' +
+                  '<span class="edit-btn-title">Редактировать</span>' +
+                  '<span class="edit-btn-meta like-label">после публикации</span>' +
+                '</button>';
+            } else {
+              var remaining = (l.edits_remaining != null && l.edits_remaining !== undefined)
+                ? Number(l.edits_remaining) : 3;
+              var editPending = !!l.has_edit_pending;
+              var editDisabled = editPending || remaining < 1;
+              var editMeta = editPending
+                ? 'На модерации'
+                : ('осталось: ' + Math.max(0, remaining));
+              editBtnHtml =
+                '<button type="button" class="edit-btn pin-btn' + (editDisabled ? ' is-exhausted' : '') + '"' +
+                  (editDisabled ? ' disabled' : '') +
+                  ' data-action="edit"' +
+                  ' data-id="' + esc(l.listing_id) + '"' +
+                  ' data-remaining="' + remaining + '"' +
+                  ' data-name="' + esc(l.display_name) + '"' +
+                  ' data-cat="' + esc(l.category) + '"' +
+                  ' data-avatar="' + esc(l.avatar_emoji || DEFAULT_AVATAR_EMOJI) + '"' +
+                  ' data-exp="' + esc(l.experience) + '"' +
+                  ' data-desc="' + encodeDescriptionAttr(l.description) + '"' +
+                  ' data-contact-type="' + esc(l.contact_type) + '"' +
+                  ' data-contacts="' + esc(l.contacts) + '"' +
+                  ' data-keywords-enabled="' + ((l.keywords && l.keywords.length) ? 'true' : 'false') + '"' +
+                  ' data-keywords="' + esc(JSON.stringify(l.keywords || [])) + '">' +
+                  '<span class="edit-btn-title">Редактировать</span>' +
+                  '<span class="edit-btn-meta like-label">' + editMeta + '</span>' +
+                '</button>';
+            }
+          }
+          pinBtnHtml += editBtnHtml;
+
+          var editHintHtml = '';
+          if (isActive && l.has_edit_pending) {
+            editHintHtml = '<div class="p-edit-hint">✏️ Изменения на проверке модератором</div>';
+          }
+
           var actions = '';
           if (l.status === 'on_moderation' && !l.has_portfolio) {
             actions =
@@ -4727,13 +4880,21 @@
               '</div>';
           }
           if (isActive) {
+            var activeActionBtns =
+              '<button class="btn btn-danger" ' +
+                'data-action="archive" data-id="' + esc(l.listing_id) + '">' +
+                'В архив' +
+              '</button>';
+            if (l.has_edit_pending && l.edit_draft_needs_portfolio && l.edit_draft_id) {
+              activeActionBtns +=
+                '<button class="btn btn-primary" data-action="upload-edit-portfolio" ' +
+                  'data-draft-id="' + esc(l.edit_draft_id) + '" ' +
+                  'data-parent-id="' + esc(l.listing_id) + '">' +
+                  'Отправить фото' +
+                '</button>';
+            }
             actions =
-              '<div class="p-actions">' +
-                '<button class="btn btn-danger" ' +
-                  'data-action="archive" data-id="' + esc(l.listing_id) + '">' +
-                  'В архив' +
-                '</button>' +
-              '</div>';
+              '<div class="p-actions">' + activeActionBtns + '</div>';
           }
           if (canReplace) {
             actions =
@@ -4783,6 +4944,7 @@
               pinDatesHtml +
               portfolioBtnHtml +
               actions +
+              editHintHtml +
               pinBtnHtml +
             '</div>';
         });
@@ -4798,6 +4960,7 @@
 
         document.querySelectorAll('[data-action="republish"]').forEach(function (btn) {
           btn.addEventListener('click', function () {
+            clearFormEditMode();
             goToForm({
               display_name: btn.getAttribute('data-name'),
               category:     btn.getAttribute('data-cat'),
@@ -4809,6 +4972,39 @@
               keywords_enabled: btn.getAttribute('data-keywords-enabled') === 'true',
               keywords:     parseKeywordsAttr(btn.getAttribute('data-keywords'))
             });
+          });
+        });
+
+        document.querySelectorAll('[data-action="edit-wait"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            showEditsWaitModerationPopup();
+          });
+        });
+
+        document.querySelectorAll('[data-action="edit"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (btn.disabled) return;
+            goToFormEdit({
+              listing_id: btn.getAttribute('data-id'),
+              display_name: btn.getAttribute('data-name'),
+              category:     btn.getAttribute('data-cat'),
+              avatar_emoji: btn.getAttribute('data-avatar'),
+              experience:   btn.getAttribute('data-exp'),
+              description:  normalizeDescription(btn.getAttribute('data-desc')),
+              contact_type: btn.getAttribute('data-contact-type'),
+              contacts:     btn.getAttribute('data-contacts'),
+              keywords_enabled: btn.getAttribute('data-keywords-enabled') === 'true',
+              keywords:     parseKeywordsAttr(btn.getAttribute('data-keywords'))
+            });
+          });
+        });
+
+        document.querySelectorAll('[data-action="upload-edit-portfolio"]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            goToFormEditPortfolioRetry(
+              btn.getAttribute('data-draft-id'),
+              btn.getAttribute('data-parent-id')
+            );
           });
         });
 
@@ -4879,6 +5075,54 @@
   /* ─────────────────────────────────────
      GO TO FORM (with optional prefill)
   ───────────────────────────────────── */
+  function syncPortfolioEditHint(show) {
+    var hint = document.getElementById('portfolioEditHint');
+    if (hint) hint.hidden = !show;
+  }
+
+  function clearFormEditMode() {
+    formEditMode = false;
+    formEditParentId = null;
+    syncPortfolioEditHint(false);
+  }
+
+  function applyEditFormChrome() {
+    appMode = 'free';
+    document.getElementById('freeActions').hidden = false;
+    document.getElementById('paidActions').hidden = true;
+    document.getElementById('listingInfo').hidden = true;
+    updateSubmitBtnLabel();
+  }
+
+  function goToFormEdit(prefill) {
+    formEditMode = true;
+    formEditParentId = prefill.listing_id;
+    _formReturnScreen = 'profile';
+    goToForm(prefill);
+    syncPortfolioEditHint(true);
+    applyEditFormChrome();
+  }
+
+  function goToFormEditPortfolioRetry(draftId, parentListingId) {
+    formEditMode = true;
+    formEditParentId = parentListingId;
+    _pendingPortfolioListingId = draftId;
+    _formReturnScreen = 'profile';
+    goToForm(null, true);
+    var chk = document.getElementById('portfolio_enabled');
+    chk.checked = true;
+    syncPortfolioCheckboxVisual();
+    setPortfolioBlockVisible(true);
+    syncPortfolioEditHint(true);
+    applyEditFormChrome();
+    showStatus(
+      document.getElementById('status'),
+      'Правки на модерации без фото. Добавьте 1–5 фото и нажмите «Отправить фото».',
+      'info'
+    );
+    updateSubmitBtnLabel();
+  }
+
   function goToForm(prefill, keepPortfolioRetry) {
     _formPrefill = prefill || null;
     if (!keepPortfolioRetry) {
@@ -5815,7 +6059,11 @@
     btn.textContent = 'Отправить фото';
     btn.addEventListener('click', function () {
       if (listingId) {
-        goToFormPortfolioRetry(listingId);
+        if (formEditMode && formEditParentId) {
+          goToFormEditPortfolioRetry(listingId, formEditParentId);
+        } else {
+          goToFormPortfolioRetry(listingId);
+        }
       } else if (_pendingPortfolioListingId) {
         goToFormPortfolioRetry(_pendingPortfolioListingId);
       } else {
@@ -5835,9 +6083,13 @@
   function updateSubmitBtnLabel() {
     var btn = document.getElementById('submitBtn');
     if (!btn) return;
-    btn.textContent = _pendingPortfolioListingId
-      ? 'Отправить фото'
-      : 'Отправить на модерацию';
+    if (_pendingPortfolioListingId) {
+      btn.textContent = 'Отправить фото';
+    } else if (formEditMode) {
+      btn.textContent = 'Отправить правки на модерацию';
+    } else {
+      btn.textContent = 'Отправить на модерацию';
+    }
   }
 
   function clearPendingPortfolioSuccess() {
@@ -5851,16 +6103,16 @@
     resetPortfolioState();
     resetKeywordsState();
     clearPendingPortfolioSuccess();
+    clearFormEditMode();
     updateDescriptionCounter();
   }
 
   function handlePortfolioUploadResult(data, listingId, statusEl, onSuccess) {
     if (data.ok) {
-      showStatus(
-        statusEl,
-        'Анкета отправлена на модерацию',
-        'ok'
-      );
+      var successMsg = formEditMode
+        ? 'Изменения отправлены на модерацию. В каталоге пока прежняя версия.'
+        : 'Анкета отправлена на модерацию';
+      showStatus(statusEl, successMsg, 'ok');
       resetFormAfterSuccess();
       if (onSuccess) onSuccess();
       return;
@@ -5889,12 +6141,92 @@
     return uploadPortfolio(listingId, statusEl)
       .then(function (uploadData) {
         handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
-          setTimeout(function () { showScreen(_formReturnScreen || 'main'); }, 1500);
+          setTimeout(function () {
+            var dest = _formReturnScreen || 'main';
+            showScreen(dest);
+            if (dest === 'profile') openProfile();
+          }, 1500);
         });
       })
       .catch(function (err) {
         if (listingId) {
           showStatusWithPortfolioRetry(statusEl, apiErrorMessage(err), listingId);
+        } else {
+          showStatus(statusEl, apiErrorMessage(err), 'err');
+        }
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+      });
+  }
+
+  function runEditSubmit(formData, statusEl, submitBtn) {
+    var portfolioOn = shouldUploadPortfolio();
+    var payload = buildPayload('submit_listing_edit', Object.assign({}, formData, {
+      parent_listing_id: formEditParentId,
+      portfolio_enabled: portfolioOn,
+      keywords_enabled: formData.keywords_enabled === true,
+      keywords: formData.keywords_enabled === true ? (formData.keywords || []) : []
+    }));
+    if (!payload) {
+      showStatus(statusEl, ERRORS.Invalid_initData, 'err');
+      return Promise.resolve();
+    }
+
+    submitBtn.disabled = true;
+    clearStatus(statusEl);
+
+    if (portfolioOn) {
+      showStatus(statusEl, 'Отправка правок…', 'info');
+    }
+
+    return apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          var key = (data.error || '').replace(/\s/g, '_');
+          var msg = data.message || ERRORS[key] || data.error || 'Ошибка отправки';
+          showStatus(statusEl, msg, 'err');
+          return;
+        }
+
+        if (!portfolioOn) {
+          showStatus(
+            statusEl,
+            data.message || 'Изменения отправлены на модерацию. В каталоге пока прежняя версия.',
+            'ok'
+          );
+          resetFormAfterSuccess();
+          setTimeout(function () {
+            showScreen('profile');
+            openProfile();
+          }, 1500);
+          return;
+        }
+
+        var listingId = data.listing_id;
+        if (!listingId) {
+          showStatus(statusEl, ERRORS.portfolio_upload_failed, 'err');
+          return;
+        }
+
+        _pendingPortfolioListingId = listingId;
+        showStatus(statusEl, 'Подготовка фото…', 'info');
+        return uploadPortfolio(listingId, statusEl).then(function (uploadData) {
+          handlePortfolioUploadResult(uploadData, listingId, statusEl, function () {
+            setTimeout(function () {
+              showScreen('profile');
+              openProfile();
+            }, 1500);
+          });
+        });
+      })
+      .catch(function (err) {
+        if (_pendingPortfolioListingId) {
+          showStatusWithPortfolioRetry(
+            statusEl,
+            apiErrorMessage(err),
+            _pendingPortfolioListingId
+          );
         } else {
           showStatus(statusEl, apiErrorMessage(err), 'err');
         }
@@ -6149,10 +6481,11 @@
           showBanOverlay();
           return;
         }
-        if (data.ok && data.paid_mode) {
+        if (data.ok && data.paid_mode && !formEditMode) {
           setMode('paid', data.banner);
         } else {
           setMode('free');
+          if (formEditMode) applyEditFormChrome();
         }
       })
       .catch(function () { });
@@ -6198,8 +6531,11 @@
     if (!validateFormClient()) return;
     if (!validatePortfolioClient(statusEl)) return;
     clearStatus(statusEl);
-    showScreen('payment');
-    clearStatus(paymentStatusEl);
+    if (formEditMode) return;
+    showEditsInfoPopup(function () {
+      showScreen('payment');
+      clearStatus(paymentStatusEl);
+    });
   });
 
   form.addEventListener('submit', function (e) {
@@ -6216,7 +6552,14 @@
     if (!formData) return;
     if (!validatePortfolioClient(statusEl)) return;
 
-    runFreeSubmit(formData, statusEl, submitBtn);
+    if (formEditMode) {
+      runEditSubmit(formData, statusEl, submitBtn);
+      return;
+    }
+
+    showEditsInfoPopup(function () {
+      runFreeSubmit(formData, statusEl, submitBtn);
+    });
   });
 
   document.querySelectorAll('.pay-method').forEach(function (btn) {
