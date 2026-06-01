@@ -11,6 +11,8 @@
 | Фронтенд — `index.html` (форма анкеты, `?form=1`) | ✅ Готово |
 | Система лайков (`Code.gs` + `catalog.html`) | ✅ Готово — см. §13, детали в `likes_system_TZ.md` |
 | **Избранное** (`worker` + `catalog.html`) | ✅ Готово — `favorites_system_TZ.md`, деплой `DEPLOY_GUIDE_CF.md` §D2c |
+| **Админ-профиль** (grand_admin + admin, Mini App, D1) | ✅ Готово — `admin_profile_TZ.md` v1.3, деплой `DEPLOY_GUIDE_CF.md` §D2d |
+| **Редактирование мини-резюме** (3 правки, `edit_pending`, Worker + D1) | ✅ Готово — `listing_edit_TZ.md` v1.5, деплой `DEPLOY_GUIDE_CF.md` §D2e |
 | Платные закреплённые карточки (`Code.gs` + `catalog.html`) | ✅ Готово — см. §15, детали в `pinned_listings_TZ.md` |
 | GAS Backend (`Code.gs` — анкеты, модерация, каталог, лайки, закрепления) | ✅ Готово (+ QR, contact admin, pin-flow) |
 | Google Sheets (листы users, listings, sessions, logs) | ⏳ Запустить `setupSheets()` в GAS |
@@ -107,7 +109,7 @@
 | `experience` | Текст | Опыт / стаж (необязательно) |
 | `contact_type` | Текст | Тип контакта: Telegram / Whatsapp / Email |
 | `contacts` | Текст | Контакты (TG-ссылка, email, WhatsApp) |
-| `status` | Текст | `on_moderation` / `active` / `rejected` / `archived` |
+| `status` | Текст | `on_moderation` / `active` / `rejected` / `archived` / `edit_pending` *(черновик правки, только D1; см. `listing_edit_TZ.md`)* |
 | `payment_status` | Текст | `free` / `pending_check` / `paid` |
 | `created_at` | Дата | Дата публикации (ставится при одобрении) |
 | `expires_at` | Дата | Дата архивации (created_at + 30 дней) |
@@ -116,6 +118,8 @@
 | `pin_status` | Текст | `regular` / `pinned` — статус закрепления (по умолчанию `regular`) |
 | `pinned_at` | Дата / пусто | Дата установки закрепления (при одобрении модератором) |
 | `pin_expires_at` | Текст | ISO-дата / `'lifetime'` / `''` — срок закрепления |
+| `edits_remaining` | Число / пусто | Остаток правок на активной анкете (`3…0`; только D1, см. `listing_edit_TZ.md`) |
+| `replaces_listing_id` | Текст / пусто | У черновика `edit_pending` — `listing_id` родительской **active** анкеты |
 
 ### Лист 3: `sessions`
 
@@ -870,3 +874,55 @@ SHEET_ID, STOP_WORDS, CATEGORIES, и helper-функции sendMessage, getSheet
 - **`setupSheets()` не трогать** для миграции pin — только `migratePinColumns()`.
 
 **Не в scope (следующий этап):** продление без снятия, статистика pin, админ-экран всех закреплённых.
+
+---
+
+## 16. Мульти-админ (Cloudflare Worker + Mini App)
+
+> Детальное ТЗ: **`admin_profile_TZ.md`** v1.3 · деплой: **`DEPLOY_GUIDE_CF.md`** §D2d · E2E: **`tests/admin-profile-e2e.md`**
+
+### Роли
+
+| Роль | Источник | Mini App | Бот |
+|---|---|---|---|
+| **grand_admin** | Один: seed из `ADMIN_TG_ID` (D1 `admins`) | Цены, QR, CRUD admins, разбан | Модерация, бан, `/qr*` |
+| **admin** | Добавляет grand_admin по Telegram ID | Только «Забаненные», смена своего пароля | Модерация, бан (без цен и QR) |
+
+### Аутентификация
+
+- Пароль — **только UI**, PBKDF2 в D1 (`password_hash` / `password_salt`). Секрет `ADMIN_PASSWORD_HASH` **не используется**.
+- Первый вход grand_admin без пароля → popup «Установка пароля» → `admin_setup_password` → `adminToken` в `sessionStorage` как `adminSessionToken`.
+- Сессия: KV `admin_session:{token}`, sliding **8 ч**, жёсткий предел **24 ч** от login.
+- Модерация анкет, pin, чеков оплаты — **в боте** для обеих ролей; уведомления уходят **всем** строкам в `admins`.
+
+### Данные
+
+- D1: `admins`, `app_settings` (цены и `qr_*_file_id`), `users.banned_at` / `banned_by`.
+- Настройки: приоритет **D1 → env → default** (`getConfigWithSettings`).
+
+### Ограничения v1
+
+- Ровно один `grand_admin`; смена владельца — ручная операция в D1 + `ADMIN_TG_ID` (runbook в `DEPLOY_GUIDE_CF.md`).
+- Admin не может менять цены, QR, добавлять admins; не может банить другого admin (только grand_admin).
+
+---
+
+## 17. Редактирование мини-резюме (Cloudflare Worker + D1)
+
+> Детальное ТЗ: **`listing_edit_TZ.md`** v1.5 · деплой: **`DEPLOY_GUIDE_CF.md`** §D2e · QA: §10 в `listing_edit_TZ.md`
+
+### Статусы (D1)
+
+| Статус | Каталог | Мой профиль | Поиск |
+|---|---|---|---|
+| `active` | да | да | да |
+| `edit_pending` | **нет** | **нет** (hint на родителе) | **нет** |
+| `on_moderation` | нет | да | нет |
+
+### Правила v1
+
+- Редактировать можно только **`active`** анкету; **3 правки** на цикл публикации (`edits_remaining`, выдаётся при approve).
+- Submit edit создаёт черновик `edit_pending`; в каталоге до approve — **старая версия** на том же `listing_id`.
+- Счётчик уменьшается при **submit**, не при approve; отклонение **не возвращает** попытку.
+- Одновременно не более **одного** `edit_pending` на пользователя.
+- Миграция D1: **`010_listing_edit.sql`** — колонки `edits_remaining`, `replaces_listing_id`, backfill active → 3.

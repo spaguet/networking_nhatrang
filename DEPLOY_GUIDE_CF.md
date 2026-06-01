@@ -5,6 +5,9 @@
 > - `portfolio_TZ.md` — портфолио v1.3 (R2, D1 `listing_media`, multipart upload)
 > - `keywords_system_TZ.md` — ключевые слова v1.1 (D1 `listings.keywords`, поиск в каталоге)
 > - `favorites_system_TZ.md` — избранное v1.3 (D1 `favorites`, GET/POST API, экран «Избранные»)
+> - `admin_profile_TZ.md` — админ-профиль v1.3 (роли grand_admin / admin, Mini App, D1 `admins`)
+> - `listing_edit_TZ.md` — редактирование мини-резюме v1.5 (3 правки, `edit_pending`, D1 010)
+> - `tests/admin-profile-e2e.md` — E2E чеклист (20 сценариев §8.6)
 > - `DEPLOY_GUIDE_RU.md` — архивный гайд для GAS + Google Sheets
 > - `catalog.html` — Mini App (GitHub Pages), `API_URL` указывает на Worker
 
@@ -71,10 +74,34 @@ npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/00
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/003_backfill_archived_at.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/004_keywords.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/005_favorites.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/006_banned.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/007_admins_and_settings.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/008_ban_metadata.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/010_listing_edit.sql
 ```
 
-Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, **`favorites`**, `admin_links`, **`listing_media`**.  
-В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`).
+Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, **`favorites`**, `admin_links`, **`listing_media`**, **`admins`**, **`app_settings`**.  
+В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`), **`edits_remaining`**, **`replaces_listing_id`** (после 010).  
+Статус **`edit_pending`** — черновик правки (не в каталоге; родитель `active` остаётся видимым до approve).  
+В `users` — **`banned`**, **`banned_at`**, **`banned_by`** (после 006–008).
+
+**Миграция 010** (`010_listing_edit.sql`): колонки `edits_remaining` / `replaces_listing_id`, partial UNIQUE «один `edit_pending` на пользователя», backfill `edits_remaining = 3` для всех **active**. Повторный запуск безопасен только если колонки уже есть — иначе `ALTER` упадёт; проверка:
+
+```powershell
+npx wrangler d1 execute networking_nhatrang --remote --command "PRAGMA table_info(listings);"
+# edits_remaining, replaces_listing_id должны быть в списке
+```
+
+**Seed grand_admin** (после 007, `ADMIN_TG_ID` из секрета Worker):
+
+```powershell
+cd worker
+$env:ADMIN_TG_ID = "<ваш Telegram ID>"
+.\scripts\seed-grand-admin.ps1 -Remote
+npx wrangler d1 execute networking_nhatrang --remote --command "SELECT tg_id, role FROM admins;"
+```
+
+Альтернатива без скрипта: grand_admin открывает Mini App → `admin_check_access` вызывает `ensureGrandAdmin` (idempotent INSERT при пустой таблице `admins` и `tgId === ADMIN_TG_ID`).
 
 **Local D1** (`wrangler dev`, без `--remote`):
 
@@ -112,7 +139,7 @@ bucket_name = "networking-portfolio"
 | Секрет | Назначение |
 |---|---|
 | `BOT_TOKEN` | Токен @BotFather |
-| `ADMIN_TG_ID` | Числовой Telegram ID админа |
+| `ADMIN_TG_ID` | Числовой Telegram ID **grand_admin** (обязателен; seed в D1 `admins`) |
 | `WEBAPP_SECRET` | **Тот же** ключ, что в `catalog.html` (`WEBAPP_SECRET`) |
 | `PAYMENT_AMOUNT_VND` | Напр. `200 000 VND` |
 | `PAYMENT_AMOUNT_CRYPTO` | Напр. `8 USDT` |
@@ -125,6 +152,8 @@ bucket_name = "networking-portfolio"
 | `QR_USDT_SOLANA_FILE_ID` | file_id QR USDT Solana |
 
 Опционально (legacy GAS): `PAYMENT_AMOUNT` — fallback для VND, если нет `PAYMENT_AMOUNT_VND`.
+
+> **Не использовать:** `ADMIN_PASSWORD_HASH` — пароль админа только через Mini App UI и PBKDF2 в D1 (`admin_profile_TZ.md` §1.2).
 
 Проверка списка секретов (без значений):
 
@@ -345,6 +374,116 @@ $payload = '{"action":"get_listings","category":"Другое","secret":"<WEBAPP
 
 **Миграция D1:** `005_favorites.sql` (таблица `favorites`, FK `listings` ON DELETE CASCADE, без FK на `users`).
 
+### D2d. Админ-профиль (`admin_profile_TZ.md` v1.3)
+
+**Миграции D1:** `006_banned.sql`, `007_admins_and_settings.sql`, `008_ban_metadata.sql` (см. §A4).
+
+**Первый вход grand_admin:**
+
+1. Seed в D1 (§A4) или bootstrap при открытии Mini App.
+2. Если `password_hash` пустой — popup «Установка пароля» (`#adminSetupPasswordModal`), затем auto-login.
+3. Если пароль уже задан — `#screenAdminLogin` → панель `#screenAdmin`.
+
+**Роли:**
+
+| Роль | Mini App | Бот |
+|---|---|---|
+| `grand_admin` | Цены, QR, admins CRUD, забаненные | Модерация, бан, `/qr*` |
+| `admin` | Только забаненные + смена пароля | Модерация, бан (без QR и цен) |
+
+**Авто-smoke API:**
+
+```powershell
+cd worker
+.\scripts\admin-api-smoke.ps1
+```
+
+**Ручной E2E (20 сценариев):** `tests/admin-profile-e2e.md`.
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| A1 | Обычный user | Нет кнопки «🛠 Админ» |
+| A2 | Grand без пароля | Popup setup → full dashboard |
+| A3 | Admin login | Только «Забаненные» |
+| A4–A6 | Admin → settings / QR / add_admin | `403 forbidden` |
+| A7–A8 | Grand add/remove admin | Доступ появляется / исчезает |
+| A9–A12 | Ban / list / unban / unban staff | metadata + notify / guard |
+| A13 | Save prices | Modal diff → save |
+| A14–A19 | Session TTL, QR bot, moderation, ban admin | см. полный чеклист |
+| A20 | Banned admin | `user_banned`, бот блокирует |
+
+**Контрольный список перед релизом (§11):**
+
+- [ ] Миграции 007, 008 на prod D1
+- [ ] Seed / bootstrap grand_admin
+- [ ] `wrangler deploy` + push `catalog.html`
+- [ ] `admin-api-smoke.ps1` — 0 failed
+- [ ] Пройти `tests/admin-profile-e2e.md` (хотя бы A1–A13 в Telegram)
+
+#### Runbook: потеря пароля grand_admin
+
+1. Доступ к Cloudflare Dashboard → D1 → `networking_nhatrang`.
+2. Сброс пароля (только grand_admin):
+
+```sql
+UPDATE admins SET password_hash = NULL, password_salt = NULL, updated_at = datetime('now')
+WHERE role = 'grand_admin';
+```
+
+3. Очистить KV-сессии (опционально, Dashboard → KV → prefix `admin_session:`) или дождаться TTL (8 ч sliding / 24 ч max).
+4. Grand_admin открывает Mini App → снова popup «Установка пароля».
+5. **Не** менять `ADMIN_TG_ID` в env без синхронизации строки в `admins` (риск двух или нуля grand_admin — §10).
+
+#### Runbook: смена grand_admin (v2, ручная операция)
+
+1. Обновить `ADMIN_TG_ID` в Worker secrets.
+2. В D1: одна строка `role='grand_admin'` с новым `tg_id`; старую удалить или понизить до `admin` (только вручную, не через UI).
+3. Переустановить пароль через popup setup.
+
+**Динамические цены и QR:** D1 `app_settings` (приоритет над env), кэш KV 60 с — `getConfigWithSettings()`. Env `PIN_PRICE_*` / `QR_*` остаются fallback.
+
+### D2e. Редактирование мини-резюме (`listing_edit_TZ.md` v1.5)
+
+**Миграция D1:** `010_listing_edit.sql` (см. §A4). **Порядок релиза:** миграция 010 → `wrangler deploy` → push `catalog.html`.
+
+**API:** `submit_listing_edit` (POST), поля квоты в `get_my_listings` (`edits_remaining`, `has_edit_pending`, `edit_draft_id`, `edit_draft_needs_portfolio`).
+
+**Контрольный список перед релизом:**
+
+- [ ] Миграция 010 на prod D1 (+ backfill active)
+- [ ] `wrangler deploy` (handlers: listings, telegram, portfolio, maintenance)
+- [ ] Push `catalog.html` (кнопка «Редактировать», popups, `formEditMode`)
+- [ ] Пройти ручной чеклист ниже в Telegram
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| E1 | Active, 3 правки, submit edit | `edits_remaining=2`, в каталоге старая версия |
+| E2 | Approve edit | Каталог обновлён, тот же `listing_id`, сроки те же |
+| E3 | Reject edit | Черновик удалён, счётчик не восстановлен |
+| E4 | 3 reject подряд | Кнопка disabled, осталось: 0 |
+| E5 | Popup при новом размещении | Показ, «Понятно» → submit/payment |
+| E6 | Popup в режимe edit | Не показывается |
+| E7 | `get_my_listings` | Нет черновика в списке; на родителе `has_edit_pending`, `edit_draft_id` |
+| E8 | `get_listings` | Только старая версия до approve |
+| E9 | Edit **без** portfolio | После approve фото родителя **на месте** |
+| E10 | Edit **с** portfolio | После approve фото с черновика, старые удалены |
+| E11 | Archive / cron archive при pending edit | Черновик удалён |
+| E12 | Pin + approve edit | Pin сохранён |
+| E13 | Likes | Счётчик на том же id |
+| E14 | Stale `edit_pending` 7+ дней | Удалён, попытка не возвращена |
+| E15 | Edit + portfolio, deferred | После submit — форма/upload; после upload — profile, hint «На модерации» |
+| E16 | Edit + portfolio, upload прерван | В профиле «Отправить фото» → retry на `edit_draft_id`, квота не списывается повторно |
+| E17 | `on_moderation`, клик «Редактировать» | Popup «пока недоступно»; форма **не** открывается |
+| E18 | Edit, родитель с portfolio | Checkbox выкл., hint виден; submit без галочки → фото родителя на месте после approve |
+
+**Авто-проверка перед ручным E2E:**
+
+```powershell
+cd worker
+npx tsc --noEmit
+npx wrangler deploy
+```
+
 ### D3. Логи в реальном времени
 
 ```powershell
@@ -401,11 +540,12 @@ Webhook на GAS при откате frontend **не** переключать, �
 cd worker
 npm install
 npx tsc --noEmit
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/010_listing_edit.sql
 npx wrangler deploy
 ```
 
-Затем push `catalog.html` и пройти E2E §D.
+Затем push `catalog.html` и пройти E2E §D (редактирование — §D2e).
 
 ---
 
-*Создано в рамках миграции GAS → CF (Промпт 12, `migration_to_cf_d1_TZ.md`). Обновлено 31.05.2026 — избранное v1.3 (D1 005, API getFavoriteCounts/toggleFavorite/get_favorites, smoke §D2c).*
+*Создано в рамках миграции GAS → CF (Промпт 12, `migration_to_cf_d1_TZ.md`). Обновлено 01.06.2026 — редактирование мини-резюме v1.5 (D1 010, `listing_edit_TZ.md`, §D2e).*
