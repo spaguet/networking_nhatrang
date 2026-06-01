@@ -3,6 +3,7 @@ import type { Env } from '../env';
 import {
   moderationKeyboard,
   sendMessage,
+  sendModerationToAdmins,
 } from '../services/telegram-api';
 import {
   validateInitData,
@@ -25,7 +26,8 @@ import {
   rejectIfBanned,
 } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
-import { validateListingForm } from '../utils/validation';
+import { type ListingFormFields, validateListingForm } from '../utils/validation';
+import { cleanupPortfolioOnReject } from '../services/portfolio-db';
 import { purgeFavoritesForListing } from './favorites';
 import { saveAdminLink } from './telegram';
 
@@ -50,15 +52,87 @@ interface MyListingRow extends CatalogListingRow {
   status: string;
   payment_status: string;
   submitted_at: string;
+  edits_remaining?: number | null;
+  has_edit_pending?: number;
+  edit_draft_id?: string | null;
+  edit_draft_needs_portfolio?: number;
+}
+
+interface ActiveParentRow {
+  listing_id: string;
+  tg_id: number;
+  payment_status: string;
+  edits_remaining: number | null;
 }
 
 function mapMyListing(row: MyListingRow) {
-  return {
+  const base = {
     ...mapCatalogListing(row),
     status: row.status,
     payment_status: row.payment_status,
     submitted_at: toIsoOrEmpty(row.submitted_at),
   };
+
+  if (row.status !== 'active') {
+    return base;
+  }
+
+  return {
+    ...base,
+    edits_remaining: row.edits_remaining ?? 3,
+    has_edit_pending: Boolean(row.has_edit_pending),
+    edit_draft_id: row.edit_draft_id ?? null,
+    edit_draft_needs_portfolio: Boolean(row.edit_draft_needs_portfolio),
+  };
+}
+
+function formatEditPaymentLabel(paymentStatus: string): string {
+  return paymentStatus === 'paid' ? 'Платное' : 'Бесплатное';
+}
+
+function buildEditModerationAdminText(
+  draftId: string,
+  parentId: string,
+  tgId: number,
+  paymentStatus: string,
+  form: ListingFormFields,
+): string {
+  return (
+    '✏️ РЕДАКТИРОВАНИЕ АНКЕТЫ\n' +
+    `draft_id: ${draftId}\n` +
+    `parent_id (в каталоге): ${parentId}\n` +
+    `Пользователь ID: ${tgId}\n` +
+    `Оплата: ${formatEditPaymentLabel(paymentStatus)}\n\n` +
+    `Имя: ${form.display_name}\n` +
+    `Категория: ${form.category}\n` +
+    `Опыт/стаж: ${form.experience}\n` +
+    `Описание: ${decodeDescriptionNewlines(form.description)}\n` +
+    `Тип контакта: ${form.contact_type}\n` +
+    `Контакты: ${form.contacts}\n` +
+    `${formatKeywordsModerationLine(form.keywords)}\n\n` +
+    `⚠️ До одобрения в каталоге показывается старая версия (${parentId}).\n\n` +
+    '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.'
+  );
+}
+
+/** Remove edit_pending drafts linked to an archived/deleted parent listing. */
+export async function cleanupEditPendingForParent(
+  parentListingId: string,
+  tgId: number,
+  env: Env,
+): Promise<void> {
+  const { results } = await env.DB.prepare(
+    `SELECT listing_id FROM listings
+     WHERE status = 'edit_pending' AND replaces_listing_id = ?`,
+  )
+    .bind(parentListingId)
+    .all<{ listing_id: string }>();
+
+  for (const row of results ?? []) {
+    const draftId = String(row.listing_id);
+    await cleanupPortfolioOnReject(draftId, tgId, env);
+    await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?').bind(draftId).run();
+  }
 }
 
 export async function handleGetListings(
@@ -160,9 +234,25 @@ export async function handleGetMyListings(
                 WHERE lm.listing_id = l.listing_id AND lm.status IN ('pending', 'active')
               ) AS has_portfolio,
               (SELECT COUNT(*) FROM listing_media lm
-               WHERE lm.listing_id = l.listing_id AND lm.status IN ('pending', 'active')) AS portfolio_count
+               WHERE lm.listing_id = l.listing_id AND lm.status IN ('pending', 'active')) AS portfolio_count,
+              COALESCE(l.edits_remaining, 3) AS edits_remaining,
+              EXISTS (
+                SELECT 1 FROM listings d
+                WHERE d.replaces_listing_id = l.listing_id AND d.status = 'edit_pending'
+              ) AS has_edit_pending,
+              (SELECT d.listing_id FROM listings d
+               WHERE d.replaces_listing_id = l.listing_id AND d.status = 'edit_pending'
+               LIMIT 1) AS edit_draft_id,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM listings d
+                WHERE d.replaces_listing_id = l.listing_id AND d.status = 'edit_pending'
+              ) AND NOT EXISTS (
+                SELECT 1 FROM listing_media lm
+                INNER JOIN listings d ON d.listing_id = lm.listing_id
+                WHERE d.replaces_listing_id = l.listing_id AND d.status = 'edit_pending'
+              ) THEN 1 ELSE 0 END AS edit_draft_needs_portfolio
        FROM listings l
-       WHERE l.tg_id = ?
+       WHERE l.tg_id = ? AND l.status != 'edit_pending'
        ORDER BY CASE l.status
          WHEN 'active' THEN 0
          WHEN 'on_moderation' THEN 1
@@ -274,14 +364,14 @@ export async function handleSubmitListing(
         `${formatKeywordsModerationLine(form.keywords)}\n\n` +
         '↩️ Кнопки — разместить/отклонить. Reply — ответ пользователю.';
 
-      const adminMsgId = await sendMessage(
-        env.ADMIN_TG_ID,
+      const adminMsgIds = await sendModerationToAdmins(
+        env.DB,
+        env,
         adminText,
         await moderationKeyboard(listingId, 0, tgId, env),
-        env,
       );
-      if (adminMsgId) {
-        await saveAdminLink(adminMsgId, tgId, 'listing', listingId, env);
+      for (let i = 0; i < adminMsgIds.length; i++) {
+        await saveAdminLink(adminMsgIds[i], tgId, 'listing', listingId, env);
       }
 
       await sendMessage(
@@ -311,6 +401,194 @@ export async function handleSubmitListing(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logAction(Number(body.tg_id) || 0, 'error', `handleSubmitListing: ${msg}`, env.DB);
+    return jsonResponse({ ok: false, error: 'server_error' });
+  }
+}
+
+export async function handleSubmitListingEdit(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  try {
+    const cfgErr = checkServerConfig(env);
+    if (cfgErr) {
+      return cfgErr;
+    }
+
+    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    if (!auth.ok) {
+      return jsonResponse({ ok: false, error: auth.error });
+    }
+
+    const tgId = Number(body.tg_id);
+    const parentListingId = String(body.parent_listing_id ?? '').trim();
+
+    if (!tgId || !parentListingId) {
+      return jsonResponse({ ok: false, error: 'missing_params' });
+    }
+
+    const banned = await rejectIfBanned(tgId, env.DB);
+    if (banned) {
+      return banned;
+    }
+
+    const formResult = validateListingForm(body);
+    if (formResult.error !== null) {
+      return jsonResponse({
+        ok: false,
+        error: formResult.error,
+        message: formResult.message,
+      });
+    }
+    const form = formResult;
+
+    const parent = await env.DB.prepare(
+      `SELECT listing_id, tg_id, payment_status, edits_remaining
+       FROM listings
+       WHERE listing_id = ? AND tg_id = ? AND status = 'active'`,
+    )
+      .bind(parentListingId, tgId)
+      .first<ActiveParentRow>();
+
+    if (!parent) {
+      return jsonResponse({
+        ok: false,
+        error: 'listing_not_active',
+        message: 'Редактировать можно только активную анкету',
+      });
+    }
+
+    const quota = parent.edits_remaining ?? 3;
+    if (quota < 1) {
+      return jsonResponse({
+        ok: false,
+        error: 'no_edits_remaining',
+        message: 'Лимит редактирований исчерпан',
+      });
+    }
+
+    const pendingDraft = await env.DB.prepare(
+      `SELECT 1 AS ok FROM listings WHERE tg_id = ? AND status = 'edit_pending' LIMIT 1`,
+    )
+      .bind(tgId)
+      .first<{ ok: number }>();
+
+    if (pendingDraft) {
+      return jsonResponse({
+        ok: false,
+        error: 'edit_already_pending',
+        message: 'Дождитесь проверки предыдущих изменений',
+      });
+    }
+
+    const draftId = generateId(tgId);
+    const now = new Date().toISOString();
+    const portfolioEnabled = body.portfolio_enabled === true;
+    const paymentStatus = String(parent.payment_status || 'free');
+
+    const insertStmt = env.DB.prepare(
+      `INSERT INTO listings (
+        listing_id, tg_id, display_name, category, description, experience,
+        contact_type, contacts, status, payment_status, created_at, expires_at,
+        submitted_at, avatar_emoji, pin_status, keywords, replaces_listing_id, edits_remaining
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'edit_pending', ?, NULL, NULL, ?, ?, 'regular', ?, ?, NULL)`,
+    ).bind(
+      draftId,
+      tgId,
+      form.display_name,
+      form.category,
+      form.description,
+      form.experience,
+      form.contact_type,
+      form.contacts,
+      paymentStatus,
+      now,
+      form.avatar_emoji,
+      serializeKeywords(form.keywords),
+      parent.listing_id,
+    );
+
+    const updateStmt = env.DB.prepare(
+      `UPDATE listings SET edits_remaining = COALESCE(edits_remaining, 3) - 1
+       WHERE listing_id = ?
+         AND COALESCE(edits_remaining, 3) >= 1`,
+    ).bind(parent.listing_id);
+
+    let batchResults;
+    try {
+      batchResults = await env.DB.batch([insertStmt, updateStmt]);
+    } catch (batchErr) {
+      const batchMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
+      if (batchMsg.includes('UNIQUE constraint failed')) {
+        return jsonResponse({
+          ok: false,
+          error: 'edit_already_pending',
+          message: 'Дождитесь проверки предыдущих изменений',
+        });
+      }
+      throw batchErr;
+    }
+
+    if ((batchResults[1]?.meta?.changes ?? 0) === 0) {
+      await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?').bind(draftId).run();
+      return jsonResponse({
+        ok: false,
+        error: 'no_edits_remaining',
+        message: 'Лимит редактирований исчерпан',
+      });
+    }
+
+    if (!portfolioEnabled) {
+      const adminText = buildEditModerationAdminText(
+        draftId,
+        parent.listing_id,
+        tgId,
+        paymentStatus,
+        form,
+      );
+
+      const adminMsgIds = await sendModerationToAdmins(
+        env.DB,
+        env,
+        adminText,
+        await moderationKeyboard(draftId, 0, tgId, env),
+      );
+      for (let i = 0; i < adminMsgIds.length; i++) {
+        await saveAdminLink(adminMsgIds[i], tgId, 'listing', draftId, env);
+      }
+
+      await sendMessage(
+        tgId,
+        'Изменения отправлены на модерацию. В каталоге пока отображается прежняя версия анкеты.',
+        null,
+        env,
+      );
+    }
+
+    await logAction(tgId, 'submit_listing_edit', `${parent.listing_id} → ${draftId}`, env.DB);
+
+    if (portfolioEnabled) {
+      return jsonResponse({
+        ok: true,
+        listing_id: draftId,
+        message: 'Загрузка фото…',
+        deferred_notify: true,
+      });
+    }
+
+    return jsonResponse({
+      ok: true,
+      listing_id: draftId,
+      message: 'Изменения отправлены на модерацию',
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logAction(
+      Number(body.tg_id) || 0,
+      'error',
+      `handleSubmitListingEdit: ${msg}`,
+      env.DB,
+    );
     return jsonResponse({ ok: false, error: 'server_error' });
   }
 }
@@ -380,6 +658,7 @@ export async function handleArchiveListing(
       .run();
 
     await purgeFavoritesForListing(listingId, env);
+    await cleanupEditPendingForParent(listingId, tgId, env);
 
     await logAction(tgId, 'archive_manual', listingId, env.DB);
 

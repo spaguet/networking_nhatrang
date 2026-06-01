@@ -1,10 +1,12 @@
 import type { Env } from '../env';
 import { jsonResponse } from '../utils/response';
+import { routeAdminAction } from './admin';
 import {
   handleArchiveListing,
   handleGetListings,
   handleGetMyListings,
   handleSubmitListing,
+  handleSubmitListingEdit,
 } from './listings';
 import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStagingB64 } from './portfolio';
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
@@ -21,6 +23,11 @@ export async function routeApiAction(
     return jsonResponse({ ok: false, error: 'unknown_action' });
   }
 
+  const adminResponse = await routeAdminAction(body, env);
+  if (adminResponse) {
+    return adminResponse;
+  }
+
   switch (action) {
     case 'get_listings':
       return handleGetListings(body, env);
@@ -28,6 +35,8 @@ export async function routeApiAction(
       return handleGetMyListings(body, env);
     case 'submit_listing':
       return handleSubmitListing(body, env);
+    case 'submit_listing_edit':
+      return handleSubmitListingEdit(body, env);
     case 'archive_listing':
       return handleArchiveListing(body, env);
     case 'check_listing_status':

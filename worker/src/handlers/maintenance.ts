@@ -1,6 +1,11 @@
 import type { Env } from '../env';
+import { cleanupEditPendingForParent } from '../handlers/listings';
 import { purgeFavoritesForListing } from '../handlers/favorites';
-import { cleanupStaleStaging, purgeListing } from '../services/portfolio-db';
+import {
+  cleanupPortfolioOnReject,
+  cleanupStaleStaging,
+  purgeListing,
+} from '../services/portfolio-db';
 import { sendMessage } from '../services/telegram-api';
 import { formatDateRu, logAction } from '../utils/helpers';
 
@@ -81,6 +86,7 @@ export async function dailyMaintenance(env: Env): Promise<void> {
             .run();
 
           await purgeFavoritesForListing(listingId, env);
+          await cleanupEditPendingForParent(listingId, tgId, env);
 
           const category = String(row.category || '');
           await sendMessage(
@@ -172,8 +178,59 @@ export async function dailyMaintenance(env: Env): Promise<void> {
     ' }';
   await logAction(0, 'daily_maintenance', summary, env.DB);
 
+  await cleanupStaleEditPending(env);
   await purgeArchivedListings(env);
   await cleanupStaleStaging(env, 7);
+}
+
+interface StaleEditRow {
+  listing_id: string;
+  tg_id: number;
+}
+
+/** Remove edit_pending drafts older than 7 days (listing_edit_TZ §5.8). */
+async function cleanupStaleEditPending(env: Env): Promise<void> {
+  let cleaned = 0;
+
+  try {
+    const result = await env.DB.prepare(
+      `SELECT listing_id, tg_id FROM listings
+       WHERE status = 'edit_pending'
+         AND submitted_at < datetime('now', '-7 days')`,
+    ).all<StaleEditRow>();
+
+    for (const row of result.results ?? []) {
+      try {
+        const draftId = String(row.listing_id);
+        const tgId = Number(row.tg_id);
+        await cleanupPortfolioOnReject(draftId, tgId, env);
+        await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?').bind(draftId).run();
+        await sendMessage(
+          tgId,
+          'Срок ожидания правок истёк. Отправьте редактирование снова, если остались попытки.',
+          undefined,
+          env,
+        );
+        await logAction(tgId, 'stale_edit_cleanup', draftId, env.DB);
+        cleaned++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await logAction(
+          0,
+          'error',
+          `cleanupStaleEditPending ${row.listing_id}: ${msg}`,
+          env.DB,
+        );
+      }
+    }
+
+    if (cleaned > 0) {
+      await logAction(0, 'stale_edit_cleanup', `{ cleaned: ${cleaned} }`, env.DB);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logAction(0, 'error', `cleanupStaleEditPending fetch: ${msg}`, env.DB);
+  }
 }
 
 interface ArchivedListingRow {
