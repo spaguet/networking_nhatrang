@@ -1580,21 +1580,32 @@
       text-transform: uppercase;
       font-weight: 600;
     }
+    .admin-complaint-actions-row td {
+      padding-top: 0;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
     .admin-complaint-actions {
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .admin-complaint-action-btn {
-      padding: 6px 10px;
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--surface2);
       color: var(--text);
-      font-size: 0.72rem;
+      font-size: 0.78rem;
       font-family: inherit;
       cursor: pointer;
+      text-align: center;
     }
     .admin-complaint-action-btn.primary {
       border-color: rgba(224, 90, 40, 0.45);
@@ -8383,11 +8394,6 @@
       });
   }
 
-  function shortenConversationId(id) {
-    if (!id || id.length <= 12) return id || '—';
-    return id.slice(0, 8) + '…' + id.slice(-4);
-  }
-
   function renderMessageComplaints(complaints) {
     var container = document.getElementById('adminComplaintsContainer');
     if (!container) return;
@@ -8396,16 +8402,17 @@
       return;
     }
     var html = '<table class="admin-complaints-table"><thead><tr>' +
-      '<th>ID диалога</th><th>Контакт А</th><th>Контакт Б</th><th>Дата</th><th>Подал</th><th></th>' +
+      '<th>Контакт А</th><th>Контакт Б</th><th>Дата</th><th>Подал</th>' +
       '</tr></thead><tbody>';
     complaints.forEach(function (c) {
       html += '<tr data-complaint-id="' + esc(c.complaint_id) + '">' +
-        '<td>' + esc(shortenConversationId(c.conversation_id)) + '</td>' +
         '<td>' + esc(String(c.participant_a_tg_id)) + '</td>' +
         '<td>' + esc(String(c.participant_b_tg_id)) + '</td>' +
         '<td>' + esc(formatAdminDateTime(c.created_at)) + '</td>' +
         '<td>' + esc(String(c.reporter_tg_id)) + '</td>' +
-        '<td><div class="admin-complaint-actions">' +
+        '</tr>' +
+        '<tr class="admin-complaint-actions-row" data-complaint-id="' + esc(c.complaint_id) + '">' +
+        '<td colspan="4"><div class="admin-complaint-actions">' +
           '<button type="button" class="admin-complaint-action-btn" data-complaint-body="' + esc(c.complaint_id) + '">Текст жалобы</button>' +
           '<button type="button" class="admin-complaint-action-btn primary" data-complaint-log="' + esc(c.complaint_id) + '">Просмотреть лог чата</button>' +
         '</div></td></tr>';
