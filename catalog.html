@@ -4885,14 +4885,6 @@
                 'data-action="archive" data-id="' + esc(l.listing_id) + '">' +
                 'В архив' +
               '</button>';
-            if (l.has_edit_pending && l.edit_draft_needs_portfolio && l.edit_draft_id) {
-              activeActionBtns +=
-                '<button class="btn btn-primary" data-action="upload-edit-portfolio" ' +
-                  'data-draft-id="' + esc(l.edit_draft_id) + '" ' +
-                  'data-parent-id="' + esc(l.listing_id) + '">' +
-                  'Отправить фото' +
-                '</button>';
-            }
             actions =
               '<div class="p-actions">' + activeActionBtns + '</div>';
           }
@@ -4996,15 +4988,6 @@
               keywords_enabled: btn.getAttribute('data-keywords-enabled') === 'true',
               keywords:     parseKeywordsAttr(btn.getAttribute('data-keywords'))
             });
-          });
-        });
-
-        document.querySelectorAll('[data-action="upload-edit-portfolio"]').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            goToFormEditPortfolioRetry(
-              btn.getAttribute('data-draft-id'),
-              btn.getAttribute('data-parent-id')
-            );
           });
         });
 
