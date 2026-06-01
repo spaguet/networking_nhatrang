@@ -7,7 +7,9 @@
 > - `favorites_system_TZ.md` — избранное v1.3 (D1 `favorites`, GET/POST API, экран «Избранные»)
 > - `admin_profile_TZ.md` — админ-профиль v1.3 (роли grand_admin / admin, Mini App, D1 `admins`)
 > - `listing_edit_TZ.md` — редактирование мини-резюме v1.5 (3 правки, `edit_pending`, D1 010)
+> - `user_messaging_TZ.md` — сообщения v1.5 (Telegram + in-app, жалобы, D1 011–012)
 > - `tests/admin-profile-e2e.md` — E2E чеклист (20 сценариев §8.6)
+> - `tests/messaging-e2e.md` — E2E чеклист messaging (T1–T21 §11)
 > - `DEPLOY_GUIDE_RU.md` — архивный гайд для GAS + Google Sheets
 > - `catalog.html` — Mini App (GitHub Pages), `API_URL` указывает на Worker
 
@@ -78,10 +80,12 @@ npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/00
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/007_admins_and_settings.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/008_ban_metadata.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/010_listing_edit.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/011_messaging.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/012_telegram_contact_verify.sql
 ```
 
-Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, **`favorites`**, `admin_links`, **`listing_media`**, **`admins`**, **`app_settings`**.  
-В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`), **`edits_remaining`**, **`replaces_listing_id`** (после 010).  
+Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, **`favorites`**, `admin_links`, **`listing_media`**, **`admins`**, **`app_settings`**, **`conversations`**, **`messages`**, **`conversation_reads`**, **`message_complaints`**.  
+В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`), **`edits_remaining`**, **`replaces_listing_id`** (после 010), **`telegram_username_verified`**, **`telegram_verified_at`** (после 012).  
 Статус **`edit_pending`** — черновик правки (не в каталоге; родитель `active` остаётся видимым до approve).  
 В `users` — **`banned`**, **`banned_at`**, **`banned_by`** (после 006–008).
 
@@ -90,6 +94,16 @@ npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/01
 ```powershell
 npx wrangler d1 execute networking_nhatrang --remote --command "PRAGMA table_info(listings);"
 # edits_remaining, replaces_listing_id должны быть в списке
+```
+
+**Миграция 011** (`011_messaging.sql`): in-app чат — `conversations`, `messages`, `conversation_reads`, `message_complaints` (без FK на `complaints.conversation_id`).
+
+**Миграция 012** (`012_telegram_contact_verify.sql`): `listings.telegram_username_verified`, `telegram_verified_at`.
+
+Проверка messaging-таблиц:
+
+```powershell
+npx wrangler d1 execute networking_nhatrang --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('conversations','message_complaints');"
 ```
 
 **Seed grand_admin** (после 007, `ADMIN_TG_ID` из секрета Worker):
@@ -484,6 +498,49 @@ npx tsc --noEmit
 npx wrangler deploy
 ```
 
+### D2f. Сообщения (`user_messaging_TZ.md` v1.5)
+
+**Миграции D1:** `011_messaging.sql`, `012_telegram_contact_verify.sql` (см. §A4).  
+**Порядок релиза:** миграции 011–012 → `wrangler deploy` → push `catalog.html`.
+
+**API (POST `/api`):** `verify_telegram_contact`, `resolve_telegram_chat`, `open_conversation`, `send_message`, `get_messages`, `list_my_conversations`, `get_messaging_unread`, `mark_conversation_read`, `submit_message_complaint`; админка: `admin_list_message_complaints`, `admin_get_complaint_body`, `admin_get_conversation_log`, `admin_punish_from_complaint`.
+
+**Авто-smoke API:**
+
+```powershell
+cd worker
+.\scripts\messaging-api-smoke.ps1
+```
+
+**Playwright** (из корня репо, нужен `BOT_TOKEN`; опционально listing id):
+
+```powershell
+npm run test:messaging
+```
+
+**Ручной E2E (T1–T21):** `tests/messaging-e2e.md`.
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| M1 | Telegram карточка | «Написать в Telegram» → `openTelegramLink` |
+| M2 | WA/Email карточка | «Скопировать» + «Написать» → in-app |
+| M3 | Verify до модерации | Без verify — submit blocked; чужой @ник — mismatch |
+| M4 | Первое сообщение | `expires_at` = +7 дней, не продлевается |
+| M5 | Непрочитанные | Зелёный круг на home; снятие после открытия чата |
+| M6 | Жалоба + админ | Push одной строкой; таблица; «Казнить» = бан + notify |
+| M7 | TTL / purge | Истёкший TTL — read-only; open жалоба — не purge; пустой диалог 7d — удалён |
+| M8 | Ссылки в чате | `links_forbidden` |
+| M9 | Своя карточка | Нет кнопок сообщений |
+| M10 | Нет push при msg | Бот молчит на новые in-app сообщения |
+
+**Контрольный список перед релизом:**
+
+- [ ] Миграции 011, 012 на prod D1
+- [ ] `wrangler deploy` + push `catalog.html`
+- [ ] `messaging-api-smoke.ps1` — 0 failed
+- [ ] `npm run test:messaging` (или smoke без `BOT_TOKEN` — только auth block)
+- [ ] Пройти `tests/messaging-e2e.md` (хотя бы M1–M6 в Telegram)
+
 ### D3. Логи в реальном времени
 
 ```powershell
@@ -540,12 +597,13 @@ Webhook на GAS при откате frontend **не** переключать, �
 cd worker
 npm install
 npx tsc --noEmit
-npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/010_listing_edit.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/011_messaging.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/012_telegram_contact_verify.sql
 npx wrangler deploy
 ```
 
-Затем push `catalog.html` и пройти E2E §D (редактирование — §D2e).
+Затем push `catalog.html` и пройти E2E §D (сообщения — §D2f, `tests/messaging-e2e.md`).
 
 ---
 
-*Создано в рамках миграции GAS → CF (Промпт 12, `migration_to_cf_d1_TZ.md`). Обновлено 01.06.2026 — редактирование мини-резюме v1.5 (D1 010, `listing_edit_TZ.md`, §D2e).*
+*Создано в рамках миграции GAS → CF (Промпт 12, `migration_to_cf_d1_TZ.md`). Обновлено 01.06.2026 — сообщения v1.5 (D1 011–012, `user_messaging_TZ.md`, §D2f, промпт 8).*

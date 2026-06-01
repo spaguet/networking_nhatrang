@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "test:admin": "playwright test tests/admin-profile.spec.ts",
-    "test:admin:headed": "playwright test tests/admin-profile.spec.ts --headed"
+    "test:admin:headed": "playwright test tests/admin-profile.spec.ts --headed",
+    "test:messaging": "playwright test tests/messaging.spec.ts",
+    "test:messaging:headed": "playwright test tests/messaging.spec.ts --headed"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
