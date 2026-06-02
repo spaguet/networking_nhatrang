@@ -1370,6 +1370,14 @@
       font-weight: 700;
       color: #fff;
     }
+    .admin-stats-line {
+      font-size: 0.82rem;
+      color: rgba(255, 255, 255, 0.78);
+    }
+    .admin-stats-line strong {
+      color: #fff;
+      font-weight: 700;
+    }
     .admin-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .admin-header-btn { flex: 1; min-width: 120px; padding: 10px 12px; font-size: 0.8rem; }
 
@@ -3075,6 +3083,7 @@
   <div class="admin-wrap">
     <div class="admin-header-bar">
       <div class="admin-role-label" id="adminRoleLabel">Администратор</div>
+      <div class="admin-stats-line" id="adminActiveListingsStat">Активных анкет: …</div>
       <div class="admin-header-actions">
         <button type="button" class="btn btn-outline admin-header-btn" id="adminChangePwdBtn">Сменить пароль</button>
         <button type="button" class="btn btn-secondary admin-header-btn" id="adminLogoutBtn">Выйти</button>
@@ -8583,6 +8592,31 @@
       });
   }
 
+  function loadAdminStats() {
+    var statEl = document.getElementById('adminActiveListingsStat');
+    if (statEl) statEl.textContent = 'Активных анкет: …';
+
+    var payload = buildAdminPayload('admin_get_stats');
+    if (!payload) {
+      if (statEl) statEl.textContent = 'Активных анкет: —';
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          handleAdminAuthError(data);
+          if (statEl) statEl.textContent = 'Активных анкет: —';
+          return;
+        }
+        var count = typeof data.activeListings === 'number' ? data.activeListings : 0;
+        if (statEl) statEl.innerHTML = 'Активных анкет: <strong>' + esc(String(count)) + '</strong>';
+      })
+      .catch(function () {
+        if (statEl) statEl.textContent = 'Активных анкет: —';
+      });
+  }
+
   function loadAdminSettings() {
     if (_adminRole !== 'grand_admin') return;
     var payload = buildAdminPayload('admin_get_settings');
@@ -8621,6 +8655,7 @@
   function openAdminDashboard() {
     renderAdminDashboard();
     showScreen('admin');
+    loadAdminStats();
     loadBannedUsers(1);
     loadMessageComplaints();
     loadAdminSettings();

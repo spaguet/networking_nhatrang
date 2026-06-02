@@ -576,6 +576,23 @@ export async function handleAdminUploadQr(
   return jsonResponse({ ok: true, methodKey, fileId });
 }
 
+export async function handleAdminGetStats(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const row = await env.DB
+    .prepare("SELECT COUNT(*) AS cnt FROM listings WHERE status = 'active'")
+    .first<{ cnt: number }>();
+
+  return jsonResponse({ ok: true, activeListings: row?.cnt ?? 0 });
+}
+
 export async function handleAdminListBanned(
   body: Record<string, unknown>,
   env: Env,
@@ -1032,6 +1049,8 @@ export async function routeAdminAction(
       return handleAdminUpdateSettings(body, env);
     case 'admin_upload_qr':
       return handleAdminUploadQr(body, env);
+    case 'admin_get_stats':
+      return handleAdminGetStats(body, env);
     case 'admin_list_banned':
       return handleAdminListBanned(body, env);
     case 'admin_unban_user':
