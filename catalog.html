@@ -1838,19 +1838,6 @@
       color: var(--text-sub);
       margin-top: 8px;
     }
-    .telegram-username-banner-btn {
-      margin-top: 10px;
-      font-size: 0.76rem;
-      font-weight: 700;
-      color: var(--orange);
-      background: none;
-      border: none;
-      padding: 0;
-      cursor: pointer;
-      font-family: inherit;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
     .verify-telegram-btn {
       margin-top: 10px;
       width: 100%;
@@ -1875,18 +1862,6 @@
       background: rgba(239, 68, 68, 0.1);
       color: #b91c1c;
       border: 1px solid rgba(239, 68, 68, 0.25);
-    }
-    .telegram-verify-help-btn {
-      display: block;
-      margin-top: 8px;
-      padding: 0;
-      border: none;
-      background: none;
-      color: #b91c1c;
-      font-size: 0.76rem;
-      font-weight: 700;
-      text-decoration: underline;
-      cursor: pointer;
     }
     .telegram-submit-checklist {
       font-size: 0.74rem;
@@ -2607,9 +2582,6 @@
           <p>Это имя пользователя в Telegram (не номер телефона). По нему вас найдут в каталоге и смогут написать в личку.<br>
           <strong>Примеры:</strong> <code>@ivan_spec</code> или <code>ivan_spec</code><br>
           Ник должен быть <strong>у вас в профиле Telegram</strong> и <strong>совпадать</strong> с тем, что вы вводите здесь.</p>
-          <p class="field-hint">
-            <button type="button" class="field-hint-link" id="telegramUsernameHelpBtn">Как задать @ник в Telegram?</button>
-          </p>
         </div>
 
         <div class="field-item">
@@ -2617,8 +2589,7 @@
           <div id="telegramUsernameBanner" class="telegram-username-banner" hidden>
             <div class="telegram-username-banner-title">⚠️ Сначала создайте @ник в Telegram</div>
             <p>Сейчас у вашего аккаунта нет имени пользователя (@ник). Без него анкету с контактом Telegram отправить нельзя — вас не смогут найти для переписки.</p>
-            <button type="button" class="telegram-username-banner-btn" id="telegramBannerHelpBtn">Как создать @ник</button>
-            <p class="telegram-username-banner-note">После создания ника закройте и снова откройте каталог из бота</p>
+            <p class="telegram-username-banner-note">После появления @ника в профиле закройте и снова откройте каталог из бота</p>
           </div>
           <input id="contacts" name="contacts" required maxlength="500" placeholder="@ваш_ник" />
           <span class="field-hint" id="telegramAutofillHint" hidden>Подставлен ник из вашего Telegram. Если меняли ник — обновите поле и нажмите «Проверить»</span>
@@ -2672,7 +2643,7 @@
       </div>
 
       <div id="telegramSubmitChecklist" class="telegram-submit-checklist" hidden>
-        ☐ Задан @ник в настройках Telegram<br>
+        ☐ Задан @ник в вашем Telegram<br>
         ☐ Тот же @ник указан в поле «Контакт»<br>
         ☐ Нажата кнопка «Проверить Telegram-ник» — зелёная галочка
       </div>
@@ -2905,30 +2876,6 @@
       </ul>
     </div>
     <button type="button" id="keywordsAboutOk" class="btn btn-primary">Понятно</button>
-  </div>
-</div>
-
-<div id="telegramUsernameHelpPopup" class="popup-overlay" hidden>
-  <div class="popup" role="dialog" aria-labelledby="telegramUsernameHelpTitle">
-    <div class="popup-icon">📱</div>
-    <h3 class="popup-title" id="telegramUsernameHelpTitle">Как задать @ник в Telegram</h3>
-    <div class="popup-text">
-      <p><strong>Как получить @ник (имя пользователя):</strong></p>
-      <ol>
-        <li>Откройте Telegram (не этот каталог).</li>
-        <li>Настройки → Имя пользователя (Username).</li>
-        <li>Придумайте свободный ник латиницей, например <code>ivan_spec</code>.</li>
-        <li>Сохраните.</li>
-        <li>Вернитесь в каталог из бота и укажите тот же ник в анкете.</li>
-        <li>Нажмите «Проверить Telegram-ник».</li>
-      </ol>
-      <p><strong>Важно:</strong> номер телефона или имя «Иван» — это не @ник.</p>
-      <p>После создания или смены ника закройте и снова откройте каталог из бота.</p>
-    </div>
-    <div class="popup-actions" style="display:flex;flex-direction:column;gap:8px;">
-      <button type="button" id="telegramUsernameHelpSettings" class="btn btn-outline" hidden>Открыть настройки Telegram</button>
-      <button type="button" id="telegramUsernameHelpOk" class="btn btn-primary">Понятно</button>
-    </div>
   </div>
 </div>
 
@@ -3367,10 +3314,10 @@
     edit_already_pending:   'Дождитесь проверки предыдущих изменений',
     listing_not_active:     'Редактировать можно только активную анкету',
     invalid_telegram_username: 'Укажите ник латиницей: буквы, цифры, подчёркивание. От 5 до 32 символов, например @ivan_spec.',
-    telegram_contact_not_found: 'Такой @ник в Telegram не найден. Проверьте написание или задайте ник в настройках Telegram.',
+    telegram_contact_not_found: 'Такой @ник в Telegram не найден. Проверьте написание.',
     telegram_username_mismatch: 'Этот @ник принадлежит другому аккаунту. Введите свой ник из профиля Telegram.',
     telegram_verify_required: 'Нажмите «Проверить Telegram-ник» перед отправкой анкеты.',
-    telegram_no_username: 'У вашего аккаунта Telegram нет @ника. Создайте его в настройках Telegram, затем введите сюда и проверьте снова.',
+    telegram_no_username: 'У вашего аккаунта Telegram нет @ника. Укажите @ник в профиле, затем введите его здесь и проверьте снова.',
     telegram_verify_rate_limit: 'Слишком много проверок. Попробуйте через час.',
     messaging_not_available: 'In-app переписка для этого типа контакта недоступна.',
     conversation_closed: 'Переписка закрыта.',
@@ -3452,7 +3399,6 @@
   var formEditParentId = null;
   var telegramContactVerified = false;
   var telegramVerifiedUsername = '';
-  var _telegramNotFoundAlertShown = false;
   var _telegramContactsSnapshot = '';
   var TELEGRAM_USERNAME_RE = /^@?[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
   var _editsInfoContinue = null;
@@ -3824,62 +3770,6 @@
     document.getElementById('keywordsAboutPopup').hidden = true;
   }
 
-  var TELEGRAM_USERNAME_HELP_TEXT =
-    'Как получить @ник (имя пользователя):\n\n' +
-    '1. Откройте Telegram (не этот каталог).\n' +
-    '2. Настройки → Имя пользователя (Username).\n' +
-    '3. Придумайте свободный ник латиницей, например ivan_spec.\n' +
-    '4. Сохраните.\n' +
-    '5. Вернитесь в каталог из бота и укажите тот же ник в анкете.\n' +
-    '6. Нажмите «Проверить Telegram-ник».\n\n' +
-    'Важно: номер телефона или имя «Иван» — это не @ник.';
-
-  var TELEGRAM_USERNAME_HELP_ALERT =
-    'Создайте @ник в Telegram: Настройки → Имя пользователя. ' +
-    'Затем вернитесь в каталог и проверьте ник в анкете.';
-
-  function showTelegramUsernameHelpPopup() {
-    var popup = document.getElementById('telegramUsernameHelpPopup');
-    var settingsBtn = document.getElementById('telegramUsernameHelpSettings');
-    if (popup) {
-      if (settingsBtn) {
-        settingsBtn.hidden = !(tg && tg.openTelegramLink);
-      }
-      popup.hidden = false;
-      return;
-    }
-    if (tg && tg.showPopup) {
-      var buttons = [{ type: 'ok', text: 'OK' }];
-      if (tg.openTelegramLink) {
-        buttons.unshift({ id: 'settings', type: 'default', text: 'Открыть настройки' });
-      }
-      tg.showPopup({
-        title: 'Как задать @ник в Telegram',
-        message: TELEGRAM_USERNAME_HELP_TEXT,
-        buttons: buttons
-      }, function (btnId) {
-        if (btnId === 'settings' && tg.openTelegramLink) {
-          tg.openTelegramLink('tg://settings');
-        }
-      });
-      return;
-    }
-    if (tg && tg.showAlert) {
-      tg.showAlert(TELEGRAM_USERNAME_HELP_TEXT);
-    }
-  }
-
-  function hideTelegramUsernameHelpPopup() {
-    var popup = document.getElementById('telegramUsernameHelpPopup');
-    if (popup) popup.hidden = true;
-  }
-
-  function openTelegramSettingsFromHelp() {
-    if (tg && tg.openTelegramLink) {
-      tg.openTelegramLink('tg://settings');
-    }
-  }
-
   function isTelegramContactType() {
     var sel = document.getElementById('contact_type');
     return sel && sel.value === 'Telegram';
@@ -3926,7 +3816,7 @@
     checklist.className = 'telegram-submit-checklist';
     var hasInitUsername = hasTelegramUsernameInInitData();
     checklist.innerHTML =
-      (hasInitUsername ? '☑' : '☐') + ' Задан @ник в настройках Telegram<br>' +
+      (hasInitUsername ? '☑' : '☐') + ' Задан @ник в вашем Telegram<br>' +
       '☐ Тот же @ник указан в поле «Контакт»<br>' +
       '☐ Нажата кнопка «Проверить Telegram-ник» — зелёная галочка';
   }
@@ -4072,17 +3962,7 @@
         telegramVerifiedUsername = '';
         var key = (data.error || '').replace(/\s/g, '_');
         var msg = data.message || ERRORS[key] || data.error || 'Не удалось подтвердить ник';
-        var errHtml = esc(msg);
-        if (key === 'telegram_contact_not_found') {
-          errHtml += ' <button type="button" class="telegram-verify-help-btn" id="telegramVerifyHelpBtn">Как создать @ник</button>';
-        }
-        setTelegramVerifyStatus('err', errHtml);
-        if (key === 'telegram_contact_not_found') {
-          var verifyHelpBtn = document.getElementById('telegramVerifyHelpBtn');
-          if (verifyHelpBtn) {
-            verifyHelpBtn.addEventListener('click', showTelegramUsernameHelpPopup);
-          }
-        }
+        setTelegramVerifyStatus('err', esc(msg));
         updateTelegramSubmitChecklist();
       })
       .catch(function (err) {
@@ -4097,7 +3977,6 @@
 
   function initTelegramContactForm() {
     resetTelegramVerifyState();
-    _telegramNotFoundAlertShown = false;
     syncTelegramContactUi();
     autofillTelegramUsername();
   }
@@ -4118,12 +3997,6 @@
   document.getElementById('keywordsAboutPopup').addEventListener('click', function (e) {
     if (e.target === this) hideKeywordsAboutPopup();
   });
-  document.getElementById('telegramUsernameHelpOk').addEventListener('click', hideTelegramUsernameHelpPopup);
-  document.getElementById('telegramUsernameHelpSettings').addEventListener('click', openTelegramSettingsFromHelp);
-  document.getElementById('telegramUsernameHelpPopup').addEventListener('click', function (e) {
-    if (e.target === this) hideTelegramUsernameHelpPopup();
-  });
-
   var formRulesBtn = document.getElementById('formRulesBtn');
   if (formRulesBtn) {
     formRulesBtn.addEventListener('click', showFormRulesPopup);
@@ -7768,9 +7641,6 @@
     var contactTypeSel = document.getElementById('contact_type');
     var contactsInput = document.getElementById('contacts');
     var verifyBtn = document.getElementById('verifyTelegramBtn');
-    var helpBtn = document.getElementById('telegramUsernameHelpBtn');
-    var bannerHelpBtn = document.getElementById('telegramBannerHelpBtn');
-
     if (contactTypeSel) {
       contactTypeSel.addEventListener('change', function () {
         resetTelegramVerifyState();
@@ -7783,12 +7653,6 @@
     }
     if (verifyBtn) {
       verifyBtn.addEventListener('click', runVerifyTelegramContact);
-    }
-    if (helpBtn) {
-      helpBtn.addEventListener('click', showTelegramUsernameHelpPopup);
-    }
-    if (bannerHelpBtn) {
-      bannerHelpBtn.addEventListener('click', showTelegramUsernameHelpPopup);
     }
     if (tg && tg.onEvent) {
       tg.onEvent('viewportChanged', function () {
