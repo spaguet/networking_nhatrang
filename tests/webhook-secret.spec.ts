@@ -5,10 +5,12 @@
  * Positive case: set TELEGRAM_WEBHOOK_SECRET + ADMIN_API_URL — same update with header → 200.
  */
 import { test, expect } from '@playwright/test';
+import { getStagingApiUrl } from './helpers/integration-env';
+import { useStagingGuard } from './helpers/staging-guard';
 
-const apiBase =
-  process.env.ADMIN_API_URL?.replace(/\/$/, '') ||
-  'https://tg-networking-nhatrang.albertkoall.workers.dev';
+useStagingGuard();
+
+const apiBase = getStagingApiUrl()!;
 
 const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
 

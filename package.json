@@ -2,6 +2,9 @@
   "name": "networking",
   "private": true,
   "scripts": {
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "npm run test --prefix worker",
+    "test:integration": "playwright test",
     "test:admin": "playwright test tests/admin-profile.spec.ts",
     "test:admin:headed": "playwright test tests/admin-profile.spec.ts --headed",
     "test:messaging": "playwright test tests/messaging.spec.ts",

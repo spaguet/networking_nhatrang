@@ -2,7 +2,7 @@
  * Messaging API smoke — user_messaging_TZ.md v1.5 §11, промпт 8.
  *
  * Required for integration block (skip if missing):
- *   BOT_TOKEN
+ *   ADMIN_API_URL, BOT_TOKEN (see tests/CI_ENV.md)
  *
  * Optional (integration / TTL / complaints):
  *   TEST_MESSAGING_PEER_TG_ID  — peer opening in-app chat (default TEST_RANDOM_TG_ID or 9001002003)
@@ -22,18 +22,21 @@ import {
   postMessagingAs,
   postMessagingAction,
 } from './helpers/messaging-api';
+import { getStagingApiUrl } from './helpers/integration-env';
+import { useStagingGuard } from './helpers/staging-guard';
+
+useStagingGuard();
 
 const config = loadMessagingTestConfig();
 const adminConfig = loadAdminTestConfig();
-const skipReason = 'Set BOT_TOKEN to run messaging API smoke tests.';
+const skipReason =
+  'Set ADMIN_API_URL and BOT_TOKEN to run messaging API smoke tests (see tests/CI_ENV.md).';
 
 test.describe('Messaging API smoke', () => {
   test.describe('auth regression (no BOT_TOKEN)', () => {
     test('verify_telegram_contact — missing initData', async ({ request }) => {
       const secret = process.env.WEBAPP_SECRET?.trim() || 'getting_more_money';
-      const apiUrl =
-        process.env.ADMIN_API_URL?.replace(/\/$/, '') ||
-        'https://tg-networking-nhatrang.albertkoall.workers.dev';
+      const apiUrl = getStagingApiUrl()!;
 
       const response = await request.post(`${apiUrl}/api`, {
         data: {
@@ -52,9 +55,7 @@ test.describe('Messaging API smoke', () => {
 
     test('get_messaging_unread — missing initData', async ({ request }) => {
       const secret = process.env.WEBAPP_SECRET?.trim() || 'getting_more_money';
-      const apiUrl =
-        process.env.ADMIN_API_URL?.replace(/\/$/, '') ||
-        'https://tg-networking-nhatrang.albertkoall.workers.dev';
+      const apiUrl = getStagingApiUrl()!;
 
       const response = await request.post(`${apiUrl}/api`, {
         data: { action: 'get_messaging_unread', secret, tg_id: 1 },

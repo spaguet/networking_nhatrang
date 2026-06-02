@@ -1,4 +1,5 @@
 import type { APIRequestContext } from '@playwright/test';
+import { getStagingApiUrl } from './integration-env';
 import { buildInitData, type TelegramTestUser } from './telegram-init-data';
 
 export interface AdminTestConfig {
@@ -48,10 +49,13 @@ export function loadAdminTestConfig(): AdminTestConfig | null {
     rateLimitTgId > 0 &&
     rateLimitPassword.length > 0;
 
+  const apiUrl = getStagingApiUrl();
+  if (!apiUrl) {
+    return null;
+  }
+
   return {
-    apiUrl:
-      process.env.ADMIN_API_URL?.replace(/\/$/, '') ||
-      'https://tg-networking-nhatrang.albertkoall.workers.dev',
+    apiUrl,
     botToken,
     webappSecret: process.env.WEBAPP_SECRET?.trim() || 'getting_more_money',
     randomUserTgId,

@@ -6,8 +6,10 @@
  *   TEST_ADMIN_TG_ID       — role=admin in D1 admins, password set
  *   TEST_ADMIN_PASSWORD    — password for TEST_ADMIN_TG_ID
  *
+ * Required for integration:
+ *   ADMIN_API_URL          — staging Worker URL (see tests/CI_ENV.md)
+ *
  * Optional:
- *   ADMIN_API_URL          — default production Worker URL
  *   WEBAPP_SECRET          — default getting_more_money
  *   TEST_RANDOM_TG_ID      — non-admin user (default 9001002003)
  *   TEST_LOGIN_RATE_TG_ID  — dedicated admin for rate-limit test (optional; blocks KV ~30 min)
@@ -20,10 +22,13 @@ import {
   loadAdminTestConfig,
   postAdminAction,
 } from './helpers/admin-api';
+import { useStagingGuard } from './helpers/staging-guard';
+
+useStagingGuard();
 
 const config = loadAdminTestConfig();
 const skipReason =
-  'Set BOT_TOKEN, TEST_ADMIN_TG_ID, TEST_ADMIN_PASSWORD to run admin API smoke tests.';
+  'Set ADMIN_API_URL, BOT_TOKEN, TEST_ADMIN_TG_ID, TEST_ADMIN_PASSWORD (see tests/CI_ENV.md).';
 
 test.describe('Admin profile API smoke', () => {
   test.skip(!config, skipReason);

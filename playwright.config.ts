@@ -1,8 +1,7 @@
 import { defineConfig } from '@playwright/test';
+import { getStagingApiUrl } from './tests/helpers/integration-env';
 
-const apiBase =
-  process.env.ADMIN_API_URL?.replace(/\/$/, '') ||
-  'https://tg-networking-nhatrang.albertkoall.workers.dev';
+const apiBase = getStagingApiUrl();
 
 export default defineConfig({
   testDir: './tests',
@@ -12,7 +11,8 @@ export default defineConfig({
   fullyParallel: false,
   reporter: [['list']],
   use: {
-    baseURL: apiBase,
+    // Integration specs build full URLs via getStagingApiUrl(); baseURL is a fallback only.
+    baseURL: apiBase ?? 'http://127.0.0.1:1',
     extraHTTPHeaders: {
       'Content-Type': 'application/json',
     },

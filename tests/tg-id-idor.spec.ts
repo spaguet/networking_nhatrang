@@ -3,11 +3,13 @@
  * CODE_REVIEW_RU.md, промт 2.
  */
 import { test, expect } from '@playwright/test';
+import { getStagingApiUrl } from './helpers/integration-env';
+import { useStagingGuard } from './helpers/staging-guard';
 import { buildInitData } from './helpers/telegram-init-data';
 
-const apiBase =
-  process.env.ADMIN_API_URL?.replace(/\/$/, '') ||
-  'https://tg-networking-nhatrang.albertkoall.workers.dev';
+useStagingGuard();
+
+const apiBase = getStagingApiUrl()!;
 
 const botToken = process.env.BOT_TOKEN?.trim();
 const webappSecret = process.env.WEBAPP_SECRET?.trim() || 'getting_more_money';
