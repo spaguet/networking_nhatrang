@@ -7,6 +7,9 @@ appsscript.json
 .env.*
 *.local
 
+# Dependencies
+node_modules/
+
 # Cloudflare local cache
 .wrangler/
 worker/node_modules/

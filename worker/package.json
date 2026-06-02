@@ -6,8 +6,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "types": "wrangler types",
-    "check": "wrangler check",
-    "build": "wrangler check"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check": "npm run typecheck",
+    "build": "npm run typecheck"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250525.0",
