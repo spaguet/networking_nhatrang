@@ -6,6 +6,8 @@ export interface Env {
   MINI_APP_URL: string;
 
   BOT_TOKEN: string;
+  /** Secret for X-Telegram-Bot-Api-Secret-Token (set via wrangler secret; match setWebhook secret_token). */
+  TELEGRAM_WEBHOOK_SECRET: string;
   ADMIN_TG_ID: string;
   WEBAPP_SECRET: string;
 

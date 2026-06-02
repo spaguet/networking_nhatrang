@@ -5,7 +5,8 @@
     "test:admin": "playwright test tests/admin-profile.spec.ts",
     "test:admin:headed": "playwright test tests/admin-profile.spec.ts --headed",
     "test:messaging": "playwright test tests/messaging.spec.ts",
-    "test:messaging:headed": "playwright test tests/messaging.spec.ts --headed"
+    "test:messaging:headed": "playwright test tests/messaging.spec.ts --headed",
+    "test:webhook": "playwright test tests/webhook-secret.spec.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

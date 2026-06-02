@@ -14,6 +14,7 @@ import {
   handleTelegramUpdate,
   isDuplicateTelegramUpdate,
 } from './handlers/telegram';
+import { rejectUnlessValidTelegramWebhookSecret } from './utils/telegram-webhook-auth';
 import { corsHeaders, handleOptions, jsonResponse } from './utils/response';
 
 function textOk(): Response {
@@ -45,17 +46,29 @@ function isTelegramUpdate(body: Record<string, unknown>): boolean {
   return body.update_id !== undefined && body.update_id !== null;
 }
 
+type NonTelegramWebhookBehavior = 'not_found' | 'ok';
+
 async function processTelegramWebhook(
+  request: Request,
   body: Record<string, unknown>,
   env: Env,
   ctx: ExecutionContext,
+  nonTelegramBehavior: NonTelegramWebhookBehavior,
 ): Promise<Response> {
   if (body.ping) {
     return textOk();
   }
 
   if (!isTelegramUpdate(body)) {
-    return new Response('Not Found', { status: 404, headers: corsHeaders() });
+    if (nonTelegramBehavior === 'not_found') {
+      return new Response('Not Found', { status: 404, headers: corsHeaders() });
+    }
+    return textOk();
+  }
+
+  const authError = rejectUnlessValidTelegramWebhookSecret(request, env);
+  if (authError) {
+    return authError;
   }
 
   const updateId = Number(body.update_id);
@@ -80,7 +93,7 @@ async function handleRootPost(
   if (!body) {
     return textOk();
   }
-  return processTelegramWebhook(body, env, ctx);
+  return processTelegramWebhook(request, body, env, ctx, 'not_found');
 }
 
 async function handleWebhookPost(
@@ -92,26 +105,7 @@ async function handleWebhookPost(
   if (!body) {
     return textOk();
   }
-
-  if (body.ping) {
-    return textOk();
-  }
-
-  if (!isTelegramUpdate(body)) {
-    return textOk();
-  }
-
-  const updateId = Number(body.update_id);
-  if (!Number.isFinite(updateId)) {
-    return textOk();
-  }
-
-  if (await isDuplicateTelegramUpdate(updateId, env)) {
-    return textOk();
-  }
-
-  ctx.waitUntil(handleTelegramUpdate(body, env));
-  return textOk();
+  return processTelegramWebhook(request, body, env, ctx, 'ok');
 }
 
 async function handleApiPost(request: Request, env: Env): Promise<Response> {

@@ -207,7 +207,33 @@ npx wrangler deploy
 
 ### B3. Webhook Telegram
 
-Текущий webhook уже указывает на корень Worker (`POST /`). После деплоя **перерегистрация не обязательна**, если URL не менялся.
+Worker принимает updates только с заголовком `X-Telegram-Bot-Api-Secret-Token`, совпадающим с секретом `TELEGRAM_WEBHOOK_SECRET` (wrangler secret). Без корректного header запрос отклоняется (**403**), dedup KV и D1 не трогаются.
+
+1. Сгенерировать токен (1–256 символов: `A-Za-z0-9_-`):
+
+```powershell
+# пример
+$webhookSecret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | ForEach-Object { [char]$_ })
+```
+
+2. Записать в Worker:
+
+```powershell
+cd worker
+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+```
+
+3. Зарегистрировать webhook с тем же `secret_token` (корень — текущий URL):
+
+```powershell
+curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=https://tg-networking-nhatrang.albertkoall.workers.dev/&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+```
+
+Опционально явный путь `/webhook`:
+
+```powershell
+curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=https://tg-networking-nhatrang.albertkoall.workers.dev/webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+```
 
 Проверить webhook:
 
@@ -215,11 +241,13 @@ npx wrangler deploy
 curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 ```
 
-Опционально явный путь `/webhook`:
+Smoke (без секрета в env — только негативные кейсы):
 
 ```powershell
-curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=https://tg-networking-nhatrang.albertkoall.workers.dev/webhook"
+npm run test:webhook
 ```
+
+С секретом: `$env:TELEGRAM_WEBHOOK_SECRET='...'; npm run test:webhook`
 
 ---
 
