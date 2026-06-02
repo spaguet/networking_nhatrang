@@ -8,7 +8,7 @@ export const TELEGRAM_VERIFY_ERROR_MESSAGES: Record<string, string> = {
   invalid_telegram_username:
     'Укажите ник латиницей: буквы, цифры, подчёркивание. От 5 до 32 символов, например @ivan_spec.',
   telegram_contact_not_found:
-    'Такой @ник в Telegram не найден. Проверьте написание.',
+    'Введите Telegram-ник аккаунта с которого вы вошли в Место Встречи. Либо проверьте написание.',
   telegram_username_mismatch:
     'Этот @ник принадлежит другому аккаунту. Введите свой ник из профиля Telegram.',
   telegram_verify_required:
