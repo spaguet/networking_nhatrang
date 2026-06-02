@@ -81,6 +81,18 @@ async function executeToggleLike(
     return jsonResponse({ success: false, error: 'invalid_type' });
   }
 
+  if (type === 'like') {
+    const listing = await env.DB.prepare(
+      'SELECT status FROM listings WHERE listing_id = ?',
+    )
+      .bind(cardId)
+      .first<{ status: string }>();
+
+    if (!listing || listing.status !== 'active') {
+      return jsonResponse({ success: false, error: 'listing_not_active' });
+    }
+  }
+
   const likedAt = new Date().toISOString();
 
   const writeStmt =
