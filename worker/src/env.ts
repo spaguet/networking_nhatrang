@@ -10,6 +10,10 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET: string;
   ADMIN_TG_ID: string;
   WEBAPP_SECRET: string;
+  /** Server-only HMAC secret for signed /portfolio-media URLs (wrangler secret; not in HTML). */
+  MEDIA_SIGNING_SECRET: string;
+  /** Server-only HMAC secret for admin portfolio preview tokens (wrangler secret; not in HTML). */
+  ADMIN_PORTFOLIO_SECRET: string;
 
   PAYMENT_AMOUNT_VND?: string;
   /** Legacy fallback (GAS Script Properties key PAYMENT_AMOUNT) */

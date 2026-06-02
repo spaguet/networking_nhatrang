@@ -42,9 +42,14 @@ export async function createSignedMediaUrl(
   workerOrigin: string,
   env: Env,
 ): Promise<string> {
+  const secret = env.MEDIA_SIGNING_SECRET;
+  if (!secret) {
+    throw new Error('MEDIA_SIGNING_SECRET is not configured');
+  }
+
   const exp = Math.floor(Date.now() / 1000) + MEDIA_URL_TTL_SEC;
   const payload = `${r2Key}|${exp}`;
-  const sig = await hmacSha256(payload, env.WEBAPP_SECRET);
+  const sig = await hmacSha256(payload, secret);
   const origin = workerOrigin.replace(/\/+$/, '');
   const params = new URLSearchParams({
     key: r2Key,
@@ -60,7 +65,8 @@ export async function verifySignedMediaRequest(
   sig: string,
   env: Env,
 ): Promise<boolean> {
-  if (!r2Key || !expStr || !sig || !env.WEBAPP_SECRET) {
+  const secret = env.MEDIA_SIGNING_SECRET;
+  if (!r2Key || !expStr || !sig || !secret) {
     return false;
   }
 
@@ -74,7 +80,7 @@ export async function verifySignedMediaRequest(
   }
 
   const payload = `${r2Key}|${exp}`;
-  const expected = await hmacSha256(payload, env.WEBAPP_SECRET);
+  const expected = await hmacSha256(payload, secret);
   return timingSafeEqual(expected, sig);
 }
 
@@ -82,9 +88,14 @@ export async function createAdminPortfolioToken(
   listingId: string,
   env: Env,
 ): Promise<{ token: string; exp: number }> {
+  const secret = env.ADMIN_PORTFOLIO_SECRET;
+  if (!secret) {
+    throw new Error('ADMIN_PORTFOLIO_SECRET is not configured');
+  }
+
   const exp = Math.floor(Date.now() / 1000) + ADMIN_TOKEN_TTL_SEC;
   const payload = `admin_portfolio|${listingId}|${exp}`;
-  const token = await hmacSha256(payload, env.WEBAPP_SECRET);
+  const token = await hmacSha256(payload, secret);
   return { token, exp };
 }
 
@@ -94,7 +105,8 @@ export async function verifyAdminPortfolioToken(
   expStr: string,
   env: Env,
 ): Promise<boolean> {
-  if (!listingId || !token || !expStr || !env.WEBAPP_SECRET) {
+  const secret = env.ADMIN_PORTFOLIO_SECRET;
+  if (!listingId || !token || !expStr || !secret) {
     return false;
   }
 
@@ -104,7 +116,7 @@ export async function verifyAdminPortfolioToken(
   }
 
   const payload = `admin_portfolio|${listingId}|${exp}`;
-  const expected = await hmacSha256(payload, env.WEBAPP_SECRET);
+  const expected = await hmacSha256(payload, secret);
   return timingSafeEqual(expected, token);
 }
 

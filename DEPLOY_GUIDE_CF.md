@@ -154,7 +154,9 @@ bucket_name = "networking-portfolio"
 |---|---|
 | `BOT_TOKEN` | Токен @BotFather |
 | `ADMIN_TG_ID` | Числовой Telegram ID **grand_admin** (обязателен; seed в D1 `admins`) |
-| `WEBAPP_SECRET` | **Тот же** ключ, что в `catalog.html` (`WEBAPP_SECRET`) |
+| `WEBAPP_SECRET` | **Тот же** ключ, что в `catalog.html` (`WEBAPP_SECRET`); только маркер POST `/api`, **не** для HMAC |
+| `MEDIA_SIGNING_SECRET` | Случайная длинная строка (≥32 байт); HMAC подписи `/portfolio-media` (TTL 15 мин). **Только** `wrangler secret`, не в HTML |
+| `ADMIN_PORTFOLIO_SECRET` | Отдельная случайная строка; HMAC admin preview token портфолио (TTL 24 ч). **Только** `wrangler secret`, не в HTML |
 | `PAYMENT_AMOUNT_VND` | Напр. `200 000 VND` |
 | `PAYMENT_AMOUNT_CRYPTO` | Напр. `8 USDT` |
 | `PIN_PRICE_WEEK_VND` / `_CRYPTO` | Цены pin «неделя» |
@@ -174,6 +176,19 @@ bucket_name = "networking-portfolio"
 ```powershell
 npx wrangler secret list
 ```
+
+**Секреты портфолио (HMAC, только на сервере):** `MEDIA_SIGNING_SECRET` и `ADMIN_PORTFOLIO_SECRET` не должны совпадать с `WEBAPP_SECRET` из `catalog.html`. Сгенерировать и записать один раз (или при ротации):
+
+```powershell
+cd worker
+# PowerShell — два независимых значения
+$media = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+$admin = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+$media | npx wrangler secret put MEDIA_SIGNING_SECRET
+$admin | npx wrangler secret put ADMIN_PORTFOLIO_SECRET
+```
+
+После смены `MEDIA_SIGNING_SECRET` старые signed URL медиа перестанут открываться (TTL 15 мин). После смены `ADMIN_PORTFOLIO_SECRET` — admin preview ссылки из Telegram (TTL 24 ч).
 
 ### A6. Vars в `wrangler.toml`
 
