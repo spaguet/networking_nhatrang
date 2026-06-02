@@ -6,7 +6,7 @@ import {
   sendMessage,
   sendPhoto,
 } from '../services/telegram-api';
-import { validateInitData, validateMiniAppRequest } from '../utils/auth';
+import { getUserIdFromInitData, validateInitData, authenticateMiniAppUser } from '../utils/auth';
 import {
   findQrMethodByKey,
   formatDateRu,
@@ -63,7 +63,7 @@ export async function handleGetPinPrices(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logAction(
-      Number(body.tg_id) || 0,
+      getUserIdFromInitData(String(body.initData ?? '')) || 0,
       'error',
       `handleGetPinPrices: ${msg}`,
       env.DB,
@@ -82,13 +82,13 @@ export async function handleSelectPinPaymentMethod(
       return configErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
 
     const config = await getConfigWithSettings(env);
-    const tgId = Number(body.tg_id);
+    const tgId = auth.tgId;
     const listingId = String(body.listing_id ?? '').trim();
     const pinDuration = String(body.pin_duration ?? '').trim().toLowerCase();
     const methodKey = String(body.payment_method ?? '').trim().toLowerCase();
@@ -194,7 +194,7 @@ export async function handleSelectPinPaymentMethod(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logAction(
-      Number(body.tg_id) || 0,
+      getUserIdFromInitData(String(body.initData ?? '')) || 0,
       'error',
       `handleSelectPinPaymentMethod: ${msg}`,
       env.DB,

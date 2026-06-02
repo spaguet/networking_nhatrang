@@ -1,5 +1,5 @@
 import type { Env } from '../env';
-import { validateMiniAppRequest } from '../utils/auth';
+import { authenticateMiniAppUser } from '../utils/auth';
 import { rejectIfBanned } from '../utils/helpers';
 import {
   checkComplaintRateLimit,
@@ -51,15 +51,11 @@ export async function handleVerifyTelegramContact(
       return cfgErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
-    if (!tgId) {
-      return jsonResponse({ ok: false, error: 'missing_params' });
-    }
+    const tgId = auth.tgId;
 
     const banned = await rejectIfBanned(tgId, env.DB);
     if (banned) {
@@ -124,15 +120,11 @@ export async function handleResolveTelegramChat(
       return cfgErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
-    if (!tgId) {
-      return jsonResponse({ ok: false, error: 'missing_params' });
-    }
+    const tgId = auth.tgId;
 
     const banned = await rejectIfBanned(tgId, env.DB);
     if (banned) {
@@ -250,15 +242,11 @@ async function authMessagingRequest(
     return { ok: false, response: cfgErr };
   }
 
-  const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+  const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
   if (!auth.ok) {
     return { ok: false, response: jsonResponse({ ok: false, error: auth.error }) };
   }
-
-  const tgId = Number(body.tg_id);
-  if (!tgId) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'missing_params' }) };
-  }
+  const tgId = auth.tgId;
 
   const banned = await rejectIfBanned(tgId, env.DB);
   if (banned) {

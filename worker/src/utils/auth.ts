@@ -227,3 +227,38 @@ export async function validateMiniAppRequest(
 
   return { ok: true };
 }
+
+export type AuthenticatedMiniAppUserResult =
+  | { ok: true; tgId: number }
+  | { ok: false; error: string };
+
+/**
+ * Validates Mini App request and resolves Telegram user id from initData.
+ * When body.tg_id is present it must match initData user id (prevents IDOR).
+ */
+export async function authenticateMiniAppUser(
+  body: Record<string, unknown>,
+  env: Env,
+  initDataError: InitDataErrorCode = 'Invalid initData',
+): Promise<AuthenticatedMiniAppUserResult> {
+  const auth = await validateMiniAppRequest(body, env, initDataError);
+  if (!auth.ok) {
+    return auth;
+  }
+
+  const initData = String(body.initData ?? '');
+  const tgId = getUserIdFromInitData(initData);
+  if (!tgId) {
+    return { ok: false, error: 'invalid_tg_id' };
+  }
+
+  const bodyTgIdRaw = body.tg_id;
+  if (bodyTgIdRaw != null && bodyTgIdRaw !== '') {
+    const bodyTgId = Number(bodyTgIdRaw);
+    if (!bodyTgId || bodyTgId !== tgId) {
+      return { ok: false, error: 'forbidden' };
+    }
+  }
+
+  return { ok: true, tgId };
+}

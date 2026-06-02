@@ -6,8 +6,9 @@ import {
   sendModerationToAdmins,
 } from '../services/telegram-api';
 import {
+  authenticateMiniAppUser,
+  getUserIdFromInitData,
   validateInitData,
-  validateMiniAppRequest,
 } from '../utils/auth';
 import { decodeDescriptionNewlines } from '../utils/description';
 import {
@@ -211,15 +212,11 @@ export async function handleGetMyListings(
       return cfgErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid_initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
-    if (!tgId) {
-      return jsonResponse({ ok: false, error: 'invalid_tg_id' });
-    }
+    const tgId = auth.tgId;
 
     const banned = await rejectIfBanned(tgId, env.DB);
     if (banned) {
@@ -290,12 +287,11 @@ export async function handleSubmitListing(
       return cfgErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
+    const tgId = auth.tgId;
     const username = String(body.username ?? '');
     const firstName = String(body.first_name ?? '');
 
@@ -419,7 +415,7 @@ export async function handleSubmitListing(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await logAction(Number(body.tg_id) || 0, 'error', `handleSubmitListing: ${msg}`, env.DB);
+    await logAction(getUserIdFromInitData(String(body.initData ?? '')) || 0, 'error', `handleSubmitListing: ${msg}`, env.DB);
     return jsonResponse({ ok: false, error: 'server_error' });
   }
 }
@@ -434,15 +430,14 @@ export async function handleSubmitListingEdit(
       return cfgErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
+    const tgId = auth.tgId;
     const parentListingId = String(body.parent_listing_id ?? '').trim();
 
-    if (!tgId || !parentListingId) {
+    if (!parentListingId) {
       return jsonResponse({ ok: false, error: 'missing_params' });
     }
 
@@ -660,7 +655,7 @@ export async function handleSubmitListingEdit(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logAction(
-      Number(body.tg_id) || 0,
+      getUserIdFromInitData(String(body.initData ?? '')) || 0,
       'error',
       `handleSubmitListingEdit: ${msg}`,
       env.DB,
@@ -679,15 +674,14 @@ export async function handleArchiveListing(
       return cfgErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid_initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
+    const tgId = auth.tgId;
     const listingId = String(body.listing_id ?? '').trim();
 
-    if (!tgId || !listingId) {
+    if (!listingId) {
       return jsonResponse({ ok: false, error: 'missing_params' });
     }
 

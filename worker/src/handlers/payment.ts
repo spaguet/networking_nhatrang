@@ -1,7 +1,7 @@
 import { getConfigWithSettings } from '../config';
 import type { Env } from '../env';
 import { sendPhoto } from '../services/telegram-api';
-import { validateMiniAppRequest } from '../utils/auth';
+import { getUserIdFromInitData, authenticateMiniAppUser } from '../utils/auth';
 import {
   findQrMethodByKey,
   formatDateRu,
@@ -33,16 +33,15 @@ export async function handleCheckListingStatus(
       return configErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const tgId = Number(body.tg_id);
+    const tgId = auth.tgId;
     const username = String(body.username || '');
     const firstName = String(body.first_name || '');
 
-    if (tgId && (await isUserBanned(tgId, env.DB))) {
+    if (await isUserBanned(tgId, env.DB)) {
       return jsonResponse({
         ok: true,
         banned: true,
@@ -80,7 +79,7 @@ export async function handleCheckListingStatus(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logAction(
-      Number(body.tg_id) || 0,
+      getUserIdFromInitData(String(body.initData ?? '')) || 0,
       'error',
       `handleCheckListingStatus: ${msg}`,
       env.DB,
@@ -99,13 +98,13 @@ export async function handleSelectPaymentMethod(
       return configErr;
     }
 
-    const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
 
     const config = await getConfigWithSettings(env);
-    const tgId = Number(body.tg_id);
+    const tgId = auth.tgId;
     const username = String(body.username || '');
     const firstName = String(body.first_name || '');
 
@@ -186,7 +185,7 @@ export async function handleSelectPaymentMethod(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logAction(
-      Number(body.tg_id) || 0,
+      getUserIdFromInitData(String(body.initData ?? '')) || 0,
       'error',
       `handleSelectPaymentMethod: ${msg}`,
       env.DB,
