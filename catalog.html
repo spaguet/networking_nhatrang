@@ -5472,14 +5472,11 @@
   async function initLikes() {
     if (!LIKES_ENABLED) return;
 
-    if (!tg || !tg.initData) return;
+    var payload = buildPayload('get_likes');
+    if (!payload) return;
 
     try {
-      var res = await fetchWithTimeout(
-        API_URL + '/api?action=getLikes&initData=' + encodeURIComponent(tg.initData),
-        5000
-      );
-      var data = await res.json();
+      var data = await apiPost(payload, 5000);
       if (!data.success || !data.likes) return;
 
       data.likes.forEach(function (item) {
@@ -5524,15 +5521,11 @@
   }
 
   async function sendLike(cardId, action, previousLiked, previousCount) {
+    var payload = buildPayload('toggle_like', { cardId: cardId, type: action });
+    if (!payload) return;
+
     try {
-      var res = await fetchWithTimeout(
-        API_URL + '/api?action=toggleLike' +
-          '&initData=' + encodeURIComponent(tg.initData) +
-          '&cardId=' + encodeURIComponent(cardId) +
-          '&type=' + action,
-        8000
-      );
-      var data = await res.json();
+      var data = await apiPost(payload, 8000);
 
       if (!data.success) {
         throw new Error(data.error || 'backend_error');
@@ -5622,14 +5615,12 @@
 
   async function initFavoriteCounts() {
     if (!FAVORITES_ENABLED) return;
-    if (!tg || !tg.initData) return;
+
+    var payload = buildPayload('get_favorite_counts');
+    if (!payload) return;
 
     try {
-      var res = await fetchWithTimeout(
-        API_URL + '/api?action=getFavoriteCounts&initData=' + encodeURIComponent(tg.initData),
-        5000
-      );
-      var data = await res.json();
+      var data = await apiPost(payload, 5000);
       if (!data.success || !data.favorites) return;
 
       data.favorites.forEach(function (item) {
@@ -5963,16 +5954,21 @@
       removeFromFavoritesScreen(listingId);
     }
 
+    var payload = buildPayload('toggle_favorite', { listingId: listingId, type: action });
+    if (!payload) {
+      if (previousFavorited) myFavorites.add(listingId);
+      else myFavorites.delete(listingId);
+      favoriteCountState[listingId] = previousCount;
+      renderFavoriteButton(listingId, previousFavorited, previousCount);
+      if (previousFavorited && onFavoritesScreen) {
+        restoreFavoritesScreenRollback();
+      }
+      return;
+    }
+
     pendingFavorites[listingId] = true;
 
-    fetchWithTimeout(
-      API_URL + '/api?action=toggleFavorite' +
-        '&initData=' + encodeURIComponent(tg.initData) +
-        '&listingId=' + encodeURIComponent(listingId) +
-        '&type=' + action,
-      8000
-    )
-      .then(function (res) { return res.json(); })
+    apiPost(payload, 8000)
       .then(function (data) {
         if (!data.success) {
           throw new Error(data.error || 'backend_error');

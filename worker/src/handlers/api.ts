@@ -11,7 +11,12 @@ import {
 import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStagingB64 } from './portfolio';
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
-import { handleGetFavoritesListings } from './favorites';
+import {
+  handleGetFavoriteCountsPost,
+  handleGetFavoritesListings,
+  handleToggleFavoritePost,
+} from './favorites';
+import { handleGetLikesPost, handleToggleLikePost } from './likes';
 import {
   handleGetMessages,
   handleGetMessagingUnread,
@@ -66,6 +71,14 @@ export async function routeApiAction(
       return handleUploadPortfolioB64(body, env);
     case 'get_favorites':
       return handleGetFavoritesListings(body, env);
+    case 'get_likes':
+      return handleGetLikesPost(body, env);
+    case 'toggle_like':
+      return handleToggleLikePost(body, env);
+    case 'get_favorite_counts':
+      return handleGetFavoriteCountsPost(body, env);
+    case 'toggle_favorite':
+      return handleToggleFavoritePost(body, env);
     case 'verify_telegram_contact':
       return handleVerifyTelegramContact(body, env);
     case 'resolve_telegram_chat':
