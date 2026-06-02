@@ -255,10 +255,10 @@
       background: var(--cream-card);
       border: 1.5px solid var(--border);
       border-radius: var(--r-card);
-      padding: 2px 8px 2px 2px;
+      padding: 16px 14px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 10px;
       cursor: pointer;
       text-align: left;
       font-family: inherit;
@@ -271,18 +271,7 @@
       border-color: var(--orange);
       box-shadow: 0 2px 8px var(--orange-dim);
     }
-    .cat-icon  { flex-shrink: 0; line-height: 1; display: flex; align-items: center; }
-    .cat-icon-img {
-      width: 2.8rem;
-      height: 2.8rem;
-      display: block;
-      object-fit: contain;
-      flex-shrink: 0;
-    }
-    .screen-title .cat-icon-img {
-      vertical-align: -0.2em;
-      display: inline-block;
-    }
+    .cat-icon  { font-size: 1.4rem; flex-shrink: 0; line-height: 1; }
     .cat-label { font-size: 0.81rem; font-weight: 600; line-height: 1.3; color: var(--text); }
 
     /* ══════════════════════════════════════════
@@ -3262,34 +3251,26 @@
   /* ─────────────────────────────────────
      DATA
   ───────────────────────────────────── */
-  var CATEGORY_ICON_BASE = 'assets/icons/categories/';
-
   var CATEGORIES = [
-    { label: 'IT и разработка',                        icon: '01_it_icon.svg' },
-    { label: 'Дизайн и креатив',                       icon: '02_design_icon.svg' },
-    { label: 'Маркетинг и SMM',                        icon: '03_smm_icon.svg' },
-    { label: 'Бизнес и финансы',                       icon: '04_buisness_icon.svg' },
-    { label: 'Юридические услуги',                     icon: '05_legal_icon.svg' },
-    { label: 'Медицина и здоровье',                    icon: '06_medicine_icon.svg' },
-    { label: 'Красота и уход',                         icon: '07_beauty_icon.svg' },
-    { label: 'Образование и репетиторство',            icon: '08_education_icon.svg' },
-    { label: 'Строительство и ремонт',                 icon: '09_constraction_icon.svg' },
-    { label: 'Водители, аренда транспорта и ремонт',   icon: '10_drivers_icon.svg' },
-    { label: 'Спорт и фитнес',                         icon: '11_sports_icon.svg' },
-    { label: 'Хобби и творчество',                     icon: '12_hobbies_icon.svg' },
-    { label: 'Туризм и экскурсии',                     icon: '13_tourism_icon.svg' },
-    { label: 'Бытовые услуги и уборка',                icon: '14_household_icon.svg' },
-    { label: 'Кулинария и кейтеринг',                  icon: '15_cooking_icon.svg' },
-    { label: 'Фото, видео и контент',                  icon: '16_photos_icon.svg' },
-    { label: 'Семья и дети (няни и воспитатели)',      icon: '17_family_icon.svg' },
-    { label: 'Другое',                                 icon: '18_other_icon.svg' }
+    { label: 'IT и разработка',                        icon: '🖥️' },
+    { label: 'Дизайн и креатив',                       icon: '🎨' },
+    { label: 'Маркетинг и SMM',                          icon: '📣' },
+    { label: 'Бизнес и финансы',                         icon: '💼' },
+    { label: 'Юридические услуги',                       icon: '⚖️' },
+    { label: 'Медицина и здоровье',                      icon: '🩺' },
+    { label: 'Красота и уход',                           icon: '💄' },
+    { label: 'Образование и репетиторство',              icon: '📚' },
+    { label: 'Строительство и ремонт',                   icon: '🔨' },
+    { label: 'Водители, аренда транспорта и ремонт',     icon: '🚗' },
+    { label: 'Спорт и фитнес',                           icon: '🏋️' },
+    { label: 'Хобби и творчество',                       icon: '🎭' },
+    { label: 'Туризм и экскурсии',                       icon: '🌴' },
+    { label: 'Бытовые услуги и уборка',                  icon: '🏠' },
+    { label: 'Кулинария и кейтеринг',                    icon: '👨‍🍳' },
+    { label: 'Фото, видео и контент',                    icon: '📸' },
+    { label: 'Семья и дети (няни и воспитатели)',        icon: '👨‍👩‍👧' },
+    { label: 'Другое',                                   icon: '🔹' }
   ];
-
-  function categoryIconHtml(iconFile, extraClass) {
-    if (!iconFile) return '';
-    var cls = 'cat-icon-img' + (extraClass ? ' ' + extraClass : '');
-    return '<img class="' + cls + '" src="' + CATEGORY_ICON_BASE + iconFile + '" alt="" width="45" height="45" decoding="async">';
-  }
 
   var AVATAR_EMOJIS = [
     '🖥️', '🎨', '📣', '💼', '⚖️', '🩺', '💄', '📚', '🔨', '🚗', '🏋️', '🎭',
@@ -3482,14 +3463,14 @@
     var btn = document.createElement('button');
     btn.className = 'cat-btn';
     btn.innerHTML =
-      '<span class="cat-icon">' + categoryIconHtml(cat.icon) + '</span>' +
+      '<span class="cat-icon">' + cat.icon + '</span>' +
       '<span class="cat-label">' + cat.label + '</span>';
     btn.addEventListener('click', function () { openListings(cat.label, cat.icon); });
     grid.appendChild(btn);
 
     var opt = document.createElement('option');
     opt.value = cat.label;
-    opt.textContent = cat.label;
+    opt.textContent = cat.icon + ' ' + cat.label;
     categorySelect.appendChild(opt);
   });
 
@@ -5389,8 +5370,7 @@
     if (searchInput) searchInput.value = '';
     updateKeywordClearVisibility();
 
-    document.getElementById('listingsCatTitle').innerHTML =
-      categoryIconHtml(icon) + '\u00a0' + esc(category);
+    document.getElementById('listingsCatTitle').textContent = icon + '\u00a0' + category;
     var listingsContainer = document.getElementById('listingsContainer');
     var sortBar = document.getElementById('listingsSortBar');
     var sortSelect = document.getElementById('listingsSortSelect');
