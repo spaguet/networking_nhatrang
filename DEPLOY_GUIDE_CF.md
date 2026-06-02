@@ -1,5 +1,19 @@
 # Деплой: Нетворкинг Нячанг → Cloudflare Workers + D1
 
+**Канонический гайд деплоя** (единственный актуальный источник для prod). Архив GAS: [`DEPLOY_GUIDE_RU.md`](DEPLOY_GUIDE_RU.md) (deprecated).
+
+### Быстрый ориентир
+
+| Что | Значение / действие |
+|---|---|
+| **Worker URL (prod)** | `https://tg-networking-nhatrang.albertkoall.workers.dev` |
+| **Деплой бэкенда** | `cd worker` → `npx tsc --noEmit` → `npx wrangler deploy` |
+| **Mini App** | `catalog.html` на GitHub Pages — после правок **push** в репозиторий |
+| **`API_URL`** | В `catalog.html` должен совпадать с URL Worker (см. §Часть C) |
+| **`WEBAPP_SECRET`** | Строка в `catalog.html` = `wrangler secret put WEBAPP_SECRET` (маркер POST `/api`, не HMAC) |
+
+Категории каталога — **только** русские labels из `worker/src/config.ts` → `CATEGORIES` (например `"Другое"`, `"IT и разработка"`). Английские slug вроде `services` API **не** принимает.
+
 > **Связанные документы:**
 > - `migration_to_cf_d1_TZ.md` — полное ТЗ миграции, API-контракт, промпты
 > - `portfolio_TZ.md` — портфолио v1.3 (R2, D1 `listing_media`, multipart upload)
@@ -307,7 +321,7 @@ Invoke-WebRequest -Uri "https://tg-networking-nhatrang.albertkoall.workers.dev/"
 **POST /api** — `get_listings` (без initData допустимо):
 
 ```powershell
-$payload = '{"action":"get_listings","category":"services","secret":"<WEBAPP_SECRET>"}'
+$payload = '{"action":"get_listings","category":"Другое","secret":"<WEBAPP_SECRET>"}'
 Invoke-WebRequest -Uri "https://tg-networking-nhatrang.albertkoall.workers.dev/api" -Method POST -Body $payload -ContentType "application/json" -UseBasicParsing
 # Ожидание: JSON { "ok": true, "listings": [...] }
 ```
