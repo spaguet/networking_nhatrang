@@ -360,7 +360,7 @@ async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
   if (!msgId) {
     await sendMessage(
       chatId,
-      `${text}\n\n(Меню без кнопок — проверьте MINI_APP_URL в wrangler.toml: нужен URL GitHub Pages, не GAS.)`,
+      `${text}\n\n(Меню без кнопок — проверьте MINI_APP_URL в wrangler.toml: нужен URL GitHub Pages с catalog.html.)`,
       null,
       env,
     );

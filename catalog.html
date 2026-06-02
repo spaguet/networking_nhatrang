@@ -3313,7 +3313,7 @@
     invalid_payment_method: 'Выберите способ оплаты.',
     qr_not_configured:      'QR для этого способа ещё не настроен.',
     server_error:           'Сервер временно недоступен. Попробуйте позже.',
-    unknown_action:         'На сервере старая версия. Задеплойте новую версию Code.gs.',
+    unknown_action:         'На сервере старая версия Worker. Задеплойте через wrangler deploy и проверьте API_URL в catalog.html.',
     portfolio_required:     'Добавьте хотя бы одно фото или снимите галочку «Портфолио».',
     portfolio_too_many:     'Можно загрузить не более 5 фото.',
     portfolio_upload_failed:'Не удалось загрузить фото. Попробуйте снова.',
@@ -4431,9 +4431,9 @@
     if (err.message === 'not_json') {
       var body = (err.body || '').trim();
       if (body === 'OK') {
-        return 'Сервер вернул «OK» вместо JSON. Проверьте URL деплоя GAS /exec и webhook.';
+        return 'Сервер вернул «OK» вместо JSON. Проверьте API_URL (Worker /api) и задеплойте Worker через wrangler deploy.';
       }
-      return 'Сервер вернул некорректный ответ. Обновите URL деплоя GAS /exec в catalog.html.';
+      return 'Сервер вернул некорректный ответ. Проверьте API_URL в catalog.html и задеплойте Worker через wrangler deploy.';
     }
     if (err.name === 'AbortError') {
       return 'Превышено время ожидания при загрузке. Попробуйте меньше фото или повторите позже.';
