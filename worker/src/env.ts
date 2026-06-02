@@ -31,4 +31,7 @@ export interface Env {
   QR_USDT_TRC20_FILE_ID?: string;
   QR_USDT_BYBIT_FILE_ID?: string;
   QR_USDT_SOLANA_FILE_ID?: string;
+
+  /** Set to "true" / "1" / "yes" to log byte-level portfolio/media diagnostics. */
+  DEBUG_MEDIA?: string;
 }

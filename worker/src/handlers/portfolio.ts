@@ -18,6 +18,7 @@ import {
   sendModerationToAdmins,
 } from '../services/telegram-api';
 import { getUserIdFromInitData, validateInitData } from '../utils/auth';
+import { debugMediaLog, isDebugMedia } from '../utils/debug-media';
 import { decodeDescriptionNewlines } from '../utils/description';
 import { formatKeywordsModerationLine, parseKeywordsJson } from '../utils/keywords';
 import { logAction, rejectIfBanned } from '../utils/helpers';
@@ -104,19 +105,27 @@ function collectPhotoFiles(fields: MultipartFields): { position: number; file: F
   return photos;
 }
 
+type ProcessPhotoOpts = {
+  clientWidth?: number;
+  clientHeight?: number;
+  debug?: boolean;
+};
+
 async function processPhotoBytes(
   bytes: Uint8Array,
   position: number,
   r2Key: string,
   existingKey: string | null,
-  opts?: { clientWidth?: number; clientHeight?: number },
+  opts?: ProcessPhotoOpts,
 ): Promise<
   | { ok: true; photo: ProcessedPhoto }
   | { ok: false; code: string }
 > {
+  const debug = opts?.debug === true;
   const len = bytes.byteLength;
   const tailStart = Math.max(0, len - 8);
-  console.log(
+  debugMediaLog(
+    debug,
     '[portfolio] processPhoto',
     position,
     len,
@@ -130,31 +139,35 @@ async function processPhotoBytes(
   );
   const validated = await validateImageBytes(bytes);
   if (!validated.ok) {
-    console.log(
-      '[portfolio] validate fail',
-      validated.code,
-      len,
-      bytes[0],
-      bytes[1],
-      bytes[2],
-      bytes[3],
-    );
+    console.warn('[portfolio] validate fail', position, validated.code, len);
+    if (debug) {
+      debugMediaLog(
+        debug,
+        '[portfolio] validate fail detail',
+        bytes[0],
+        bytes[1],
+        bytes[2],
+        bytes[3],
+      );
+    }
     return { ok: false, code: validated.code };
   }
 
   const compressed = await compressToWebp(bytes, validated.mime, {
     clientWidth: opts?.clientWidth,
     clientHeight: opts?.clientHeight,
+    debug,
   });
   if (!compressed.ok) {
-    console.log(
-      '[portfolio] compress fail',
-      compressed.code,
-      validated.mime,
-      len,
-      'tail=',
-      ...Array.from(bytes.subarray(tailStart)),
-    );
+    console.warn('[portfolio] compress fail', position, compressed.code, validated.mime, len);
+    if (debug) {
+      debugMediaLog(
+        debug,
+        '[portfolio] compress fail detail',
+        'tail=',
+        ...Array.from(bytes.subarray(tailStart)),
+      );
+    }
     return { ok: false, code: compressed.code };
   }
 
@@ -177,13 +190,21 @@ async function processPhotoFile(
   position: number,
   r2Key: string,
   existingKey: string | null,
+  debug: boolean,
 ): Promise<
   | { ok: true; photo: ProcessedPhoto }
   | { ok: false; code: string }
 > {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  console.log('[portfolio] processPhoto file', position, file.size, file.type || '', bytes.byteLength);
-  return processPhotoBytes(bytes, position, r2Key, existingKey);
+  debugMediaLog(
+    debug,
+    '[portfolio] processPhoto file',
+    position,
+    file.size,
+    file.type || '',
+    bytes.byteLength,
+  );
+  return processPhotoBytes(bytes, position, r2Key, existingKey, { debug });
 }
 
 function parseCanvasDims(body: Record<string, unknown>): {
@@ -211,15 +232,20 @@ function base64DecodedLength(b64: string): number {
   return Math.floor(b64.length * 3 / 4) - padding;
 }
 
-function logDecodedImageIntegrity(bytes: Uint8Array, b64Len: number): void {
+function logDecodedImageIntegrity(bytes: Uint8Array, b64Len: number, debug: boolean): void {
+  if (!debug) {
+    return;
+  }
+
   const len = bytes.byteLength;
   if (len < 4) {
-    console.log('[portfolio] b64 decoded too short', b64Len, len);
+    debugMediaLog(debug, '[portfolio] b64 decoded too short', b64Len, len);
     return;
   }
 
   const tailStart = Math.max(0, len - 8);
-  console.log(
+  debugMediaLog(
+    debug,
     '[portfolio] b64 decoded',
     'b64Len=',
     b64Len,
@@ -242,12 +268,12 @@ function logDecodedImageIntegrity(bytes: Uint8Array, b64Len: number): void {
       bytes[len - 6] === 0x4e &&
       bytes[len - 5] === 0x44;
     if (!hasIend) {
-      console.log('[portfolio] png missing IEND chunk at tail');
+      debugMediaLog(debug, '[portfolio] png missing IEND chunk at tail');
     }
   }
 }
 
-function base64ToBytes(data: string): Uint8Array | null {
+function base64ToBytes(data: string, debug = false): Uint8Array | null {
   const trimmed = data.replace(/\s/g, '');
   if (!trimmed) {
     return null;
@@ -256,8 +282,9 @@ function base64ToBytes(data: string): Uint8Array | null {
   const expectedLen = base64DecodedLength(trimmed);
   try {
     const binary = atob(trimmed);
-    if (binary.length !== expectedLen) {
-      console.log(
+    if (debug && binary.length !== expectedLen) {
+      debugMediaLog(
+        debug,
         '[portfolio] b64 length mismatch',
         'expected=',
         expectedLen,
@@ -273,7 +300,7 @@ function base64ToBytes(data: string): Uint8Array | null {
       bytes[i] = binary.charCodeAt(i) & 0xff;
     }
 
-    logDecodedImageIntegrity(bytes, trimmed.length);
+    logDecodedImageIntegrity(bytes, trimmed.length, debug);
     return bytes;
   } catch {
     return null;
@@ -622,6 +649,7 @@ export async function handleUploadPortfolio(
     const existingMedia = await listMediaByListing(listingId, env.DB);
     const existingByPosition = new Map(existingMedia.map((m) => [m.position, m.r2_key]));
 
+    const debug = isDebugMedia(env);
     const processed: ProcessedPhoto[] = [];
     for (const { position, file } of photoFiles) {
       const r2Key = portfolioObjectKey(listingId, position);
@@ -630,6 +658,7 @@ export async function handleUploadPortfolio(
         position,
         r2Key,
         existingByPosition.get(position) ?? null,
+        debug,
       );
       if (!result.ok) {
         return jsonResponse({ ok: false, error: result.code });
@@ -691,6 +720,7 @@ export async function handleUploadPortfolioStaging(
 
     const existingKeys = await readStagingExistingKeys(tgId, env);
 
+    const debug = isDebugMedia(env);
     const processed: ProcessedPhoto[] = [];
     for (const { position, file } of photoFiles) {
       const r2Key = stagingObjectKey(tgId, position);
@@ -699,6 +729,7 @@ export async function handleUploadPortfolioStaging(
         position,
         r2Key,
         existingKeys.get(position) ?? null,
+        debug,
       );
       if (!result.ok) {
         return jsonResponse({ ok: false, error: result.code });
@@ -747,20 +778,20 @@ export async function handleUploadPortfolioStagingB64(
       return jsonResponse({ ok: false, error: 'portfolio_upload_failed' });
     }
 
-    const bytes = base64ToBytes(String(body.data ?? ''));
+    const debug = isDebugMedia(env);
+    const bytes = base64ToBytes(String(body.data ?? ''), debug);
     if (!bytes || !bytes.byteLength) {
       return jsonResponse({ ok: false, error: 'portfolio_upload_failed' });
     }
 
     const existingKeys = await readStagingExistingKeys(tgId, env);
     const r2Key = stagingObjectKey(tgId, position);
-    const canvasDims = parseCanvasDims(body);
     const result = await processPhotoBytes(
       bytes,
       position,
       r2Key,
       existingKeys.get(position) ?? null,
-      canvasDims,
+      { ...parseCanvasDims(body), debug },
     );
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.code });
@@ -847,7 +878,8 @@ export async function handleUploadPortfolioB64(
       return jsonResponse({ ok: false, error: 'portfolio_upload_failed' });
     }
 
-    const bytes = base64ToBytes(String(body.data ?? ''));
+    const debug = isDebugMedia(env);
+    const bytes = base64ToBytes(String(body.data ?? ''), debug);
     if (!bytes || !bytes.byteLength) {
       return jsonResponse({ ok: false, error: 'portfolio_upload_failed' });
     }
@@ -855,13 +887,12 @@ export async function handleUploadPortfolioB64(
     const existingMedia = await listMediaByListing(listingId, env.DB);
     const existingByPosition = new Map(existingMedia.map((m) => [m.position, m.r2_key]));
     const r2Key = portfolioObjectKey(listingId, position);
-    const canvasDims = parseCanvasDims(body);
     const result = await processPhotoBytes(
       bytes,
       position,
       r2Key,
       existingByPosition.get(position) ?? null,
-      canvasDims,
+      { ...parseCanvasDims(body), debug },
     );
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.code });

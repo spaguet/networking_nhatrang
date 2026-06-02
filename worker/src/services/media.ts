@@ -5,6 +5,7 @@ import decodePng from '@jsquash/png/decode';
 import decodeWebp from '@jsquash/webp/decode';
 import encodeWebp from '@jsquash/webp/encode';
 import resize from '@jsquash/resize';
+import { debugMediaLog } from '../utils/debug-media';
 
 export type MediaErrorCode =
   | 'portfolio_invalid_type'
@@ -227,21 +228,23 @@ function readImageDimensions(
 export type CompressWebpOptions = {
   clientWidth?: number;
   clientHeight?: number;
+  debug?: boolean;
 };
 
 function tryPassthroughClientWebp(
   bytes: Uint8Array,
-  clientWidth?: number,
-  clientHeight?: number,
+  clientWidth: number | undefined,
+  clientHeight: number | undefined,
+  debug: boolean,
 ): CompressWebpResult | null {
   if (bytes.byteLength > OUTPUT_HARD_CAP_BYTES) {
-    console.log('[media] webp passthrough skip: too large', bytes.byteLength);
+    debugMediaLog(debug, '[media] webp passthrough skip: too large', bytes.byteLength);
     return null;
   }
 
-  console.log('[media] webp passthrough attempt', bytes.byteLength);
+  debugMediaLog(debug, '[media] webp passthrough attempt', bytes.byteLength);
   let dims = readWebpDimensions(bytes);
-  console.log('[media] readWebpDimensions result', dims);
+  debugMediaLog(debug, '[media] readWebpDimensions result', dims);
 
   if (
     !dims &&
@@ -254,7 +257,8 @@ function tryPassthroughClientWebp(
       width: Math.round(clientWidth),
       height: Math.round(clientHeight),
     };
-    console.log(
+    debugMediaLog(
+      debug,
       '[media] webp passthrough: header parse fallback to client dims',
       dims.width,
       'x',
@@ -263,17 +267,18 @@ function tryPassthroughClientWebp(
   }
 
   if (!dims) {
-    console.log('[media] webp passthrough skip: cannot determine dims');
+    debugMediaLog(debug, '[media] webp passthrough skip: cannot determine dims');
     return null;
   }
 
   const longEdge = Math.max(dims.width, dims.height);
   if (longEdge > MAX_LONG_EDGE) {
-    console.log('[media] webp passthrough skip: long edge', longEdge);
+    debugMediaLog(debug, '[media] webp passthrough skip: long edge', longEdge);
     return null;
   }
 
-  console.log(
+  debugMediaLog(
+    debug,
     '[media] webp passthrough',
     bytes.byteLength,
     dims.width,
@@ -374,9 +379,10 @@ export async function compressToWebp(
   mime: string,
   opts?: CompressWebpOptions,
 ): Promise<CompressWebpResult> {
+  const debug = opts?.debug === true;
   const dimError = checkInputDimensions(bytes, mime);
   if (dimError) {
-    console.log('[media] reject before decode', mime, bytes.byteLength, dimError);
+    console.warn('[media] reject before decode', mime, bytes.byteLength, dimError);
     return { ok: false, code: dimError };
   }
 
@@ -385,6 +391,7 @@ export async function compressToWebp(
       bytes,
       opts?.clientWidth,
       opts?.clientHeight,
+      debug,
     );
     if (passthrough) {
       return passthrough;
@@ -394,19 +401,21 @@ export async function compressToWebp(
   const image = await decodeImage(bytes, mime);
   if (!image) {
     const len = bytes.byteLength;
-    const tailStart = Math.max(0, len - 8);
-    console.log(
-      '[media] decode fail',
-      mime,
-      len,
-      'head=',
-      bytes[0],
-      bytes[1],
-      bytes[2],
-      bytes[3],
-      'tail=',
-      ...Array.from(bytes.subarray(tailStart)),
-    );
+    console.warn('[media] decode fail', mime, len);
+    if (debug) {
+      const tailStart = Math.max(0, len - 8);
+      debugMediaLog(
+        debug,
+        '[media] decode fail detail',
+        'head=',
+        bytes[0],
+        bytes[1],
+        bytes[2],
+        bytes[3],
+        'tail=',
+        ...Array.from(bytes.subarray(tailStart)),
+      );
+    }
     return { ok: false, code: 'portfolio_compress_failed' };
   }
 
