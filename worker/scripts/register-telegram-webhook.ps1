@@ -9,7 +9,10 @@ param(
   [string]$SecretFile = (Join-Path $PSScriptRoot '..\.webhook-secret.local')
 )
 
-$botToken = $env:BOT_TOKEN?.Trim()
+$botToken = $env:BOT_TOKEN
+if ($botToken) {
+  $botToken = $botToken.Trim()
+}
 if (-not $botToken) {
   Write-Error 'Set BOT_TOKEN environment variable.'
   exit 1

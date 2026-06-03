@@ -33,6 +33,7 @@ import {
   sendModerationToAdmins,
   sendPhoto,
   sendToAllAdmins,
+  type InlineKeyboardMarkup,
   type ReplyKeyboardMarkup,
 } from '../services/telegram-api';
 import {
@@ -314,38 +315,49 @@ async function getListingData(
   };
 }
 
-/** Постоянное меню у поля ввода (не уезжает в историю чата). */
-function mainMenuKeyboard(config: AppConfig): ReplyKeyboardMarkup {
-  const rows: ReplyKeyboardMarkup['keyboard'] = [];
-  if (isValidMiniAppUrl(config.miniAppUrl)) {
-    rows.push([
-      {
-        text: '🎩 Добро пожаловать!',
-        web_app: { url: getMiniAppCatalogUrl(config.miniAppUrl) },
-      },
-    ]);
-    rows.push([
-      {
-        text: '📋 Правила',
-        web_app: { url: getMiniAppRulesUrl(config.miniAppUrl) },
-      },
-    ]);
+/**
+ * Inline-кнопки Mini App под сообщением — Telegram передаёт initData (авторизация).
+ * Reply Keyboard с web_app initData не даёт (см. core.telegram.org/bots/webapps).
+ */
+function mainMenuInlineKeyboard(config: AppConfig): InlineKeyboardMarkup | null {
+  if (!isValidMiniAppUrl(config.miniAppUrl)) {
+    return null;
   }
-  rows.push([{ text: CONTACT_ADMIN_BUTTON }]);
   return {
-    keyboard: rows,
+    inline_keyboard: [
+      [
+        {
+          text: '🎩 Добро пожаловать!',
+          web_app: { url: getMiniAppCatalogUrl(config.miniAppUrl) },
+        },
+      ],
+      [
+        {
+          text: '📋 Правила',
+          web_app: { url: getMiniAppRulesUrl(config.miniAppUrl) },
+        },
+      ],
+    ],
+  };
+}
+
+/** Постоянное меню у поля ввода — только текстовые кнопки (без web_app). */
+function mainMenuReplyKeyboard(): ReplyKeyboardMarkup {
+  return {
+    keyboard: [[{ text: CONTACT_ADMIN_BUTTON }]],
     resize_keyboard: true,
     is_persistent: true,
     one_time_keyboard: false,
   };
 }
 
-function mainMenuKeyboardWithoutContact(config: AppConfig): ReplyKeyboardMarkup {
-  const kb = mainMenuKeyboard(config);
-  kb.keyboard = kb.keyboard.filter(
-    (row) => !row.some((btn) => btn.text === CONTACT_ADMIN_BUTTON),
-  );
-  return kb;
+function mainMenuReplyKeyboardWithoutContact(): ReplyKeyboardMarkup {
+  return {
+    keyboard: [],
+    resize_keyboard: true,
+    is_persistent: true,
+    one_time_keyboard: false,
+  };
 }
 
 async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
@@ -353,10 +365,10 @@ async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
   const text =
     '👋 Добро пожаловать в Место Встречи — Нячанг!\n\n' +
     'Здесь профессионалы, фрилансеры и мастера находят друг друга.\n\n' +
-    '🔍 Ищете специалиста? Откройте каталог и выберите нужную категорию.\n\n' +
-    '📋 Хотите разместить мини-резюме? Заполните короткую анкету — одно размещение бесплатно.';
-  const keyboard = mainMenuKeyboard(config);
-  const msgId = await sendMessage(chatId, text, keyboard, env);
+    '🔍 Ищете специалиста? Нажмите «Добро пожаловать!» под этим сообщением.\n\n' +
+    '📋 Хотите разместить мини-резюме? Откройте каталог и заполните короткую анкету — одно размещение бесплатно.';
+  const inlineKb = mainMenuInlineKeyboard(config);
+  const msgId = await sendMessage(chatId, text, inlineKb, env);
   if (!msgId) {
     await sendMessage(
       chatId,
@@ -364,16 +376,22 @@ async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
       null,
       env,
     );
+    return;
   }
+  await sendMessage(
+    chatId,
+    '📩 Написать администратору — кнопка внизу у поля ввода.',
+    mainMenuReplyKeyboard(),
+    env,
+  );
 }
 
 async function startContactAdmin(tgId: number, env: Env): Promise<void> {
-  const config = getConfig(env);
   if (await isUserBanned(tgId, env.DB)) {
     await sendMessage(
       tgId,
       '🚫 Ваш телеграм-аккаунт забанен. Обращение к администратору недоступно.',
-      mainMenuKeyboardWithoutContact(config),
+      mainMenuReplyKeyboardWithoutContact(),
       env,
     );
     return;
@@ -384,7 +402,7 @@ async function startContactAdmin(tgId: number, env: Env): Promise<void> {
     tgId,
     '✉️ Напишите администратору одним сообщением (текст или фото).\n\n' +
       'Для отмены отправьте /start',
-    mainMenuKeyboard(config),
+    mainMenuReplyKeyboard(),
     env,
   );
 }
@@ -507,7 +525,6 @@ async function forwardContactToAdmin(
   message: TelegramMessage,
   env: Env,
 ): Promise<void> {
-  const config = getConfig(env);
   const user = message.from;
   if (!user) {
     return;
@@ -519,7 +536,7 @@ async function forwardContactToAdmin(
     await sendMessage(
       tgId,
       '🚫 Ваш телеграм-аккаунт забанен. Сообщение администратору не отправлено.',
-      mainMenuKeyboardWithoutContact(config),
+      mainMenuReplyKeyboardWithoutContact(),
       env,
     );
     return;
@@ -562,7 +579,7 @@ async function forwardContactToAdmin(
     tgId,
     '✅ Сообщение отправлено администратору.\n\n' +
       'Администратор рассмотрит его в течение 24 часов. Ответ придёт в этот чат.',
-    mainMenuKeyboard(config),
+    mainMenuReplyKeyboard(),
     env,
   );
   await logAction(tgId, 'contact_admin', '', env.DB);
