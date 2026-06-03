@@ -33,7 +33,6 @@ import {
   sendModerationToAdmins,
   sendPhoto,
   sendToAllAdmins,
-  type InlineKeyboardMarkup,
   type ReplyKeyboardMarkup,
 } from '../services/telegram-api';
 import {
@@ -315,36 +314,24 @@ async function getListingData(
   };
 }
 
-/**
- * Inline-кнопки Mini App под сообщением — Telegram передаёт initData (авторизация).
- * Reply Keyboard с web_app initData не даёт (см. core.telegram.org/bots/webapps).
- */
-function mainMenuInlineKeyboard(config: AppConfig): InlineKeyboardMarkup | null {
-  if (!isValidMiniAppUrl(config.miniAppUrl)) {
-    return null;
+/** Постоянное меню у поля ввода: Mini App и «Написать администратору». */
+function mainMenuReplyKeyboard(config: AppConfig): ReplyKeyboardMarkup {
+  const rows: ReplyKeyboardMarkup['keyboard'] = [];
+  if (isValidMiniAppUrl(config.miniAppUrl)) {
+    rows.push([
+      {
+        text: '🎩 Добро пожаловать!',
+        web_app: { url: getMiniAppCatalogUrl(config.miniAppUrl) },
+      },
+      {
+        text: '📋 Правила',
+        web_app: { url: getMiniAppRulesUrl(config.miniAppUrl) },
+      },
+    ]);
   }
+  rows.push([{ text: CONTACT_ADMIN_BUTTON }]);
   return {
-    inline_keyboard: [
-      [
-        {
-          text: '🎩 Добро пожаловать!',
-          web_app: { url: getMiniAppCatalogUrl(config.miniAppUrl) },
-        },
-      ],
-      [
-        {
-          text: '📋 Правила',
-          web_app: { url: getMiniAppRulesUrl(config.miniAppUrl) },
-        },
-      ],
-    ],
-  };
-}
-
-/** Постоянное меню у поля ввода — только текстовые кнопки (без web_app). */
-function mainMenuReplyKeyboard(): ReplyKeyboardMarkup {
-  return {
-    keyboard: [[{ text: CONTACT_ADMIN_BUTTON }]],
+    keyboard: rows,
     resize_keyboard: true,
     is_persistent: true,
     one_time_keyboard: false,
@@ -367,8 +354,8 @@ async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
     'Здесь профессионалы, фрилансеры и мастера находят друг друга.\n\n' +
     '🔍 Ищете специалиста? Нажмите «Добро пожаловать!» под этим сообщением.\n\n' +
     '📋 Хотите разместить мини-резюме? Откройте каталог и заполните короткую анкету — одно размещение бесплатно.';
-  const inlineKb = mainMenuInlineKeyboard(config);
-  const msgId = await sendMessage(chatId, text, inlineKb, env);
+  const replyKb = mainMenuReplyKeyboard(config);
+  const msgId = await sendMessage(chatId, text, replyKb, env);
   if (!msgId) {
     await sendMessage(
       chatId,
@@ -376,14 +363,7 @@ async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
       null,
       env,
     );
-    return;
   }
-  await sendMessage(
-    chatId,
-    '📩 Написать администратору — кнопка внизу у поля ввода.',
-    mainMenuReplyKeyboard(),
-    env,
-  );
 }
 
 async function startContactAdmin(tgId: number, env: Env): Promise<void> {
@@ -402,7 +382,7 @@ async function startContactAdmin(tgId: number, env: Env): Promise<void> {
     tgId,
     '✉️ Напишите администратору одним сообщением (текст или фото).\n\n' +
       'Для отмены отправьте /start',
-    mainMenuReplyKeyboard(),
+    mainMenuReplyKeyboard(getConfig(env)),
     env,
   );
 }
@@ -579,7 +559,7 @@ async function forwardContactToAdmin(
     tgId,
     '✅ Сообщение отправлено администратору.\n\n' +
       'Администратор рассмотрит его в течение 24 часов. Ответ придёт в этот чат.',
-    mainMenuReplyKeyboard(),
+    mainMenuReplyKeyboard(getConfig(env)),
     env,
   );
   await logAction(tgId, 'contact_admin', '', env.DB);
