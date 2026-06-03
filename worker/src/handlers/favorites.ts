@@ -1,9 +1,7 @@
 import type { Env } from '../env';
 import {
   authenticateMiniAppUser,
-  validateMiniAppRequest,
   validateTelegramInitData,
-  getUserIdFromInitData,
 } from '../utils/auth';
 import { ensureUser, rejectIfBanned } from '../utils/helpers';
 import { jsonResponse } from '../utils/response';
@@ -263,16 +261,11 @@ export async function handleGetFavoritesListings(
   env: Env,
 ): Promise<Response> {
   try {
-    const auth = await validateMiniAppRequest(body, env, 'Invalid_initData');
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
     if (!auth.ok) {
       return jsonResponse({ ok: false, error: auth.error });
     }
-
-    const initData = String(body.initData ?? '');
-    const tgId = getUserIdFromInitData(initData);
-    if (!tgId) {
-      return jsonResponse({ ok: false, error: 'missing_user_id' });
-    }
+    const tgId = auth.tgId;
 
     const banned = await rejectIfBanned(tgId, env.DB);
     if (banned) {
