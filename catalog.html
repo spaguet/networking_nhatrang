@@ -3242,6 +3242,16 @@
   </div>
 </div>
 
+<div id="adminCancelComplaintModal" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="adminCancelComplaintTitle">
+    <h3 class="popup-title" id="adminCancelComplaintTitle">Отменить жалобу</h3>
+    <div class="admin-modal-actions">
+      <button type="button" id="adminCancelComplaintConfirmBtn" class="btn btn-cta">Отменить жалобу</button>
+      <button type="button" id="adminCancelComplaintReviewBtn" class="btn btn-outline">Рассмотреть жалобу</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -3421,6 +3431,7 @@
   var _adminConfirmSaveCallback = null;
   var _adminChatLogComplaintId = null;
   var _adminChatLogContext = null;
+  var _adminCancelComplaintId = null;
 
   var appMode = 'free';
   var _formReturnScreen = 'main';
@@ -8537,6 +8548,7 @@
         '<td colspan="4"><div class="admin-complaint-actions">' +
           '<button type="button" class="admin-complaint-action-btn" data-complaint-body="' + esc(c.complaint_id) + '">Текст жалобы</button>' +
           '<button type="button" class="admin-complaint-action-btn primary" data-complaint-log="' + esc(c.complaint_id) + '">Просмотреть лог чата</button>' +
+          '<button type="button" class="admin-complaint-action-btn" data-complaint-cancel="' + esc(c.complaint_id) + '">Отменить жалобу</button>' +
         '</div></td></tr>';
     });
     html += '</tbody></table>';
@@ -8553,6 +8565,44 @@
         if (cid) openAdminChatLog(cid);
       });
     });
+    container.querySelectorAll('[data-complaint-cancel]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cid = btn.getAttribute('data-complaint-cancel');
+        if (cid) openAdminCancelComplaintModal(cid);
+      });
+    });
+  }
+
+  function openAdminCancelComplaintModal(complaintId) {
+    _adminCancelComplaintId = complaintId;
+    document.getElementById('adminCancelComplaintModal').hidden = false;
+  }
+
+  function closeAdminCancelComplaintModal() {
+    _adminCancelComplaintId = null;
+    document.getElementById('adminCancelComplaintModal').hidden = true;
+  }
+
+  function confirmAdminCancelComplaint() {
+    if (!_adminCancelComplaintId) return;
+    var payload = buildAdminPayload('admin_cancel_message_complaint', {
+      complaint_id: _adminCancelComplaintId
+    });
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(handleAdminAuthError(data), data.message));
+          return;
+        }
+        closeAdminCancelComplaintModal();
+        showToast('Жалоба отменена');
+        loadMessageComplaints();
+      })
+      .catch(function () {
+        showToast('Не удалось отменить жалобу');
+      });
   }
 
   function loadMessageComplaints() {
@@ -9208,6 +9258,11 @@
   });
   document.getElementById('adminConfirmPricesModal').addEventListener('click', function (e) {
     if (e.target === this) closeConfirmPricesModal();
+  });
+  document.getElementById('adminCancelComplaintConfirmBtn').addEventListener('click', confirmAdminCancelComplaint);
+  document.getElementById('adminCancelComplaintReviewBtn').addEventListener('click', closeAdminCancelComplaintModal);
+  document.getElementById('adminCancelComplaintModal').addEventListener('click', function (e) {
+    if (e.target === this) closeAdminCancelComplaintModal();
   });
   document.getElementById('adminBannedPrev').addEventListener('click', function () {
     if (_adminBannedPage > 1) loadBannedUsers(_adminBannedPage - 1);

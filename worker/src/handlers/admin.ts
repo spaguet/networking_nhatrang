@@ -44,6 +44,8 @@ const UNBAN_MESSAGE =
 
 const BAN_USER_MESSAGE = '🚫 Ваш телеграм-аккаунт забанен.';
 
+const COMPLAINT_REJECTED_MESSAGE = 'Ваша жалоба отклонена.';
+
 const BANNED_PAGE_SIZE = 20;
 const MAX_QR_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -1013,6 +1015,45 @@ export async function handleAdminPunishFromComplaint(
   return jsonResponse({ ok: true, punished_tg_id: targetTgId });
 }
 
+export async function handleAdminCancelMessageComplaint(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const complaintId = String(body.complaint_id ?? '').trim();
+  if (!complaintId) {
+    return jsonResponse({ ok: false, error: 'missing_params' }, 400);
+  }
+
+  const complaint = await env.DB.prepare(
+    `SELECT complaint_id, reporter_tg_id, status
+     FROM message_complaints WHERE complaint_id = ?`,
+  )
+    .bind(complaintId)
+    .first<{ complaint_id: string; reporter_tg_id: number; status: string }>();
+
+  if (!complaint) {
+    return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+  if (complaint.status !== 'open') {
+    return jsonResponse({ ok: false, error: 'invalid_state' }, 400);
+  }
+
+  await env.DB.prepare('DELETE FROM message_complaints WHERE complaint_id = ?')
+    .bind(complaintId)
+    .run();
+
+  await sendMessage(complaint.reporter_tg_id, COMPLAINT_REJECTED_MESSAGE, null, env);
+  await logAction(session.tgId, 'admin_cancel_complaint', complaintId, env.DB);
+
+  return jsonResponse({ ok: true });
+}
+
 /** Routes admin_* actions; returns null if action is not admin-related. */
 export async function routeAdminAction(
   body: Record<string, unknown>,
@@ -1064,6 +1105,8 @@ export async function routeAdminAction(
       return handleAdminGetConversationLog(body, env);
     case 'admin_punish_from_complaint':
       return handleAdminPunishFromComplaint(body, env);
+    case 'admin_cancel_message_complaint':
+      return handleAdminCancelMessageComplaint(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }
