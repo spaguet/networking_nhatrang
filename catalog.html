@@ -1873,11 +1873,21 @@
     .telegram-submit-checklist.done {
       color: #15803d;
     }
+    .form-field-locked,
     #contacts.contacts-locked,
-    #contact_type.contact-type-locked {
-      opacity: 0.85;
+    #contact_type.contact-type-locked,
+    #category.category-locked {
+      color: var(--text-sub) !important;
+      -webkit-text-fill-color: var(--text-sub);
+      background: #EBE6E1 !important;
+      border-color: #D4CCC4 !important;
+      opacity: 1;
       cursor: not-allowed;
-      background: var(--surface-2, rgba(0, 0, 0, 0.04));
+      pointer-events: none;
+    }
+    select.form-field-locked {
+      appearance: none;
+      -webkit-appearance: none;
     }
 
     .field-item.field-avatar {
@@ -2557,6 +2567,7 @@
           <select id="category" name="category" required>
             <option value="" disabled selected>Выберите категорию</option>
           </select>
+          <span class="field-hint" id="categoryEditLockedHint" hidden>При редактировании категорию изменить нельзя</span>
         </div>
 
         <div class="field-item">
@@ -3907,22 +3918,33 @@
     return formEditMode && isTelegramContactType();
   }
 
-  function applyEditContactFieldLock() {
+  function applyEditFormFieldLocks() {
     var contactsInput = document.getElementById('contacts');
     var contactTypeSel = document.getElementById('contact_type');
-    var lockedHint = document.getElementById('contactsEditLockedHint');
-    var lock = isEditTelegramContactLocked();
+    var categorySel = document.getElementById('category');
+    var contactsLockedHint = document.getElementById('contactsEditLockedHint');
+    var categoryLockedHint = document.getElementById('categoryEditLockedHint');
+    var telegramLock = isEditTelegramContactLocked();
+
+    if (categorySel) {
+      categorySel.disabled = formEditMode;
+      categorySel.classList.toggle('category-locked', formEditMode);
+      categorySel.classList.toggle('form-field-locked', formEditMode);
+    }
+    if (categoryLockedHint) categoryLockedHint.hidden = !formEditMode;
 
     if (contactTypeSel) {
       contactTypeSel.disabled = formEditMode;
       contactTypeSel.classList.toggle('contact-type-locked', formEditMode);
+      contactTypeSel.classList.toggle('form-field-locked', formEditMode);
     }
     if (contactsInput) {
-      contactsInput.disabled = lock;
-      contactsInput.readOnly = lock;
-      contactsInput.classList.toggle('contacts-locked', lock);
+      contactsInput.disabled = telegramLock;
+      contactsInput.readOnly = telegramLock;
+      contactsInput.classList.toggle('contacts-locked', telegramLock);
+      contactsInput.classList.toggle('form-field-locked', telegramLock);
     }
-    if (lockedHint) lockedHint.hidden = !lock;
+    if (contactsLockedHint) contactsLockedHint.hidden = !telegramLock;
   }
 
   function markTelegramContactVerifiedFromField() {
@@ -3968,7 +3990,7 @@
     var verifyBtn = document.getElementById('verifyTelegramBtn');
     var noUsername = isTelegram && shouldShowNoTelegramUsernameBanner();
 
-    applyEditContactFieldLock();
+    applyEditFormFieldLocks();
 
     if (hint) hint.hidden = !isTelegram || editLocked;
     if (verifyBlock) verifyBlock.hidden = !isTelegram || editLocked;
@@ -6478,7 +6500,7 @@
     formEditMode = false;
     formEditParentId = null;
     syncPortfolioEditHint(false);
-    applyEditContactFieldLock();
+    applyEditFormFieldLocks();
     syncTelegramContactUi();
   }
 
@@ -6487,6 +6509,7 @@
     document.getElementById('freeActions').hidden = false;
     document.getElementById('paidActions').hidden = true;
     document.getElementById('listingInfo').hidden = true;
+    applyEditFormFieldLocks();
     updateSubmitBtnLabel();
   }
 
