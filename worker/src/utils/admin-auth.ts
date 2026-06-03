@@ -1,6 +1,6 @@
 import type { Env } from '../env';
 import type { AdminRole } from '../types';
-import { getUserIdFromInitData, validateMiniAppRequest } from './auth';
+import { authenticateMiniAppUser } from './auth';
 import { isStaffTgId, isUserBanned } from './helpers';
 import { jsonResponse } from './response';
 
@@ -381,16 +381,12 @@ export async function assertAdminSession(
   body: Record<string, unknown>,
   adminToken: string,
 ): Promise<{ tgId: number; role: AdminRole } | Response> {
-  const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+  const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
   if (!auth.ok) {
     return jsonResponse({ ok: false, error: auth.error }, 401);
   }
 
-  const initData = String(body.initData ?? '');
-  const userId = getUserIdFromInitData(initData);
-  if (!userId) {
-    return jsonResponse({ ok: false, error: 'Invalid initData' }, 401);
-  }
+  const userId = auth.tgId;
 
   if (await isUserBanned(userId, env.DB)) {
     return jsonResponse({ ok: false, error: 'user_banned' }, 403);

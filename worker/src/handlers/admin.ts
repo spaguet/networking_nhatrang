@@ -26,7 +26,7 @@ import {
   validatePasswordStrength,
   verifyPassword,
 } from '../utils/admin-auth';
-import { getUserIdFromInitData, validateMiniAppRequest } from '../utils/auth';
+import { authenticateMiniAppUser } from '../utils/auth';
 import {
   banUser,
   ensureUser,
@@ -179,21 +179,16 @@ async function uploadPhotoGetFileId(
   }
 }
 
-async function requireInitDataUser(
+async function requireMiniAppUser(
   body: Record<string, unknown>,
   env: Env,
 ): Promise<{ tgId: number } | Response> {
-  const auth = await validateMiniAppRequest(body, env, 'Invalid initData');
+  const auth = await authenticateMiniAppUser(body, env, 'Invalid initData');
   if (!auth.ok) {
     return jsonResponse({ ok: false, error: auth.error }, 401);
   }
 
-  const tgId = getUserIdFromInitData(String(body.initData ?? ''));
-  if (!tgId) {
-    return jsonResponse({ ok: false, error: 'Invalid initData' }, 401);
-  }
-
-  return { tgId };
+  return { tgId: auth.tgId };
 }
 
 async function bootstrapGrandAdminIfNeeded(env: Env, tgId: number): Promise<void> {
@@ -226,7 +221,7 @@ export async function handleAdminCheckAccess(
   body: Record<string, unknown>,
   env: Env,
 ): Promise<Response> {
-  const user = await requireInitDataUser(body, env);
+  const user = await requireMiniAppUser(body, env);
   if (user instanceof Response) {
     return user;
   }
@@ -254,7 +249,7 @@ export async function handleAdminEnsureGrandAdmin(
   body: Record<string, unknown>,
   env: Env,
 ): Promise<Response> {
-  const user = await requireInitDataUser(body, env);
+  const user = await requireMiniAppUser(body, env);
   if (user instanceof Response) {
     return user;
   }
@@ -272,7 +267,7 @@ export async function handleAdminSetupPassword(
   body: Record<string, unknown>,
   env: Env,
 ): Promise<Response> {
-  const user = await requireInitDataUser(body, env);
+  const user = await requireMiniAppUser(body, env);
   if (user instanceof Response) {
     return user;
   }
@@ -334,7 +329,7 @@ export async function handleAdminLogin(
   body: Record<string, unknown>,
   env: Env,
 ): Promise<Response> {
-  const user = await requireInitDataUser(body, env);
+  const user = await requireMiniAppUser(body, env);
   if (user instanceof Response) {
     return user;
   }

@@ -9097,7 +9097,7 @@
 
   function initAdminAccess() {
     var adminBtn = document.getElementById('adminBtn');
-    if (!tg || !tg.initData) {
+    if (!hasMiniAppAuth()) {
       if (adminBtn) adminBtn.hidden = true;
       return;
     }
