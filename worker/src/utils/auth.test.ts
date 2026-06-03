@@ -6,6 +6,10 @@ import {
   getUserIdFromInitData,
   validateInitData,
 } from './auth';
+import {
+  createMiniAppLaunchToken,
+  verifyMiniAppLaunchToken,
+} from './miniapp-launch-token';
 
 const BOT_TOKEN = '123456789:AAFakeBotTokenForUnitTests';
 const WEBAPP_SECRET = 'unit-test-webapp-secret';
@@ -75,5 +79,42 @@ describe('authenticateMiniAppUser', () => {
     if (!result.ok) {
       expect(result.error).toBe('Invalid initData');
     }
+  });
+
+  it('accepts valid launch_token when initData is missing', async () => {
+    const launchToken = await createMiniAppLaunchToken(3003, testEnv());
+    expect(launchToken).toBeTruthy();
+    const result = await authenticateMiniAppUser(
+      { secret: WEBAPP_SECRET, initData: '', launch_token: launchToken! },
+      testEnv(),
+    );
+    expect(result).toEqual({ ok: true, tgId: 3003 });
+  });
+
+  it('rejects mismatched tg_id with launch_token', async () => {
+    const launchToken = await createMiniAppLaunchToken(3003, testEnv());
+    const result = await authenticateMiniAppUser(
+      {
+        secret: WEBAPP_SECRET,
+        initData: '',
+        launch_token: launchToken!,
+        tg_id: 3004,
+      },
+      testEnv(),
+    );
+    expect(result).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
+describe('miniapp launch token', () => {
+  it('verifies token created for user', async () => {
+    const token = await createMiniAppLaunchToken(4001, testEnv());
+    expect(token).toBeTruthy();
+    expect(await verifyMiniAppLaunchToken(token!, BOT_TOKEN)).toBe(4001);
+  });
+
+  it('rejects tampered token', async () => {
+    const token = await createMiniAppLaunchToken(4001, testEnv());
+    expect(await verifyMiniAppLaunchToken(`${token}x`, BOT_TOKEN)).toBeNull();
   });
 });

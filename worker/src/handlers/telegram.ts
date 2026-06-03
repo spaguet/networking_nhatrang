@@ -59,6 +59,10 @@ import {
   paymentMethodLabel,
   setUserFreeUsed,
 } from '../utils/helpers';
+import {
+  appendLaunchTokenToUrl,
+  createMiniAppLaunchToken,
+} from '../utils/miniapp-launch-token';
 import { ensureTelegramListingContact } from '../utils/telegram-listing-verify';
 import { pinApproveListing, pinRejectListing } from './pins';
 import {
@@ -315,17 +319,26 @@ async function getListingData(
 }
 
 /** Постоянное меню у поля ввода: Mini App и «Написать администратору». */
-function mainMenuReplyKeyboard(config: AppConfig): ReplyKeyboardMarkup {
+function mainMenuReplyKeyboard(
+  config: AppConfig,
+  launchToken: string | null,
+): ReplyKeyboardMarkup {
   const rows: ReplyKeyboardMarkup['keyboard'] = [];
   if (isValidMiniAppUrl(config.miniAppUrl)) {
+    const catalogUrl = launchToken
+      ? appendLaunchTokenToUrl(getMiniAppCatalogUrl(config.miniAppUrl), launchToken)
+      : getMiniAppCatalogUrl(config.miniAppUrl);
+    const rulesUrl = launchToken
+      ? appendLaunchTokenToUrl(getMiniAppRulesUrl(config.miniAppUrl), launchToken)
+      : getMiniAppRulesUrl(config.miniAppUrl);
     rows.push([
       {
         text: '🎩 Добро пожаловать!',
-        web_app: { url: getMiniAppCatalogUrl(config.miniAppUrl) },
+        web_app: { url: catalogUrl },
       },
       {
         text: '📋 Правила',
-        web_app: { url: getMiniAppRulesUrl(config.miniAppUrl) },
+        web_app: { url: rulesUrl },
       },
     ]);
   }
@@ -347,14 +360,28 @@ function mainMenuReplyKeyboardWithoutContact(): ReplyKeyboardMarkup {
   };
 }
 
-async function sendWelcome(chatId: number | string, env: Env): Promise<void> {
+async function mainMenuReplyKeyboardForUser(
+  tgId: number,
+  env: Env,
+): Promise<ReplyKeyboardMarkup> {
+  const config = getConfig(env);
+  const launchToken = await createMiniAppLaunchToken(tgId, env);
+  return mainMenuReplyKeyboard(config, launchToken);
+}
+
+async function sendWelcome(
+  chatId: number | string,
+  tgId: number,
+  env: Env,
+): Promise<void> {
   const config = getConfig(env);
   const text =
     '👋 Добро пожаловать в Место Встречи — Нячанг!\n\n' +
     'Здесь профессионалы, фрилансеры и мастера находят друг друга.\n\n' +
-    '🔍 Ищете специалиста? Нажмите «Добро пожаловать!» под этим сообщением.\n\n' +
+    '🔍 Ищете специалиста? Нажмите «Добро пожаловать!» в меню внизу у поля ввода.\n\n' +
     '📋 Хотите разместить мини-резюме? Откройте каталог и заполните короткую анкету — одно размещение бесплатно.';
-  const replyKb = mainMenuReplyKeyboard(config);
+  const launchToken = await createMiniAppLaunchToken(tgId, env);
+  const replyKb = mainMenuReplyKeyboard(config, launchToken);
   const msgId = await sendMessage(chatId, text, replyKb, env);
   if (!msgId) {
     await sendMessage(
@@ -382,7 +409,7 @@ async function startContactAdmin(tgId: number, env: Env): Promise<void> {
     tgId,
     '✉️ Напишите администратору одним сообщением (текст или фото).\n\n' +
       'Для отмены отправьте /start',
-    mainMenuReplyKeyboard(getConfig(env)),
+    await mainMenuReplyKeyboardForUser(tgId, env),
     env,
   );
 }
@@ -559,7 +586,7 @@ async function forwardContactToAdmin(
     tgId,
     '✅ Сообщение отправлено администратору.\n\n' +
       'Администратор рассмотрит его в течение 24 часов. Ответ придёт в этот чат.',
-    mainMenuReplyKeyboard(getConfig(env)),
+    await mainMenuReplyKeyboardForUser(tgId, env),
     env,
   );
   await logAction(tgId, 'contact_admin', '', env.DB);
@@ -897,7 +924,7 @@ async function handleUserTextMessage(
 
   if (command === '/start') {
     await logAction(tgId, 'cmd_start', String(chatId), env.DB);
-    await sendWelcome(chatId, env);
+    await sendWelcome(chatId, tgId, env);
     return true;
   }
 
@@ -914,7 +941,7 @@ async function handleUserTextMessage(
   }
 
   if (command) {
-    await sendWelcome(chatId, env);
+    await sendWelcome(chatId, tgId, env);
     return true;
   }
 

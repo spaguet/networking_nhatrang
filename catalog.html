@@ -3232,7 +3232,7 @@
 </div>
 
 <div id="noAuthOverlay" class="ban-overlay" hidden aria-live="polite">
-  <p class="ban-overlay-text">Не удалось войти в приложение.<br><br>Закройте Mini App, в боте отправьте /start и откройте каталог кнопкой «Добро пожаловать!» <strong>под сообщением</strong> (не кнопкой внизу у клавиатуры).</p>
+  <p class="ban-overlay-text">Не удалось войти в приложение.<br><br>Закройте Mini App, в боте отправьте /start и откройте каталог кнопкой «Добро пожаловать!» <strong>в меню внизу</strong> у поля ввода.</p>
 </div>
 
 <script>
@@ -3448,13 +3448,27 @@
   var tg = window.Telegram && window.Telegram.WebApp;
   if (tg) { tg.ready(); tg.expand(); }
 
+  function getLaunchTokenFromUrl() {
+    try {
+      return (new URLSearchParams(window.location.search).get('lt') || '').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  var launchToken = getLaunchTokenFromUrl();
+
+  function hasMiniAppAuth() {
+    return !!(tg && (tg.initData || launchToken));
+  }
+
   function showNoAuthOverlay() {
     var overlay = document.getElementById('noAuthOverlay');
     if (overlay) overlay.hidden = false;
     document.body.style.overflow = 'hidden';
   }
 
-  if (tg && !tg.initData) {
+  if (tg && !tg.initData && !launchToken) {
     showNoAuthOverlay();
   }
 
@@ -4331,16 +4345,19 @@
      API HELPERS
   ───────────────────────────────────── */
   function buildPayload(action, extra) {
-    if (!tg || !tg.initData) return null;
+    if (!hasMiniAppAuth()) return null;
     var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
     var payload = {
       action:     action,
       tg_id:      user.id,
       username:   user.username   || '',
       first_name: user.first_name || '',
-      initData:   tg.initData,
+      initData:   (tg && tg.initData) ? tg.initData : '',
       secret:     WEBAPP_SECRET
     };
+    if (launchToken && !payload.initData) {
+      payload.launch_token = launchToken;
+    }
     if (extra) {
       Object.keys(extra).forEach(function (k) { payload[k] = extra[k]; });
     }
@@ -4802,7 +4819,7 @@
   }
 
   function refreshMessagingUnread() {
-    if (!tg || !tg.initData) return;
+    if (!hasMiniAppAuth()) return;
     var payload = buildPayload('get_messaging_unread');
     if (!payload) return;
     apiPost(payload)
@@ -5498,7 +5515,7 @@
   function toggleLike(cardId) {
     if (!LIKES_ENABLED) return;
 
-    if (!tg || !tg.initDataUnsafe || !tg.initDataUnsafe.user || !tg.initDataUnsafe.user.id) {
+    if (!hasMiniAppAuth()) {
       if (tg && tg.showAlert) {
         tg.showAlert('Войдите через Telegram для лайков');
       }
@@ -5932,7 +5949,7 @@
     if (!FAVORITES_ENABLED) return;
     if (pendingFavorites[listingId]) return;
 
-    if (!tg || !tg.initData) {
+    if (!hasMiniAppAuth()) {
       if (tg && tg.showAlert) {
         tg.showAlert('Войдите через Telegram для избранного');
       }
@@ -7219,18 +7236,23 @@
   }
 
   function appendPortfolioAuthFields(fd, action, listingId) {
-    var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    var user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
     fd.append('action', action);
-    fd.append('initData', tg.initData);
+    fd.append('initData', (tg && tg.initData) ? tg.initData : '');
     fd.append('secret', WEBAPP_SECRET);
-    fd.append('tg_id', String(user.id || ''));
+    if (launchToken && !(tg && tg.initData)) {
+      fd.append('launch_token', launchToken);
+    }
+    if (user.id) {
+      fd.append('tg_id', String(user.id));
+    }
     if (listingId) {
       fd.append('listing_id', listingId);
     }
   }
 
   function uploadPortfolioPhotosSequential(action, listingId, statusEl) {
-    if (!tg || !tg.initData) {
+    if (!hasMiniAppAuth()) {
       return Promise.resolve({ ok: false, error: 'Invalid_initData' });
     }
     var files = getPortfolioFiles();
@@ -7250,7 +7272,7 @@
         return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
           var uploadSize = compressed.size || compressed.byteLength || 0;
           portfolioTwlog('upload slot ' + slot.position + ' ' + uploadSize + ' ' + (compressed.name || ''));
-          if (tg && tg.initData) {
+          if (hasMiniAppAuth() && tg && tg.initData) {
             return uploadPortfolioPhotoB64(action, slot, compressed, listingId).then(function (data) {
               if (!data.ok) {
                 portfolioTwlog('upload fail ' + slot.position + ' ' + (data.error || ''));
@@ -7755,7 +7777,7 @@
   }
 
   function checkListingStatus() {
-    if (!tg || !tg.initData) return;
+    if (!hasMiniAppAuth()) return;
     var payload = buildPayload('check_listing_status');
     if (!payload) return;
     apiPost(payload)
@@ -7781,7 +7803,7 @@
   }
 
   function checkBanOnInit() {
-    if (!tg || !tg.initData) return;
+    if (!hasMiniAppAuth()) return;
     var payload = buildPayload('check_listing_status');
     if (!payload) return;
     apiPost(payload)
@@ -7823,7 +7845,7 @@
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    if (!tg || !tg.initData || appMode === 'paid') return;
+    if (!hasMiniAppAuth() || appMode === 'paid') return;
 
     if (_pendingPortfolioListingId) {
       if (!validatePortfolioClient(statusEl)) return;

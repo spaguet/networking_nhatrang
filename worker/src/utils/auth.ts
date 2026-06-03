@@ -1,4 +1,5 @@
 import type { Env } from '../env';
+import { verifyMiniAppLaunchToken } from './miniapp-launch-token';
 
 export type InitDataErrorCode = 'Invalid initData' | 'Invalid_initData';
 
@@ -241,15 +242,24 @@ export async function authenticateMiniAppUser(
   env: Env,
   initDataError: InitDataErrorCode = 'Invalid initData',
 ): Promise<AuthenticatedMiniAppUserResult> {
-  const auth = await validateMiniAppRequest(body, env, initDataError);
-  if (!auth.ok) {
-    return auth;
+  if (env.WEBAPP_SECRET && body.secret !== env.WEBAPP_SECRET) {
+    return { ok: false, error: 'invalid_secret' };
   }
 
   const initData = String(body.initData ?? '');
-  const tgId = getUserIdFromInitData(initData);
+  let tgId: number | null = null;
+
+  if (await validateInitData(initData, env.BOT_TOKEN)) {
+    tgId = getUserIdFromInitData(initData);
+  } else {
+    const launchToken = String(body.launch_token ?? '').trim();
+    if (launchToken) {
+      tgId = await verifyMiniAppLaunchToken(launchToken, env.BOT_TOKEN);
+    }
+  }
+
   if (!tgId) {
-    return { ok: false, error: 'invalid_tg_id' };
+    return { ok: false, error: initDataError };
   }
 
   const bodyTgIdRaw = body.tg_id;

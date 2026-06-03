@@ -17,7 +17,11 @@ import {
   sendMessage,
   sendModerationToAdmins,
 } from '../services/telegram-api';
-import { getUserIdFromInitData, validateInitData } from '../utils/auth';
+import {
+  authenticateMiniAppUser,
+  getUserIdFromInitData,
+  validateInitData,
+} from '../utils/auth';
 import { debugMediaLog, isDebugMedia } from '../utils/debug-media';
 import { decodeDescriptionNewlines } from '../utils/description';
 import { formatKeywordsModerationLine, parseKeywordsJson } from '../utils/keywords';
@@ -72,19 +76,24 @@ async function checkMultipartAuth(
     return { ok: false, response: jsonResponse({ ok: false, error: 'server_config' }) };
   }
 
-  if (env.WEBAPP_SECRET && fieldString(fields, 'secret') !== env.WEBAPP_SECRET) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'invalid_secret' }) };
+  const auth = await authenticateMiniAppUser(
+    {
+      secret: fieldString(fields, 'secret'),
+      initData: fieldString(fields, 'initData'),
+      launch_token: fieldString(fields, 'launch_token'),
+      tg_id: fieldString(fields, 'tg_id'),
+    },
+    env,
+    'Invalid_initData',
+  );
+  if (!auth.ok) {
+    return {
+      ok: false,
+      response: jsonResponse({ ok: false, error: auth.error }),
+    };
   }
 
-  const initData = fieldString(fields, 'initData');
-  if (!(await validateInitData(initData, env.BOT_TOKEN))) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'Invalid_initData' }) };
-  }
-
-  const tgId = getUserIdFromInitData(initData);
-  if (!tgId) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'invalid_tg_id' }) };
-  }
+  const tgId = auth.tgId;
 
   const banned = await rejectIfBanned(tgId, env.DB);
   if (banned) {
@@ -315,26 +324,17 @@ async function checkJsonPortfolioAuth(
     return { ok: false, response: jsonResponse({ ok: false, error: 'server_config' }) };
   }
 
-  if (env.WEBAPP_SECRET && body.secret !== env.WEBAPP_SECRET) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'invalid_secret' }) };
+  const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
+  if (!auth.ok) {
+    return { ok: false, response: jsonResponse({ ok: false, error: auth.error }) };
   }
 
-  const initData = String(body.initData ?? '');
-  if (!(await validateInitData(initData, env.BOT_TOKEN))) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'Invalid_initData' }) };
-  }
-
-  const tgId = getUserIdFromInitData(initData);
-  if (!tgId) {
-    return { ok: false, response: jsonResponse({ ok: false, error: 'invalid_tg_id' }) };
-  }
-
-  const banned = await rejectIfBanned(tgId, env.DB);
+  const banned = await rejectIfBanned(auth.tgId, env.DB);
   if (banned) {
     return { ok: false, response: banned };
   }
 
-  return { ok: true, tgId };
+  return { ok: true, tgId: auth.tgId };
 }
 
 function parsePhotoPosition(body: Record<string, unknown>): number | null {
