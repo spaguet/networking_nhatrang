@@ -163,6 +163,14 @@ export async function verifyTelegramContactForOwner(
     return { ok: false, error: 'telegram_contact_not_found' };
   }
 
+  const ownerUsername = await getTelegramUsernameForUserId(env, tgId);
+  if (
+    ownerUsername &&
+    ownerUsername.toLowerCase() === username.toLowerCase()
+  ) {
+    return { ok: true, username: ownerUsername };
+  }
+
   const chat = await getChatByUsername(env, username);
   if (!chat.ok || chat.result?.id == null) {
     return { ok: false, error: 'telegram_contact_not_found' };

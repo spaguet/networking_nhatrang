@@ -1873,6 +1873,12 @@
     .telegram-submit-checklist.done {
       color: #15803d;
     }
+    #contacts.contacts-locked,
+    #contact_type.contact-type-locked {
+      opacity: 0.85;
+      cursor: not-allowed;
+      background: var(--surface-2, rgba(0, 0, 0, 0.04));
+    }
 
     .field-item.field-avatar {
       max-width: 108px;
@@ -2590,6 +2596,7 @@
             <p class="telegram-username-banner-note">После появления @ника в профиле закройте и снова откройте каталог из бота</p>
           </div>
           <input id="contacts" name="contacts" required maxlength="500" placeholder="@ваш_ник" />
+          <span class="field-hint" id="contactsEditLockedHint" hidden>При редактировании Telegram-ник изменить нельзя</span>
           <span class="field-hint" id="telegramAutofillHint" hidden>Подставлен ник из вашего Telegram. Если меняли ник — обновите поле и нажмите «Проверить»</span>
           <div id="telegramVerifyBlock">
             <button type="button" class="btn btn-outline verify-telegram-btn" id="verifyTelegramBtn">Проверить Telegram-ник</button>
@@ -3896,10 +3903,41 @@
     statusEl.innerHTML = html;
   }
 
+  function isEditTelegramContactLocked() {
+    return formEditMode && isTelegramContactType();
+  }
+
+  function applyEditContactFieldLock() {
+    var contactsInput = document.getElementById('contacts');
+    var contactTypeSel = document.getElementById('contact_type');
+    var lockedHint = document.getElementById('contactsEditLockedHint');
+    var lock = isEditTelegramContactLocked();
+
+    if (contactTypeSel) {
+      contactTypeSel.disabled = formEditMode;
+      contactTypeSel.classList.toggle('contact-type-locked', formEditMode);
+    }
+    if (contactsInput) {
+      contactsInput.disabled = lock;
+      contactsInput.readOnly = lock;
+      contactsInput.classList.toggle('contacts-locked', lock);
+    }
+    if (lockedHint) lockedHint.hidden = !lock;
+  }
+
+  function markTelegramContactVerifiedFromField() {
+    var contactsInput = document.getElementById('contacts');
+    var val = contactsInput ? contactsInput.value.trim() : '';
+    if (!val) return;
+    telegramContactVerified = true;
+    _telegramContactsSnapshot = val;
+    telegramVerifiedUsername = val.replace(/^@/, '');
+  }
+
   function updateTelegramSubmitChecklist() {
     var checklist = document.getElementById('telegramSubmitChecklist');
     if (!checklist) return;
-    if (!isTelegramContactType()) {
+    if (formEditMode || !isTelegramContactType()) {
       checklist.hidden = true;
       return;
     }
@@ -3921,6 +3959,7 @@
 
   function syncTelegramContactUi() {
     var isTelegram = isTelegramContactType();
+    var editLocked = isEditTelegramContactLocked();
     var hint = document.getElementById('contactHintTelegram');
     var verifyBlock = document.getElementById('telegramVerifyBlock');
     var banner = document.getElementById('telegramUsernameBanner');
@@ -3929,9 +3968,11 @@
     var verifyBtn = document.getElementById('verifyTelegramBtn');
     var noUsername = isTelegram && shouldShowNoTelegramUsernameBanner();
 
-    if (hint) hint.hidden = !isTelegram;
-    if (verifyBlock) verifyBlock.hidden = !isTelegram;
-    if (banner) banner.hidden = !noUsername;
+    applyEditContactFieldLock();
+
+    if (hint) hint.hidden = !isTelegram || editLocked;
+    if (verifyBlock) verifyBlock.hidden = !isTelegram || editLocked;
+    if (banner) banner.hidden = !noUsername || editLocked;
 
     if (contactsInput) {
       contactsInput.placeholder = isTelegram
@@ -3997,6 +4038,7 @@
   }
 
   function validateTelegramContactClient(statusEl) {
+    if (formEditMode) return true;
     if (!isTelegramContactType()) return true;
     if (!canUseTelegramContactVerify()) {
       showStatus(statusEl, ERRORS.telegram_no_username, 'err');
@@ -4021,6 +4063,7 @@
   }
 
   function runVerifyTelegramContact() {
+    if (formEditMode) return;
     var statusEl = document.getElementById('status');
     var verifyBtn = document.getElementById('verifyTelegramBtn');
     if (!isTelegramContactType()) return;
@@ -4087,9 +4130,19 @@
   }
 
   function initTelegramContactForm() {
-    resetTelegramVerifyState();
+    if (formEditMode && isTelegramContactType()) {
+      markTelegramContactVerifiedFromField();
+      var statusEl = document.getElementById('telegramVerifyStatus');
+      if (statusEl) {
+        statusEl.hidden = true;
+        statusEl.textContent = '';
+        statusEl.className = 'telegram-verify-status';
+      }
+    } else {
+      resetTelegramVerifyState();
+      autofillTelegramUsername();
+    }
     syncTelegramContactUi();
-    autofillTelegramUsername();
   }
 
   function showFormRulesPopup() {
@@ -6425,6 +6478,8 @@
     formEditMode = false;
     formEditParentId = null;
     syncPortfolioEditHint(false);
+    applyEditContactFieldLock();
+    syncTelegramContactUi();
   }
 
   function applyEditFormChrome() {
