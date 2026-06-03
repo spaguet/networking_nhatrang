@@ -20,6 +20,7 @@ import { handleGetLikesPost, handleToggleLikePost } from './likes';
 import {
   handleGetMessages,
   handleGetMessagingUnread,
+  handleGetMyTelegramUsername,
   handleListMyConversations,
   handleMarkConversationRead,
   handleOpenConversation,
@@ -79,6 +80,8 @@ export async function routeApiAction(
       return handleGetFavoriteCountsPost(body, env);
     case 'toggle_favorite':
       return handleToggleFavoritePost(body, env);
+    case 'get_my_telegram_username':
+      return handleGetMyTelegramUsername(body, env);
     case 'verify_telegram_contact':
       return handleVerifyTelegramContact(body, env);
     case 'resolve_telegram_chat':

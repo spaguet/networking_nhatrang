@@ -30,6 +30,7 @@ import {
 } from '../utils/telegram-listing-verify';
 import {
   buildTelegramChatUrl,
+  getTelegramUsernameForUserId,
   parseTelegramUsername,
   verifyTelegramContactForOwner,
 } from '../utils/telegram-contact';
@@ -39,6 +40,30 @@ function checkServerConfig(env: Env): Response | null {
     return jsonResponse({ ok: false, error: 'server_config' });
   }
   return null;
+}
+
+export async function handleGetMyTelegramUsername(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  try {
+    const cfgErr = checkServerConfig(env);
+    if (cfgErr) {
+      return cfgErr;
+    }
+
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
+    if (!auth.ok) {
+      return jsonResponse({ ok: false, error: auth.error });
+    }
+
+    const username = await getTelegramUsernameForUserId(env, auth.tgId);
+    return jsonResponse({ ok: true, username });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('handleGetMyTelegramUsername:', msg);
+    return jsonResponse({ ok: false, error: 'server_error' });
+  }
 }
 
 export async function handleVerifyTelegramContact(

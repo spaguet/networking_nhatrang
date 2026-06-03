@@ -3458,6 +3458,51 @@
 
   var launchToken = getLaunchTokenFromUrl();
 
+  function parseUserFromInitDataString(initData) {
+    if (!initData || typeof initData !== 'string') return null;
+    try {
+      var pairs = initData.split('&');
+      for (var i = 0; i < pairs.length; i++) {
+        var eq = pairs[i].indexOf('=');
+        if (eq === -1) continue;
+        var key = decodeURIComponent(pairs[i].substring(0, eq));
+        if (key !== 'user') continue;
+        var val = decodeURIComponent(pairs[i].substring(eq + 1).replace(/\+/g, ' '));
+        var user = JSON.parse(val);
+        return user && user.id != null ? user : null;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function parseTgIdFromLaunchToken(token) {
+    if (!token) return null;
+    var parts = String(token).trim().split('.');
+    if (parts.length !== 4) return null;
+    var id = Number(parts[0]);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  /** User from initDataUnsafe, signed initData, or launch token (reply keyboard). */
+  function getTelegramWebAppUser() {
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id != null) {
+      return tg.initDataUnsafe.user;
+    }
+    if (tg && tg.initData) {
+      var fromInit = parseUserFromInitDataString(tg.initData);
+      if (fromInit) return fromInit;
+    }
+    var ltId = parseTgIdFromLaunchToken(launchToken);
+    if (ltId != null) {
+      return { id: ltId, username: '', first_name: '' };
+    }
+    return null;
+  }
+
+  function isLaunchTokenOnlyAuth() {
+    return !!(launchToken && !(tg && tg.initData));
+  }
+
   function hasMiniAppAuth() {
     return !!(tg && (tg.initData || launchToken));
   }
@@ -3812,9 +3857,22 @@
     return sel && sel.value === 'Telegram';
   }
 
-  function hasTelegramUsernameInInitData() {
-    var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  function hasTelegramUsernameInProfile() {
+    var user = getTelegramWebAppUser();
     return !!(user && user.username);
+  }
+
+  /** false only when initData confirms account has no @username (not launch-token-only). */
+  function shouldShowNoTelegramUsernameBanner() {
+    if (!isTelegramContactType()) return false;
+    if (isLaunchTokenOnlyAuth()) return false;
+    return !hasTelegramUsernameInProfile();
+  }
+
+  function canUseTelegramContactVerify() {
+    if (hasTelegramUsernameInProfile()) return true;
+    if (isLaunchTokenOnlyAuth()) return true;
+    return false;
   }
 
   function resetTelegramVerifyState() {
@@ -3851,9 +3909,12 @@
     }
     checklist.hidden = false;
     checklist.className = 'telegram-submit-checklist';
-    var hasInitUsername = hasTelegramUsernameInInitData();
+    var hasInitUsername = hasTelegramUsernameInProfile();
+    var line1 = isLaunchTokenOnlyAuth()
+      ? '☐ Укажите свой @ник в поле «Контакт»<br>'
+      : (hasInitUsername ? '☑' : '☐') + ' Задан @ник в вашем Telegram<br>';
     checklist.innerHTML =
-      (hasInitUsername ? '☑' : '☐') + ' Задан @ник в вашем Telegram<br>' +
+      line1 +
       '☐ Тот же @ник указан в поле «Контакт»<br>' +
       '☐ Нажата кнопка «Проверить Telegram-ник» — зелёная галочка';
   }
@@ -3866,7 +3927,7 @@
     var autofillHint = document.getElementById('telegramAutofillHint');
     var contactsInput = document.getElementById('contacts');
     var verifyBtn = document.getElementById('verifyTelegramBtn');
-    var noUsername = isTelegram && !hasTelegramUsernameInInitData();
+    var noUsername = isTelegram && shouldShowNoTelegramUsernameBanner();
 
     if (hint) hint.hidden = !isTelegram;
     if (verifyBlock) verifyBlock.hidden = !isTelegram;
@@ -3880,7 +3941,7 @@
 
     if (autofillHint) {
       var showAutofill = isTelegram &&
-        hasTelegramUsernameInInitData() &&
+        hasTelegramUsernameInProfile() &&
         contactsInput &&
         contactsInput.value.trim().length > 0;
       autofillHint.hidden = !showAutofill;
@@ -3890,7 +3951,7 @@
       if (!isTelegram) {
         verifyBtn.disabled = false;
         verifyBtn.textContent = 'Проверить Telegram-ник';
-      } else if (noUsername) {
+      } else if (noUsername && !isLaunchTokenOnlyAuth()) {
         verifyBtn.disabled = true;
         verifyBtn.textContent = 'Сначала задайте @ник в Telegram';
       } else {
@@ -3904,13 +3965,26 @@
 
   function autofillTelegramUsername() {
     if (!isTelegramContactType()) return;
-    var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var contactsInput = document.getElementById('contacts');
-    if (!user || !user.username || !contactsInput) return;
-    if (!contactsInput.value.trim()) {
+    if (!contactsInput || contactsInput.value.trim()) return;
+
+    var user = getTelegramWebAppUser();
+    if (user && user.username) {
       contactsInput.value = '@' + user.username;
+      syncTelegramContactUi();
+      return;
     }
-    syncTelegramContactUi();
+
+    if (!isLaunchTokenOnlyAuth()) return;
+    var payload = buildPayload('get_my_telegram_username');
+    if (!payload) return;
+    apiPost(payload, 15000)
+      .then(function (data) {
+        if (!data.ok || !data.username || contactsInput.value.trim()) return;
+        contactsInput.value = '@' + data.username;
+        syncTelegramContactUi();
+      })
+      .catch(function () { /* ignore */ });
   }
 
   function onTelegramContactFieldChanged() {
@@ -3924,7 +3998,7 @@
 
   function validateTelegramContactClient(statusEl) {
     if (!isTelegramContactType()) return true;
-    if (!hasTelegramUsernameInInitData()) {
+    if (!canUseTelegramContactVerify()) {
       showStatus(statusEl, ERRORS.telegram_no_username, 'err');
       return false;
     }
@@ -3950,7 +4024,7 @@
     var statusEl = document.getElementById('status');
     var verifyBtn = document.getElementById('verifyTelegramBtn');
     if (!isTelegramContactType()) return;
-    if (!hasTelegramUsernameInInitData()) {
+    if (!canUseTelegramContactVerify()) {
       showStatus(statusEl, ERRORS.telegram_no_username, 'err');
       return;
     }
@@ -4346,7 +4420,7 @@
   ───────────────────────────────────── */
   function buildPayload(action, extra) {
     if (!hasMiniAppAuth()) return null;
-    var user = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    var user = getTelegramWebAppUser() || {};
     var payload = {
       action:     action,
       tg_id:      user.id,
@@ -4782,7 +4856,7 @@
      IN-APP MESSAGING (user_messaging_TZ §4.3, §5.1–5.4)
   ───────────────────────────────────── */
   function getMyTgId() {
-    var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    var user = getTelegramWebAppUser();
     return user && user.id ? Number(user.id) : 0;
   }
 
@@ -6435,7 +6509,7 @@
     }
 
     if (!prefill) {
-      var user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+      var user = getTelegramWebAppUser();
       if (user && user.first_name) {
         var nameInput = document.getElementById('display_name');
         if (!nameInput.value) nameInput.value = user.first_name;
@@ -7236,7 +7310,7 @@
   }
 
   function appendPortfolioAuthFields(fd, action, listingId) {
-    var user = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    var user = getTelegramWebAppUser() || {};
     fd.append('action', action);
     fd.append('initData', (tg && tg.initData) ? tg.initData : '');
     fd.append('secret', WEBAPP_SECRET);

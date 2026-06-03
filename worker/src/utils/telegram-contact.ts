@@ -87,9 +87,9 @@ function telegramIdsEqual(a: unknown, b: unknown): boolean {
   return a != null && b != null && String(a) === String(b);
 }
 
-async function getChatByUsername(
+async function telegramGetChat(
   env: Env,
-  username: string,
+  chatId: string | number,
 ): Promise<TelegramGetChatResult> {
   const url = `https://api.telegram.org/bot${env.BOT_TOKEN}/getChat`;
 
@@ -97,7 +97,7 @@ async function getChatByUsername(
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: `@${username}` }),
+      body: JSON.stringify({ chat_id: chatId }),
     });
     const text = await response.text();
     try {
@@ -109,6 +109,27 @@ async function getChatByUsername(
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, description: msg };
   }
+}
+
+async function getChatByUsername(
+  env: Env,
+  username: string,
+): Promise<TelegramGetChatResult> {
+  return telegramGetChat(env, `@${username}`);
+}
+
+/** Bot API getChat by numeric user id (private chat the bot has seen). */
+export async function getTelegramUsernameForUserId(
+  env: Env,
+  tgId: number,
+): Promise<string | null> {
+  if (!env.BOT_TOKEN || !Number.isFinite(tgId) || tgId <= 0) {
+    return null;
+  }
+
+  const chat = await telegramGetChat(env, tgId);
+  const username = chat.result?.username?.trim();
+  return username || null;
 }
 
 /** Verify that contacts resolve to a public @username owned by tgId (Bot API getChat). */
