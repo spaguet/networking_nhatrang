@@ -3453,7 +3453,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v91formvalid';
+  var PORTFOLIO_CLIENT_VERSION = 'v92canvasfallback';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -7222,8 +7222,14 @@
 
   function canvasExportFormats() {
     return [
-      { label: 'webp', mime: 'image/webp', ext: 'webp', dataUrl: function (canvas) { return canvas.toDataURL('image/webp', 0.82); } }
+      { label: 'webp', mime: 'image/webp', ext: 'webp', dataUrl: function (canvas) { return canvas.toDataURL('image/webp', 0.82); } },
+      { label: 'jpeg', mime: 'image/jpeg', ext: 'jpg', dataUrl: function (canvas) { return canvas.toDataURL('image/jpeg', 0.85); } }
     ];
+  }
+
+  function portfolioUploadMimeOk(mime) {
+    mime = (mime || '').toLowerCase();
+    return mime === 'image/webp' || mime === 'image/jpeg' || mime === 'image/png';
   }
 
   function canvasToUploadFile(canvas, sourceFile, cw, ch) {
@@ -7445,8 +7451,8 @@
           var uploadSize = compressed.size || compressed.byteLength || 0;
           var uploadMime = (compressed.type || '').toLowerCase();
           portfolioTwlog('upload slot ' + slot.position + ' ' + uploadSize + ' ' + (compressed.name || '') + ' ' + uploadMime);
-          if (uploadMime && uploadMime !== 'image/webp') {
-            portfolioTwlog('upload reject non-webp ' + slot.position + ' ' + uploadMime);
+          if (uploadMime && !portfolioUploadMimeOk(uploadMime)) {
+            portfolioTwlog('upload reject bad mime ' + slot.position + ' ' + uploadMime);
             lastResult = { ok: false, error: 'portfolio_compress_failed' };
             return;
           }
