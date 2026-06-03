@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- listings
--- status: on_moderation | active | archived | rejected | edit_pending
+-- status: on_moderation | active | archived | rejected | edit_pending | banned
+--   banned — hidden from catalog while user is banned; purged 30d after users.banned_at
 --   edit_pending — draft edit (not in catalog/profile list); parent active row stays visible until approve
 CREATE TABLE IF NOT EXISTS listings (
   listing_id          TEXT PRIMARY KEY,

@@ -249,7 +249,7 @@ export async function handleToggleFavoritePost(
 
 export async function purgeFavoritesForListing(
   listingId: string,
-  env: Env,
+  env: Pick<Env, 'DB' | 'CACHE'>,
 ): Promise<void> {
   await env.DB.prepare('DELETE FROM favorites WHERE listing_id = ?').bind(listingId).run();
   await env.CACHE.delete(FAVORITES_CACHE_KEY);

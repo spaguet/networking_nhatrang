@@ -681,7 +681,7 @@ export async function handleAdminUnbanUser(
     return jsonResponse({ ok: false, error: 'invalid_target' }, 400);
   }
 
-  await unbanUser(targetTgId, env.DB);
+  await unbanUser(targetTgId, env);
   await sendMessage(targetTgId, UNBAN_MESSAGE, null, env);
   await logAction(
     session.tgId,
@@ -991,7 +991,7 @@ export async function handleAdminPunishFromComplaint(
   }
 
   await ensureUser(targetTgId, '', '', env.DB);
-  await banUser(targetTgId, '', '', session.tgId, env.DB);
+  await banUser(targetTgId, '', '', session.tgId, env);
   await clearSession(targetTgId, env);
   await sendMessage(targetTgId, BAN_USER_MESSAGE, null, env);
 

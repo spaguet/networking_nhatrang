@@ -7,6 +7,7 @@ import {
   purgeListing,
 } from '../services/portfolio-db';
 import { sendMessage } from '../services/telegram-api';
+import { purgeBannedListingsAfterRetention } from '../utils/ban-listings';
 import { formatDateRu, logAction } from '../utils/helpers';
 
 interface MaintenanceListingRow {
@@ -179,6 +180,7 @@ export async function dailyMaintenance(env: Env): Promise<void> {
   await logAction(0, 'daily_maintenance', summary, env.DB);
 
   await cleanupStaleEditPending(env);
+  await purgeBannedListingsAfterRetention(env);
   await purgeArchivedListings(env);
   await cleanupStaleStaging(env, 7);
   await purgeExpiredConversations(env);

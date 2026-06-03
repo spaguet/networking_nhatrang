@@ -254,8 +254,9 @@ export async function handleGetMyListings(
        ORDER BY CASE l.status
          WHEN 'active' THEN 0
          WHEN 'on_moderation' THEN 1
-         WHEN 'archived' THEN 2
-         WHEN 'rejected' THEN 3
+         WHEN 'banned' THEN 2
+         WHEN 'archived' THEN 3
+         WHEN 'rejected' THEN 4
          ELSE 9
        END,
        l.submitted_at DESC`,

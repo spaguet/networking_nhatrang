@@ -1275,7 +1275,7 @@ async function banUserByAdmin(
     return;
   }
 
-  await banUser(userTgId, '', '', bannedBy, env.DB);
+  await banUser(userTgId, '', '', bannedBy, env);
   await clearSession(userTgId, env);
 
   await sendMessage(userTgId, '🚫 Ваш телеграм-аккаунт забанен.', null, env);

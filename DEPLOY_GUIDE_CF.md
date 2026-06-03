@@ -96,11 +96,13 @@ npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/00
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/010_listing_edit.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/011_messaging.sql
 npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/012_telegram_contact_verify.sql
+npx wrangler d1 execute networking_nhatrang --remote --file=src/db/migrations/014_listing_banned_status.sql
 ```
 
 Ожидаемые таблицы: `users`, `listings`, `sessions`, `logs`, `likes`, **`favorites`**, `admin_links`, **`listing_media`**, **`admins`**, **`app_settings`**, **`conversations`**, **`messages`**, **`conversation_reads`**, **`message_complaints`**.  
 В `listings` — колонки **`archived_at`**, **`keywords`** (JSON-массив, default `'[]'`), **`edits_remaining`**, **`replaces_listing_id`** (после 010), **`telegram_username_verified`**, **`telegram_verified_at`** (после 012).  
 Статус **`edit_pending`** — черновик правки (не в каталоге; родитель `active` остаётся видимым до approve).  
+Статус **`banned`** — анкета скрыта из каталога при бане пользователя; не архивируется; удаляется с медиа через 30 дней после `users.banned_at` (cron).  
 В `users` — **`banned`**, **`banned_at`**, **`banned_by`** (после 006–008).
 
 **Миграция 010** (`010_listing_edit.sql`): колонки `edits_remaining` / `replaces_listing_id`, partial UNIQUE «один `edit_pending` на пользователя», backfill `edits_remaining = 3` для всех **active**. Повторный запуск безопасен только если колонки уже есть — иначе `ALTER` упадёт; проверка:

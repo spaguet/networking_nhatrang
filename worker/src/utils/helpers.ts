@@ -281,25 +281,42 @@ export async function banUser(
   username: string,
   firstName: string,
   bannedBy: number,
-  db: D1Database,
+  env: Env,
 ): Promise<void> {
-  await ensureUser(tgId, username, firstName, db);
+  await ensureUser(tgId, username, firstName, env.DB);
   const bannedAt = new Date().toISOString();
-  await db
+  await env.DB
     .prepare(
       'UPDATE users SET banned = 1, banned_at = ?, banned_by = ? WHERE tg_id = ?',
     )
     .bind(bannedAt, bannedBy, tgId)
     .run();
+
+  const { banUserListings } = await import('./ban-listings');
+  const hidden = await banUserListings(tgId, env);
+  if (hidden > 0) {
+    await logAction(tgId, 'ban_listings_hidden', String(hidden), env.DB);
+  }
 }
 
-export async function unbanUser(tgId: number, db: D1Database): Promise<void> {
-  await db
+export async function unbanUser(tgId: number, env: Env): Promise<void> {
+  await env.DB
     .prepare(
       'UPDATE users SET banned = 0, banned_at = NULL, banned_by = NULL WHERE tg_id = ?',
     )
     .bind(tgId)
     .run();
+
+  const { restoreUserListingsOnUnban } = await import('./ban-listings');
+  const { restored, archived } = await restoreUserListingsOnUnban(tgId, env);
+  if (restored > 0 || archived > 0) {
+    await logAction(
+      tgId,
+      'unban_listings_restore',
+      `{ restored: ${restored}, archived: ${archived} }`,
+      env.DB,
+    );
+  }
 }
 
 export async function isStaffTgId(
