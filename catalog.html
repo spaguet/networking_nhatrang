@@ -2545,7 +2545,7 @@
 
     <div id="listingInfo" class="status info" role="status" hidden></div>
 
-    <form id="listingForm">
+    <form id="listingForm" novalidate>
       <div class="field-group">
 
         <div class="field-item">
@@ -3453,7 +3453,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v90b64webp';
+  var PORTFOLIO_CLIENT_VERSION = 'v91formvalid';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -4079,7 +4079,8 @@
     }
     var contacts = document.getElementById('contacts').value.trim();
     if (!contacts) {
-      showStatus(statusEl, ERRORS.validation, 'err');
+      showStatus(statusEl, 'Укажите @ник в поле «Контакт».', 'err');
+      focusFormField('contacts');
       return false;
     }
     if (containsLink(contacts)) {
@@ -4090,6 +4091,7 @@
     if (!telegramContactVerified) {
       showStatus(statusEl, ERRORS.telegram_verify_required, 'err');
       updateTelegramSubmitChecklist();
+      focusFormField('verifyTelegramBtn');
       return false;
     }
     return true;
@@ -4106,7 +4108,8 @@
     }
     var contacts = document.getElementById('contacts').value.trim();
     if (!contacts) {
-      showStatus(statusEl, ERRORS.validation, 'err');
+      showStatus(statusEl, 'Укажите @ник в поле «Контакт».', 'err');
+      focusFormField('contacts');
       return;
     }
     if (containsLink(contacts)) {
@@ -7919,12 +7922,48 @@
     }
   }
 
+  function focusFormField(fieldId) {
+    var el = document.getElementById(fieldId);
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (typeof el.focus === 'function') {
+        el.focus({ preventScroll: true });
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function resolveAvatarEmoji(form) {
+    var input = form && form.avatar_emoji;
+    var val = input ? String(input.value || '').trim() : '';
+    if (val) return val;
+    var preview = document.getElementById('avatarEmojiPreview');
+    var fromPreview = preview ? String(preview.textContent || '').trim() : '';
+    if (fromPreview) {
+      if (input) input.value = fromPreview;
+      return fromPreview;
+    }
+    if (input) input.value = DEFAULT_AVATAR_EMOJI;
+    return DEFAULT_AVATAR_EMOJI;
+  }
+
+  function isKnownCategory(label) {
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      if (CATEGORIES[i].label === label) return true;
+    }
+    return false;
+  }
+
+  function isKnownAvatarEmoji(emoji) {
+    return AVATAR_EMOJIS.indexOf(emoji) >= 0;
+  }
+
   function getFormData() {
     var form = document.getElementById('listingForm');
     var keywordsEnabled = isKeywordsEnabled();
     return {
       display_name: form.display_name.value.trim(),
-      avatar_emoji: form.avatar_emoji.value,
+      avatar_emoji: resolveAvatarEmoji(form),
       category:     form.category.value,
       experience:   form.experience.value.trim(),
       description:  normalizeDescription(form.description.value).trim(),
@@ -7938,8 +7977,44 @@
   function validateFormClient() {
     var statusEl = document.getElementById('status');
     var data = getFormData();
-    if (!data.display_name || !data.avatar_emoji || !data.category || !data.experience || !data.description || !data.contact_type || !data.contacts) {
-      showStatus(statusEl, ERRORS.validation, 'err');
+    if (!data.display_name) {
+      showStatus(statusEl, 'Укажите имя для каталога.', 'err');
+      focusFormField('display_name');
+      return null;
+    }
+    if (!data.category) {
+      showStatus(statusEl, ERRORS.invalid_category, 'err');
+      focusFormField('category');
+      return null;
+    }
+    if (!isKnownCategory(data.category)) {
+      showStatus(statusEl, ERRORS.invalid_category, 'err');
+      focusFormField('category');
+      return null;
+    }
+    if (!data.experience) {
+      showStatus(statusEl, 'Укажите опыт/стаж.', 'err');
+      focusFormField('experience');
+      return null;
+    }
+    if (!data.description) {
+      showStatus(statusEl, 'Заполните описание.', 'err');
+      focusFormField('description');
+      return null;
+    }
+    if (!data.contact_type) {
+      showStatus(statusEl, ERRORS.invalid_contact_type, 'err');
+      focusFormField('contact_type');
+      return null;
+    }
+    if (!data.contacts) {
+      showStatus(statusEl, 'Укажите контакт.', 'err');
+      focusFormField('contacts');
+      return null;
+    }
+    if (!isKnownAvatarEmoji(data.avatar_emoji)) {
+      showStatus(statusEl, ERRORS.invalid_avatar, 'err');
+      focusFormField('avatarEmojiBtn');
       return null;
     }
     if (containsLink(data.display_name) || containsLink(data.description)) {
