@@ -1758,20 +1758,12 @@
       line-height: 1.5;
     }
 
-    .textarea-wrap {
-      position: relative;
-    }
-    .textarea-wrap textarea {
-      padding-bottom: 30px;
-    }
     .char-counter {
-      position: absolute;
-      right: 14px;
-      bottom: 10px;
       font-size: 0.72rem;
       font-weight: 600;
       color: var(--text-sub);
-      pointer-events: none;
+      text-align: right;
+      margin-top: 4px;
       line-height: 1;
     }
     .char-counter.at-limit {
@@ -2568,10 +2560,8 @@
 
         <div class="field-item">
           <label for="description">О себе и услугах</label>
-          <div class="textarea-wrap">
-            <textarea id="description" name="description" required maxlength="500" placeholder="Специализация, чем можете быть полезны"></textarea>
-            <span class="char-counter" id="descriptionCounter">0/500</span>
-          </div>
+          <textarea id="description" name="description" required maxlength="500" placeholder="Специализация, чем можете быть полезны"></textarea>
+          <span class="char-counter" id="descriptionCounter">0/500</span>
           <span class="field-hint">Без запрещённого контента, объявлений о найме и продаже товаров.</span>
         </div>
 
