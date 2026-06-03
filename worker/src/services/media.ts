@@ -23,6 +23,8 @@ export type CompressWebpResult =
 const INPUT_MAX_BYTES = 8 * 1024 * 1024;
 const OUTPUT_TARGET_BYTES = 400 * 1024;
 const OUTPUT_HARD_CAP_BYTES = 600 * 1024;
+/** Canvas WebP from Mini App can exceed 600 KB before server re-encode. */
+const PASSTHROUGH_HARD_CAP_BYTES = 1024 * 1024;
 const MAX_LONG_EDGE = 1920;
 /** Reject huge decodes before @jsquash allocates full RGBA (Worker isolate OOM). */
 const MAX_INPUT_LONG_EDGE = 2560;
@@ -237,7 +239,7 @@ function tryPassthroughClientWebp(
   clientHeight: number | undefined,
   debug: boolean,
 ): CompressWebpResult | null {
-  if (bytes.byteLength > OUTPUT_HARD_CAP_BYTES) {
+  if (bytes.byteLength > PASSTHROUGH_HARD_CAP_BYTES) {
     debugMediaLog(debug, '[media] webp passthrough skip: too large', bytes.byteLength);
     return null;
   }

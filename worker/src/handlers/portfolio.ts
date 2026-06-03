@@ -675,7 +675,18 @@ export async function handleUploadPortfolio(
 
     const notify = await shouldSendDeferredNotify(listingId, env);
     if (notify) {
-      await sendDeferredListingNotify(listingId, tgId, env);
+      try {
+        await sendDeferredListingNotify(listingId, tgId, env);
+      } catch (notifyErr) {
+        const notifyMsg =
+          notifyErr instanceof Error ? notifyErr.message : String(notifyErr);
+        await logAction(
+          0,
+          'error',
+          `sendDeferredListingNotify(${listingId}): ${notifyMsg}`,
+          env.DB,
+        );
+      }
     }
 
     await logAction(tgId, 'upload_portfolio', listingId, env.DB);
@@ -907,7 +918,18 @@ export async function handleUploadPortfolioB64(
 
     const notify = await shouldSendDeferredNotify(listingId, env);
     if (notify) {
-      await sendDeferredListingNotify(listingId, tgId, env);
+      try {
+        await sendDeferredListingNotify(listingId, tgId, env);
+      } catch (notifyErr) {
+        const notifyMsg =
+          notifyErr instanceof Error ? notifyErr.message : String(notifyErr);
+        await logAction(
+          0,
+          'error',
+          `sendDeferredListingNotify(${listingId}): ${notifyMsg}`,
+          env.DB,
+        );
+      }
     }
 
     await logAction(tgId, 'upload_portfolio_b64', listingId, env.DB);

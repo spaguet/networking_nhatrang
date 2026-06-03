@@ -3453,7 +3453,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v89canvaswebp';
+  var PORTFOLIO_CLIENT_VERSION = 'v90b64webp';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -7219,9 +7219,7 @@
 
   function canvasExportFormats() {
     return [
-      { label: 'webp', mime: 'image/webp', ext: 'webp', dataUrl: function (canvas) { return canvas.toDataURL('image/webp', 0.82); } },
-      { label: 'jpeg', mime: 'image/jpeg', ext: 'jpg', dataUrl: function (canvas) { return canvas.toDataURL('image/jpeg', 0.82); } },
-      { label: 'png', mime: 'image/png', ext: 'png', dataUrl: function (canvas) { return canvas.toDataURL('image/png'); } }
+      { label: 'webp', mime: 'image/webp', ext: 'webp', dataUrl: function (canvas) { return canvas.toDataURL('image/webp', 0.82); } }
     ];
   }
 
@@ -7361,7 +7359,8 @@
   }
 
   function bytesToBase64(bytes) {
-    var chunkSize = 0x8000;
+    // 4 KB chunks: 32 KB apply() breaks on some Telegram Android WebViews (RangeError).
+    var chunkSize = 0x1000;
     var parts = [];
     for (var i = 0; i < bytes.length; i += chunkSize) {
       parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize)));
@@ -7380,10 +7379,17 @@
       if (bytes.length >= 4) {
         portfolioTwlog('upload b64 magic ' + bytes[0] + ',' + bytes[1] + ',' + bytes[2] + ',' + bytes[3] + ' len=' + bytes.length);
       }
+      var b64;
+      try {
+        b64 = bytesToBase64(bytes);
+      } catch (b64Err) {
+        portfolioTwlog('upload b64 encode fail ' + slot.position + ' ' + bytes.length + ' ' + (b64Err && b64Err.message ? b64Err.message : b64Err));
+        return { ok: false, error: 'portfolio_upload_failed' };
+      }
       var extra = {
         position: slot.position,
-        name: compressed.name || slot.file.name || ('photo_' + slot.position + '.jpg'),
-        data: bytesToBase64(bytes)
+        name: compressed.name || slot.file.name || ('photo_' + slot.position + '.webp'),
+        data: b64
       };
       if (compressed.canvasW > 0 && compressed.canvasH > 0) {
         extra.canvas_w = compressed.canvasW;
@@ -7434,7 +7440,13 @@
         }
         return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
           var uploadSize = compressed.size || compressed.byteLength || 0;
-          portfolioTwlog('upload slot ' + slot.position + ' ' + uploadSize + ' ' + (compressed.name || ''));
+          var uploadMime = (compressed.type || '').toLowerCase();
+          portfolioTwlog('upload slot ' + slot.position + ' ' + uploadSize + ' ' + (compressed.name || '') + ' ' + uploadMime);
+          if (uploadMime && uploadMime !== 'image/webp') {
+            portfolioTwlog('upload reject non-webp ' + slot.position + ' ' + uploadMime);
+            lastResult = { ok: false, error: 'portfolio_compress_failed' };
+            return;
+          }
           if (hasMiniAppAuth() && tg && tg.initData) {
             return uploadPortfolioPhotoB64(action, slot, compressed, listingId).then(function (data) {
               if (!data.ok) {
@@ -7458,8 +7470,10 @@
           portfolioTwlog('upload err ' + slot.position + ' ' + errMsg);
           if (errMsg === 'portfolio_compress_failed' || errMsg.indexOf('compress') >= 0) {
             lastResult = { ok: false, error: 'portfolio_compress_failed' };
+          } else if (err && (err.name === 'AbortError' || errMsg === 'http_error' || errMsg === 'not_json')) {
+            lastResult = { ok: false, error: 'network', message: apiErrorMessage(err) };
           } else {
-            lastResult = { ok: false, error: 'portfolio_upload_failed' };
+            lastResult = { ok: false, error: 'portfolio_upload_failed', message: apiErrorMessage(err) };
           }
         });
       });
@@ -7471,7 +7485,10 @@
 
   function portfolioErrorMessage(data) {
     var key = (data.error || '').replace(/\s/g, '_');
-    return data.message || ERRORS[key] || data.error || ERRORS.portfolio_upload_failed;
+    if (data.message) return data.message;
+    if (ERRORS[key]) return ERRORS[key];
+    if (data.error && data.error !== 'portfolio_upload_failed') return data.error;
+    return ERRORS.portfolio_upload_failed;
   }
 
   function uploadPortfolio(listingId, statusEl) {
