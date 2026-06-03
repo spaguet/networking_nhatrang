@@ -608,6 +608,15 @@ async function handleAdminReply(
 
   const link = await findAdminLink(repliedToId, env);
   if (!link) {
+    if (message.reply_to_message?.from?.is_bot) {
+      await sendMessage(
+        fromId,
+        '⚠️ Не удалось связать ответ с пользователем. Ответьте через Reply на сообщение бота с анкетой или чеком.',
+        null,
+        env,
+      );
+      return true;
+    }
     return false;
   }
 
@@ -647,9 +656,16 @@ async function handleAdminReply(
       `${link.link_type}|${link.listing_id || ''}`,
       env.DB,
     );
+    return true;
   }
 
-  return delivered;
+  await sendMessage(
+    fromId,
+    '⚠️ Отправьте текст или фото — другие типы сообщений пользователю не пересылаются.',
+    null,
+    env,
+  );
+  return true;
 }
 
 async function handlePinProofPhoto(
@@ -687,15 +703,18 @@ async function handlePinProofPhoto(
     `Срок: ${label}\n` +
     `Способ оплаты: ${payLabel}\n` +
     `Стоимость: ${price}\n\n` +
-    '↩️ Чек оплаты выше.';
+    '↩️ Ответьте на это сообщение (Reply), чтобы ответ ушёл пользователю.';
 
-  await sendModerationPhotoToAdmins(
+  const adminMsgIds = await sendModerationPhotoToAdmins(
     env.DB,
     env,
     fileId,
     caption,
     pinModerationKeyboard(listingId, pinDuration),
   );
+  for (let i = 0; i < adminMsgIds.length; i++) {
+    await saveAdminLink(adminMsgIds[i], tgId, 'pin_proof', listingId, env);
+  }
 
   await clearSession(tgId, env);
   await sendMessage(
@@ -801,18 +820,22 @@ async function handlePaymentProofPhoto(
       includePending: true,
     });
 
-    await sendModerationToAdmins(
+    const listingAdminMsgIds = await sendModerationToAdmins(
       env.DB,
       env,
       formatListingAdminText(listingId, tgId, draft, 'paid', userRef),
       null,
     );
+    for (let i = 0; i < listingAdminMsgIds.length; i++) {
+      await saveAdminLink(listingAdminMsgIds[i], tgId, 'payment_proof', listingId, env);
+    }
 
     const photoCaption =
       '💳 ЧЕК ОПЛАТЫ\n' +
       `${userRef}\n\n` +
       `Анкета: ${listingId}\n` +
-      `Способ: ${paymentMethodLabel(draft.payment_method)}`;
+      `Способ: ${paymentMethodLabel(draft.payment_method)}\n\n` +
+      '↩️ Ответьте на это сообщение (Reply), чтобы ответ ушёл пользователю.';
 
     const adminMsgIds = await sendModerationPhotoToAdmins(
       env.DB,
@@ -844,7 +867,7 @@ async function handlePaymentProofPhoto(
     includePending: true,
   });
   if (listingData) {
-    await sendModerationToAdmins(
+    const listingAdminMsgIds = await sendModerationToAdmins(
       env.DB,
       env,
       formatListingAdminText(
@@ -856,6 +879,9 @@ async function handlePaymentProofPhoto(
       ),
       null,
     );
+    for (let i = 0; i < listingAdminMsgIds.length; i++) {
+      await saveAdminLink(listingAdminMsgIds[i], tgId, 'payment_proof', listingId, env);
+    }
   }
 
   const caption =
