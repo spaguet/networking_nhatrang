@@ -146,6 +146,33 @@
     }
     .logo-title span { color: var(--orange); }
 
+    #screenMain .logo-title-wrap .logo-title--place,
+    #screenMain .logo-title-accent {
+      font-size: 2.1rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    #screenMain .logo-title-wrap .logo-title--place { color: #fff; }
+    #screenMain .logo-title-accent { color: var(--orange); display: block; }
+    #screenMain .logo-title-bottom {
+      display: inline-grid;
+      grid-template-rows: auto auto;
+      row-gap: 6px;
+    }
+    #screenMain .logo-city {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #fff;
+      font-style: normal;
+    }
+    #screenMain .logo-city i { font-style: normal; }
+
     .hero-desc {
       color: rgba(255,255,255,0.55);
       font-size: 0.88rem;
@@ -2402,7 +2429,13 @@
     <div class="hero-top">
       <div>
         <div class="logo-badge">НЕТВОРКИНГ</div>
-        <div class="logo-title">Место<br><span>Встречи</span></div>
+        <div class="logo-title-wrap">
+          <div class="logo-title logo-title--place">Место</div>
+          <div class="logo-title-bottom">
+            <span class="logo-title-accent">Встречи</span>
+            <span class="logo-city" aria-label="Нячанг"><i>Н</i><i>я</i><i>ч</i><i>а</i><i>н</i><i>г</i></span>
+          </div>
+        </div>
       </div>
       <div class="hero-actions">
         <button class="profile-btn" id="profileBtn">👤 Профиль</button>
