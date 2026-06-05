@@ -5039,6 +5039,19 @@
     });
   }
 
+  function bindCardDescToggleEvents(root) {
+    var scope = root || document;
+    scope.querySelectorAll('.card-desc-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var wrap = btn.closest('.card-desc-wrap');
+        var desc = wrap && wrap.querySelector('.card-desc');
+        if (!desc) return;
+        desc.classList.toggle('is-expanded');
+        updateCardDescToggle(wrap);
+      });
+    });
+  }
+
   /* ─────────────────────────────────────
      IN-APP MESSAGING (user_messaging_TZ §4.3, §5.1–5.4)
   ───────────────────────────────────── */
@@ -5504,15 +5517,7 @@
         if (cardId) toggleFavorite(cardId);
       });
     });
-    document.querySelectorAll('.card-desc-toggle').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var wrap = btn.closest('.card-desc-wrap');
-        var desc = wrap && wrap.querySelector('.card-desc');
-        if (!desc) return;
-        desc.classList.toggle('is-expanded');
-        updateCardDescToggle(wrap);
-      });
-    });
+    bindCardDescToggleEvents();
     document.querySelectorAll('.keyword-tag').forEach(function (btn) {
       btn.addEventListener('click', function () {
         applyKeywordFilter(btn.getAttribute('data-keyword'));
@@ -6019,15 +6024,7 @@
         if (cardId) unfavoriteFromFavoritesScreen(cardId);
       });
     });
-    document.querySelectorAll('#favoritesContainer .card-desc-toggle').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var wrap = btn.closest('.card-desc-wrap');
-        var desc = wrap && wrap.querySelector('.card-desc');
-        if (!desc) return;
-        desc.classList.toggle('is-expanded');
-        updateCardDescToggle(wrap);
-      });
-    });
+    bindCardDescToggleEvents(document.getElementById('favoritesContainer'));
     document.querySelectorAll('#favoritesContainer .keyword-tag').forEach(function (btn) {
       btn.addEventListener('click', function () {
         applyFavoritesKeywordFilter(btn.getAttribute('data-keyword'));
@@ -8805,6 +8802,7 @@
         if (cardEl) {
           cardEl.innerHTML = buildAdminModerationCardHtml(listing);
           initCardDescToggles(cardEl);
+          bindCardDescToggleEvents(cardEl);
         }
 
         if (portfolioRow) {
