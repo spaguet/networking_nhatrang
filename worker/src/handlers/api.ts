@@ -8,7 +8,12 @@ import {
   handleSubmitListing,
   handleSubmitListingEdit,
 } from './listings';
-import { handleGetPortfolio, handleUploadPortfolioB64, handleUploadPortfolioStagingB64 } from './portfolio';
+import {
+  handleGetPortfolio,
+  handleReportPortfolioError,
+  handleUploadPortfolioB64,
+  handleUploadPortfolioStagingB64,
+} from './portfolio';
 import { handleCheckListingStatus, handleSelectPaymentMethod } from './payment';
 import { handleGetPinPrices, handleSelectPinPaymentMethod } from './pins';
 import {
@@ -70,6 +75,8 @@ export async function routeApiAction(
       return handleUploadPortfolioStagingB64(body, env);
     case 'upload_portfolio_b64':
       return handleUploadPortfolioB64(body, env);
+    case 'report_portfolio_error':
+      return handleReportPortfolioError(body, env);
     case 'get_favorites':
       return handleGetFavoritesListings(body, env);
     case 'get_likes':

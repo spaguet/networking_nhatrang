@@ -16,6 +16,7 @@ import {
   moderationKeyboard,
   sendMessage,
   sendModerationToAdmins,
+  sendToAllAdmins,
 } from '../services/telegram-api';
 import {
   authenticateMiniAppUser,
@@ -1062,6 +1063,65 @@ function corsHeadersForMedia(): HeadersInit {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
   };
+}
+
+const PORTFOLIO_ERROR_LABELS: Record<string, string> = {
+  portfolio_required: 'Добавьте хотя бы одно фото или снимите галочку «Портфолио».',
+  portfolio_too_many: 'Можно загрузить не более 5 фото.',
+  portfolio_upload_failed: 'Не удалось загрузить фото. Попробуйте снова.',
+  portfolio_invalid_type:
+    'Допустимы только JPEG, PNG или WebP. Если фото HEIC/Live Photo, сохраните его как JPG и загрузите снова.',
+  portfolio_too_large: 'Файл слишком большой (макс. 8 МБ).',
+  portfolio_compress_failed: 'Не удалось обработать фото. Попробуйте другое изображение.',
+  portfolio_not_owner: 'Нет доступа к этой анкете.',
+  portfolio_listing_not_found: 'Анкета не найдена или уже не на модерации.',
+  portfolio_wrong_status: 'Загрузка фото недоступна для этой анкете.',
+  portfolio_retry_expired: 'Срок повторной загрузки фото истёк (24 часа).',
+  network: 'Проблема с сетью. Проверьте подключение и попробуйте снова.',
+  Invalid_initData: 'Ошибка авторизации Telegram. Перезапустите Mini App.',
+  user_banned: 'Ваш телеграм-аккаунт забанен',
+  server_error: 'Сервер временно недоступен. Попробуйте позже.',
+  invalid_secret: 'Ошибка конфигурации приложения.',
+};
+
+export async function handleReportPortfolioError(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  try {
+    const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
+    if (!auth.ok) {
+      return jsonResponse({ ok: false, error: auth.error });
+    }
+    const { tgId } = auth;
+
+    const errorCode = String(body.error_code ?? '')
+      .trim()
+      .replace(/\s/g, '_');
+    if (!errorCode || !PORTFOLIO_ERROR_LABELS[errorCode]) {
+      return jsonResponse({ ok: false, error: 'validation' });
+    }
+
+    const label = PORTFOLIO_ERROR_LABELS[errorCode];
+    const dateStr = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    const text = [
+      '⚠️ Ошибка загрузки фото',
+      '',
+      `Telegram ID: ${tgId}`,
+      `Код: ${errorCode}`,
+      `Описание: ${label}`,
+      `Дата: ${dateStr}`,
+    ].join('\n');
+
+    await sendToAllAdmins(env.DB, env, text);
+    await logAction(tgId, 'report_portfolio_error', errorCode, env.DB);
+
+    return jsonResponse({ ok: true, message: 'Сообщение отправлено администратору' });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logAction(0, 'error', `handleReportPortfolioError: ${msg}`, env.DB);
+    return jsonResponse({ ok: false, error: 'server_error' });
+  }
 }
 
 export async function formDataToFields(formData: FormData): Promise<MultipartFields> {

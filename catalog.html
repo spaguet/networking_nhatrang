@@ -2189,6 +2189,30 @@
       cursor: pointer;
     }
 
+    .status-error-code-link {
+      display: inline;
+      margin-left: 6px;
+      padding: 0;
+      border: none;
+      background: none;
+      color: inherit;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: underline;
+      cursor: pointer;
+      opacity: 0.92;
+    }
+    .status-error-code-link:active { opacity: 0.7; }
+
+    .error-code-value {
+      display: block;
+      margin: 4px 0 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      word-break: break-all;
+      color: var(--text);
+    }
+
     .btn-row {
       display: flex;
       flex-direction: column;
@@ -3056,6 +3080,21 @@
   </div>
 </div>
 
+<!-- PORTFOLIO ERROR CODE -->
+<div id="errorCodePopup" class="popup-overlay" hidden>
+  <div class="popup" role="dialog" aria-labelledby="errorCodePopupTitle" aria-modal="true">
+    <div class="popup-icon">⚠️</div>
+    <h3 class="popup-title" id="errorCodePopupTitle">Код ошибки</h3>
+    <code class="error-code-value" id="errorCodePopupCode"></code>
+    <p class="popup-text" id="errorCodePopupDesc"></p>
+    <div class="admin-modal-actions">
+      <button type="button" id="errorCodeReportBtn" class="btn btn-cta">Отправить админу</button>
+      <button type="button" id="errorCodeCloseBtn" class="btn btn-outline">Закрыть</button>
+    </div>
+    <div class="status" id="errorCodeReportStatus"></div>
+  </div>
+</div>
+
 <!-- COMPLAINT MODAL -->
 <div id="complaintModal" class="popup-overlay" hidden>
   <div class="popup" role="dialog" aria-labelledby="complaintModalTitle">
@@ -3442,6 +3481,7 @@
     portfolio_listing_not_found: 'Анкета не найдена или уже не на модерации.',
     portfolio_wrong_status: 'Загрузка фото недоступна для этой анкеты.',
     portfolio_retry_expired:'Срок повторной загрузки фото истёк (24 часа).',
+    network:                'Проблема с сетью. Проверьте подключение и попробуйте снова.',
     keyword_stop_word:      'Данное слово нарушает правила пользования «Место встречи».',
     keywords_invalid:       'Ключевое слово: только буквы, одно слово, до 15 символов.',
     keywords_required:      'Укажите хотя бы одно ключевое слово или снимите галочку «Ключевые слова».',
@@ -3551,7 +3591,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v94mimeguard';
+  var PORTFOLIO_CLIENT_VERSION = 'v95errorcode';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -3725,6 +3765,11 @@
   });
   document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
   document.getElementById('chatComplaintBtn').addEventListener('click', openComplaintModal);
+  document.getElementById('errorCodeCloseBtn').addEventListener('click', closeErrorCodePopup);
+  document.getElementById('errorCodeReportBtn').addEventListener('click', reportPortfolioErrorToAdmin);
+  document.getElementById('errorCodePopup').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('errorCodePopup')) closeErrorCodePopup();
+  });
   document.getElementById('complaintCancelBtn').addEventListener('click', closeComplaintModal);
   document.getElementById('complaintSubmitBtn').addEventListener('click', submitComplaint);
   document.getElementById('complaintText').addEventListener('input', updateComplaintCharCount);
@@ -7065,7 +7110,7 @@
     }
     if (!uploadFile || !uploadFile.size) {
       removePortfolioSlot(position);
-      showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
+      showPortfolioErrorStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'portfolio_upload_failed');
       finishMaterialize();
       return;
     }
@@ -7098,17 +7143,17 @@
     }
     if (!portfolioFileMimeOk(file)) {
       portfolioTwlog('pick reject type ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
-      showStatus(document.getElementById('status'), ERRORS.portfolio_invalid_type, 'err');
+      showPortfolioErrorStatus(document.getElementById('status'), ERRORS.portfolio_invalid_type, 'portfolio_invalid_type');
       return false;
     }
     if (file.size > PORTFOLIO_MAX_BYTES) {
       portfolioTwlog('pick reject size ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
-      showStatus(document.getElementById('status'), ERRORS.portfolio_too_large, 'err');
+      showPortfolioErrorStatus(document.getElementById('status'), ERRORS.portfolio_too_large, 'portfolio_too_large');
       return false;
     }
     if (!file.size) {
       portfolioTwlog('pick reject empty ' + (file.type || '') + ' ' + (file.name || ''));
-      showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
+      showPortfolioErrorStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'portfolio_upload_failed');
       return false;
     }
     portfolioTwlog('pick ok ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
@@ -7162,11 +7207,11 @@
     }
     var files = getPortfolioFiles();
     if (!files.length) {
-      showStatus(statusEl, ERRORS.portfolio_required, 'err');
+      showPortfolioErrorStatus(statusEl, ERRORS.portfolio_required, 'portfolio_required');
       return false;
     }
     if (files.length > PORTFOLIO_MAX_FILES) {
-      showStatus(statusEl, ERRORS.portfolio_too_many, 'err');
+      showPortfolioErrorStatus(statusEl, ERRORS.portfolio_too_many, 'portfolio_too_many');
       return false;
     }
     return true;
@@ -7648,10 +7693,11 @@
     return isPortfolioEnabled() && getPortfolioFiles().length > 0;
   }
 
-  function showStatusWithPortfolioRetry(el, text, listingId) {
+  function showStatusWithPortfolioRetry(el, text, listingId, errorCode) {
     el.innerHTML = '';
     el.className = 'status err';
     el.appendChild(document.createTextNode(text));
+    appendErrorCodeLink(el, errorCode || 'portfolio_upload_failed');
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'status-retry-btn';
@@ -7718,13 +7764,14 @@
       return;
     }
     var msg = portfolioErrorMessage(data);
+    var errCode = normalizeErrorCode(data.error) || 'portfolio_upload_failed';
     if (listingId && (data.error === 'portfolio_upload_failed' ||
         data.error === 'portfolio_retry_expired' ||
         data.error === 'portfolio_listing_not_found')) {
       _pendingPortfolioListingId = listingId;
-      showStatusWithPortfolioRetry(statusEl, msg, listingId);
+      showStatusWithPortfolioRetry(statusEl, msg, listingId, errCode);
     } else {
-      showStatus(statusEl, msg, 'err');
+      showPortfolioErrorStatus(statusEl, msg, errCode);
       if (listingId) _pendingPortfolioListingId = listingId;
     }
     updateSubmitBtnLabel();
@@ -7750,9 +7797,9 @@
       })
       .catch(function (err) {
         if (listingId) {
-          showStatusWithPortfolioRetry(statusEl, apiErrorMessage(err), listingId);
+          showStatusWithPortfolioRetry(statusEl, apiErrorMessage(err), listingId, 'network');
         } else {
-          showStatus(statusEl, apiErrorMessage(err), 'err');
+          showPortfolioErrorStatus(statusEl, apiErrorMessage(err), 'network');
         }
       })
       .finally(function () {
@@ -7805,7 +7852,7 @@
 
         var listingId = data.listing_id;
         if (!listingId) {
-          showStatus(statusEl, ERRORS.portfolio_upload_failed, 'err');
+          showPortfolioErrorStatus(statusEl, ERRORS.portfolio_upload_failed, 'portfolio_upload_failed');
           return;
         }
 
@@ -7825,10 +7872,11 @@
           showStatusWithPortfolioRetry(
             statusEl,
             apiErrorMessage(err),
-            _pendingPortfolioListingId
+            _pendingPortfolioListingId,
+            'network'
           );
         } else {
-          showStatus(statusEl, apiErrorMessage(err), 'err');
+          showPortfolioErrorStatus(statusEl, apiErrorMessage(err), 'network');
         }
       })
       .finally(function () {
@@ -7876,7 +7924,7 @@
 
         var listingId = data.listing_id;
         if (!listingId) {
-          showStatus(statusEl, ERRORS.portfolio_upload_failed, 'err');
+          showPortfolioErrorStatus(statusEl, ERRORS.portfolio_upload_failed, 'portfolio_upload_failed');
           return;
         }
 
@@ -7893,10 +7941,11 @@
           showStatusWithPortfolioRetry(
             statusEl,
             apiErrorMessage(err),
-            _pendingPortfolioListingId
+            _pendingPortfolioListingId,
+            'network'
           );
         } else {
-          showStatus(statusEl, apiErrorMessage(err), 'err');
+          showPortfolioErrorStatus(statusEl, apiErrorMessage(err), 'network');
         }
       })
       .finally(function () {
@@ -8036,6 +8085,115 @@
   function showStatus(el, text, type) {
     el.textContent = text;
     el.className = 'status ' + type;
+  }
+
+  var _errorCodePopupCode = '';
+
+  var PORTFOLIO_REPORTABLE_ERRORS = {
+    portfolio_required: true,
+    portfolio_too_many: true,
+    portfolio_upload_failed: true,
+    portfolio_invalid_type: true,
+    portfolio_too_large: true,
+    portfolio_compress_failed: true,
+    portfolio_not_owner: true,
+    portfolio_listing_not_found: true,
+    portfolio_wrong_status: true,
+    portfolio_retry_expired: true,
+    network: true,
+    Invalid_initData: true,
+    user_banned: true,
+    server_error: true,
+    invalid_secret: true
+  };
+
+  function normalizeErrorCode(code) {
+    return String(code || '').trim().replace(/\s/g, '_');
+  }
+
+  function portfolioErrorDescription(code) {
+    var key = normalizeErrorCode(code);
+    return ERRORS[key] || ('Неизвестная ошибка: ' + key);
+  }
+
+  function isReportablePortfolioError(code) {
+    return !!PORTFOLIO_REPORTABLE_ERRORS[normalizeErrorCode(code)];
+  }
+
+  function appendErrorCodeLink(el, errorCode) {
+    if (!el || !isReportablePortfolioError(errorCode)) return;
+    el.appendChild(document.createTextNode(' '));
+    var link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'status-error-code-link';
+    link.textContent = 'Код ошибки';
+    link.addEventListener('click', function () {
+      openErrorCodePopup(errorCode);
+    });
+    el.appendChild(link);
+  }
+
+  function showPortfolioErrorStatus(el, text, errorCode, type) {
+    if (!el) return;
+    el.innerHTML = '';
+    el.className = 'status ' + (type || 'err');
+    el.appendChild(document.createTextNode(text));
+    appendErrorCodeLink(el, errorCode);
+  }
+
+  function openErrorCodePopup(errorCode) {
+    var code = normalizeErrorCode(errorCode);
+    if (!isReportablePortfolioError(code)) return;
+    _errorCodePopupCode = code;
+    document.getElementById('errorCodePopupCode').textContent = code;
+    document.getElementById('errorCodePopupDesc').textContent = portfolioErrorDescription(code);
+    clearStatus(document.getElementById('errorCodeReportStatus'));
+    document.getElementById('errorCodeReportBtn').disabled = false;
+    document.getElementById('errorCodePopup').hidden = false;
+  }
+
+  function closeErrorCodePopup() {
+    document.getElementById('errorCodePopup').hidden = true;
+    _errorCodePopupCode = '';
+    clearStatus(document.getElementById('errorCodeReportStatus'));
+  }
+
+  function reportPortfolioErrorToAdmin() {
+    var code = _errorCodePopupCode;
+    if (!code) return;
+    var payload = buildPayload('report_portfolio_error', { error_code: code });
+    if (!payload) {
+      showStatus(document.getElementById('errorCodeReportStatus'), ERRORS.Invalid_initData, 'err');
+      return;
+    }
+    var btn = document.getElementById('errorCodeReportBtn');
+    btn.disabled = true;
+    apiPost(payload)
+      .then(function (data) {
+        btn.disabled = false;
+        if (data.ok) {
+          showStatus(
+            document.getElementById('errorCodeReportStatus'),
+            data.message || 'Сообщение отправлено администратору',
+            'ok'
+          );
+        } else {
+          var key = normalizeErrorCode(data.error);
+          showStatus(
+            document.getElementById('errorCodeReportStatus'),
+            data.message || ERRORS[key] || 'Не удалось отправить',
+            'err'
+          );
+        }
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        showStatus(
+          document.getElementById('errorCodeReportStatus'),
+          apiErrorMessage(err),
+          'err'
+        );
+      });
   }
 
   function clearStatus(el) {
@@ -8331,14 +8489,19 @@
       uploadPortfolioStaging(paymentStatusEl)
         .then(function (stagingData) {
           if (!stagingData.ok) {
-            showStatus(paymentStatusEl, portfolioErrorMessage(stagingData), 'err');
+            var stagingCode = normalizeErrorCode(stagingData.error) || 'portfolio_upload_failed';
+            showPortfolioErrorStatus(
+              paymentStatusEl,
+              portfolioErrorMessage(stagingData),
+              stagingCode
+            );
             btn.disabled = false;
             return;
           }
           return proceedToPayment();
         })
         .catch(function (err) {
-          showStatus(paymentStatusEl, apiErrorMessage(err), 'err');
+          showPortfolioErrorStatus(paymentStatusEl, apiErrorMessage(err), 'network');
           btn.disabled = false;
         });
     });
