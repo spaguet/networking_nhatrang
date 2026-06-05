@@ -3435,7 +3435,7 @@
     portfolio_required:     'Добавьте хотя бы одно фото или снимите галочку «Портфолио».',
     portfolio_too_many:     'Можно загрузить не более 5 фото.',
     portfolio_upload_failed:'Не удалось загрузить фото. Попробуйте снова.',
-    portfolio_invalid_type: 'Допустимы только JPEG, PNG или WebP.',
+    portfolio_invalid_type: 'Допустимы только JPEG, PNG или WebP. Если фото HEIC/Live Photo, сохраните его как JPG и загрузите снова.',
     portfolio_too_large:    'Файл слишком большой (макс. 8 МБ).',
     portfolio_compress_failed: 'Не удалось обработать фото. Попробуйте другое изображение.',
     portfolio_not_owner:    'Нет доступа к этой анкете.',
@@ -3551,7 +3551,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v93debug';
+  var PORTFOLIO_CLIENT_VERSION = 'v94mimeguard';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -6973,17 +6973,22 @@
   function portfolioFileMimeOk(file) {
     if (!file || !file.size) return false;
     var mime = (file.type || '').toLowerCase();
-    var allowed = [
+    var name = (file.name || '').toLowerCase();
+    var allowedMimes = [
       'image/jpeg', 'image/jpg', 'image/pjpeg',
       'image/png', 'image/x-png',
       'image/webp'
     ];
-    if (allowed.indexOf(mime) >= 0) return true;
-    if (mime.indexOf('image/') === 0) return true;
+    var blockedMimes = [
+      'image/heic', 'image/heif',
+      'image/gif', 'image/bmp', 'image/svg+xml'
+    ];
 
-    var name = (file.name || '').toLowerCase();
+    if (blockedMimes.indexOf(mime) >= 0) return false;
+    if (allowedMimes.indexOf(mime) >= 0) return true;
     if (/\.(heic|heif|gif|bmp|svg)$/.test(name)) return false;
     if (/\.(jpe?g|png|webp)$/.test(name)) return true;
+    if (mime.indexOf('image/') === 0) return false;
 
     // Telegram Android: пустой MIME / octet-stream, часто без расширения в имени
     if (!mime || mime === 'application/octet-stream') return true;
