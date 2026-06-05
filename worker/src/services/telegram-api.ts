@@ -1,5 +1,6 @@
 import { getConfig } from '../config';
 import type { Env } from '../env';
+import { ensureGrandAdmin } from '../utils/admin-bootstrap';
 import { isAdmin } from '../utils/admin-auth';
 import { createAdminPortfolioToken, getMiniAppPortfolioUrl } from '../utils/portfolio-auth';
 import { logAction } from '../utils/helpers';
@@ -274,22 +275,31 @@ export async function editMessageText(
   }
 }
 
-/** Active admins (in `admins`, not banned in `users`). */
-export async function getAdminIds(db: D1Database): Promise<number[]> {
+/** Active admins (in `admins`, not banned in `users`). Falls back to env ADMIN_TG_ID. */
+export async function getAdminIds(db: D1Database, env: Env): Promise<number[]> {
+  const fallbackId = Number(env.ADMIN_TG_ID);
+  if (fallbackId > 0) {
+    await ensureGrandAdmin(db, fallbackId);
+  }
+
   const { results } = await db
     .prepare('SELECT tg_id FROM admins')
     .all<{ tg_id: number }>();
 
   const ids: number[] = [];
-  if (!results) {
-    return ids;
-  }
-  for (let i = 0; i < results.length; i++) {
-    const tgId = results[i].tg_id;
-    if (await isAdmin(db, tgId)) {
-      ids.push(tgId);
+  if (results) {
+    for (let i = 0; i < results.length; i++) {
+      const tgId = results[i].tg_id;
+      if (await isAdmin(db, tgId)) {
+        ids.push(tgId);
+      }
     }
   }
+
+  if (ids.length === 0 && fallbackId > 0) {
+    ids.push(fallbackId);
+  }
+
   return ids;
 }
 
@@ -299,7 +309,7 @@ export async function sendModerationToAdmins(
   text: string,
   replyMarkup?: TelegramReplyMarkup | null,
 ): Promise<number[]> {
-  const adminIds = await getAdminIds(db);
+  const adminIds = await getAdminIds(db, env);
   const messageIds: number[] = [];
   for (let i = 0; i < adminIds.length; i++) {
     const msgId = await sendMessage(adminIds[i], text, replyMarkup ?? null, env);
@@ -317,7 +327,7 @@ export async function sendModerationPhotoToAdmins(
   caption: string,
   replyMarkup?: TelegramReplyMarkup | null,
 ): Promise<number[]> {
-  const adminIds = await getAdminIds(db);
+  const adminIds = await getAdminIds(db, env);
   const messageIds: number[] = [];
   for (let i = 0; i < adminIds.length; i++) {
     const msgId = await sendPhoto(

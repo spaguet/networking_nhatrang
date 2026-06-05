@@ -102,7 +102,7 @@ interface TelegramMessage {
   text?: string;
   caption?: string;
   photo?: TelegramPhotoSize[];
-  reply_to_message?: { message_id: number };
+  reply_to_message?: { message_id: number; from?: { is_bot?: boolean } };
   document?: unknown;
 }
 
