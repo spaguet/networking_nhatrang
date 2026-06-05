@@ -4919,7 +4919,7 @@
   function buildContactButtonsHtml(l) {
     if (!l.contacts) return '';
     var cardId = String(l.listing_id || '').trim();
-    if (!cardId || isOwnListingCard(cardId)) return '';
+    if (!cardId || (!l.adminModeration && isOwnListingCard(cardId))) return '';
 
     var contactType = String(l.contact_type || '').trim();
     if (contactType === 'Telegram') {
@@ -5449,6 +5449,25 @@
       });
   }
 
+  function openTelegramLinkUrl(url) {
+    if (!url) return;
+    if (tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred) {
+      try { tg.HapticFeedback.impactOccurred('light'); } catch (e) { /* ignore */ }
+    }
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(url);
+    }
+  }
+
+  function showTelegramChatError(data) {
+    var errKey = (data.error || '').replace(/\s/g, '_');
+    if (errKey === 'invalid_telegram_username' || errKey === 'telegram_contact_not_found') {
+      showToast('Не удалось открыть Telegram. Укажите рабочий @ник в анкете');
+    } else {
+      showToast(data.message || ERRORS[errKey] || 'Не удалось открыть Telegram');
+    }
+  }
+
   function openTelegramChatFromCard(listingId) {
     var payload = buildPayload('resolve_telegram_chat', { listing_id: listingId });
     if (!payload) {
@@ -5458,20 +5477,29 @@
     apiPost(payload)
       .then(function (data) {
         if (data.ok && data.url) {
-          if (tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred) {
-            try { tg.HapticFeedback.impactOccurred('light'); } catch (e) { /* ignore */ }
-          }
-          if (tg && tg.openTelegramLink) {
-            tg.openTelegramLink(data.url);
-          }
+          openTelegramLinkUrl(data.url);
           return;
         }
-        var errKey = (data.error || '').replace(/\s/g, '_');
-        if (errKey === 'invalid_telegram_username' || errKey === 'telegram_contact_not_found') {
-          showToast('Не удалось открыть Telegram. Укажите рабочий @ник в анкете');
-        } else {
-          showToast(data.message || ERRORS[errKey] || 'Не удалось открыть Telegram');
+        showTelegramChatError(data);
+      })
+      .catch(function (err) {
+        showToast(apiErrorMessage(err));
+      });
+  }
+
+  function openTelegramChatFromAdminModeration(listingId) {
+    var payload = buildAdminPayload('admin_resolve_telegram_chat', { listingId: listingId });
+    if (!payload) {
+      showToast('Откройте через Telegram-бота');
+      return;
+    }
+    apiPost(payload)
+      .then(function (data) {
+        if (data.ok && data.url) {
+          openTelegramLinkUrl(data.url);
+          return;
         }
+        showTelegramChatError(data);
       })
       .catch(function (err) {
         showToast(apiErrorMessage(err));
@@ -8746,9 +8774,25 @@
       contact_type: listing.contactType,
       avatar_emoji: listing.avatarEmoji,
       keywords: listing.keywords || [],
-      has_portfolio: false
+      has_portfolio: false,
+      adminModeration: true
     };
     return buildListingCardHtml(l, 0, {});
+  }
+
+  function bindAdminModerationCardEvents(cardEl) {
+    if (!cardEl) return;
+    cardEl.querySelectorAll('.copy-btn:not(.inapp-write-btn):not(.tg-write-btn)').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        copyText(btn.getAttribute('data-contacts'));
+      });
+    });
+    cardEl.querySelectorAll('.tg-write-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var listingId = btn.getAttribute('data-listing-id');
+        if (listingId) openTelegramChatFromAdminModeration(listingId);
+      });
+    });
   }
 
   function closeAdminModerationPopup() {
@@ -8803,6 +8847,7 @@
           cardEl.innerHTML = buildAdminModerationCardHtml(listing);
           initCardDescToggles(cardEl);
           bindCardDescToggleEvents(cardEl);
+          bindAdminModerationCardEvents(cardEl);
         }
 
         if (portfolioRow) {

@@ -49,6 +49,10 @@ import {
   getMiniAppPortfolioUrl,
 } from '../utils/portfolio-auth';
 import { jsonResponse } from '../utils/response';
+import {
+  buildTelegramChatUrl,
+  parseTelegramUsername,
+} from '../utils/telegram-contact';
 import { clearSession } from './sessions';
 
 const UNBAN_MESSAGE =
@@ -1192,6 +1196,71 @@ export async function handleAdminGetPendingListing(
   });
 }
 
+export async function handleAdminResolveTelegramChat(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const listingId = String(body.listingId ?? body.listing_id ?? '').trim();
+  if (!listingId) {
+    return jsonResponse({ ok: false, error: 'invalid_listing' }, 400);
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT l.listing_id, l.tg_id, l.contact_type, l.contacts,
+            l.telegram_username_verified, u.username AS owner_username
+     FROM listings l
+     LEFT JOIN users u ON u.tg_id = l.tg_id
+     WHERE l.listing_id = ? AND l.status IN ('on_moderation', 'edit_pending')`,
+  )
+    .bind(listingId)
+    .first<{
+      listing_id: string;
+      tg_id: number;
+      contact_type: string;
+      contacts: string;
+      telegram_username_verified: string | null;
+      owner_username: string | null;
+    }>();
+
+  if (!row) {
+    return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+
+  if (row.contact_type !== 'Telegram') {
+    return jsonResponse({ ok: false, error: 'messaging_not_available' });
+  }
+
+  let url: string;
+  try {
+    const verified = row.telegram_username_verified?.trim();
+    if (verified) {
+      url = buildTelegramChatUrl({ username: verified, ownerTgId: row.tg_id });
+    } else if (row.owner_username?.trim()) {
+      url = buildTelegramChatUrl({
+        username: row.owner_username,
+        ownerTgId: row.tg_id,
+      });
+    } else {
+      try {
+        const parsed = parseTelegramUsername(row.contacts);
+        url = buildTelegramChatUrl({ username: parsed, ownerTgId: row.tg_id });
+      } catch {
+        url = buildTelegramChatUrl({ ownerTgId: row.tg_id });
+      }
+    }
+  } catch {
+    return jsonResponse({ ok: false, error: 'invalid_telegram_username' });
+  }
+
+  return jsonResponse({ ok: true, url });
+}
+
 async function handleAdminModerationAction(
   body: Record<string, unknown>,
   env: Env,
@@ -1310,6 +1379,8 @@ export async function routeAdminAction(
       return handleAdminListPendingListings(body, env);
     case 'admin_get_pending_listing':
       return handleAdminGetPendingListing(body, env);
+    case 'admin_resolve_telegram_chat':
+      return handleAdminResolveTelegramChat(body, env);
     case 'admin_approve_listing':
       return handleAdminApproveListing(body, env);
     case 'admin_reject_listing':
