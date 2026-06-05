@@ -3551,7 +3551,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v92canvasfallback';
+  var PORTFOLIO_CLIENT_VERSION = 'v93debug';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -7067,17 +7067,21 @@
       return false;
     }
     if (!portfolioFileMimeOk(file)) {
+      portfolioTwlog('pick reject type ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
       showStatus(document.getElementById('status'), ERRORS.portfolio_invalid_type, 'err');
       return false;
     }
     if (file.size > PORTFOLIO_MAX_BYTES) {
+      portfolioTwlog('pick reject size ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
       showStatus(document.getElementById('status'), ERRORS.portfolio_too_large, 'err');
       return false;
     }
     if (!file.size) {
+      portfolioTwlog('pick reject empty ' + (file.type || '') + ' ' + (file.name || ''));
       showStatus(document.getElementById('status'), ERRORS.portfolio_upload_failed, 'err');
       return false;
     }
+    portfolioTwlog('pick ok ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
     var position = nextPortfolioPosition();
     if (!position) return false;
     var slot = { position: position, file: null, previewUrl: null, pending: true };
@@ -7352,6 +7356,7 @@
         if (!bytes || bytes.length < 4) {
           return tryFormat(idx + 1);
         }
+        portfolioTwlog('compress format ' + fmt.label + ' ' + fmt.mime + ' ' + (sourceFile.name || ''));
         portfolioTwlog('compress ok ' + fmt.label + ' ' + (sourceFile.name || '') + ' ' + sourceFile.size + '→' + bytes.length + ' ' + cw + 'x' + ch);
         if (fmt.label === 'png' && bytes.length >= 12) {
           var hasIend = bytes[bytes.length - 8] === 0x49 && bytes[bytes.length - 7] === 0x45 &&
@@ -7372,6 +7377,7 @@
     if (!file || !file.size) {
       return Promise.resolve(file);
     }
+    portfolioTwlog('compress start ' + (file.type || '') + ' ' + (file.name || '') + ' ' + file.size);
 
     function tryCompress(maxEdge, timeoutMs) {
       return new Promise(function (resolve, reject) {
@@ -7398,6 +7404,7 @@
           settled = true;
           cleanup();
           if (reason) portfolioTwlog(reason + ' ' + (file.name || '') + ' ' + file.size);
+          portfolioTwlog('compress out ' + (result.type || '') + ' ' + (result.size || result.byteLength || 0) + ' ' + (result.name || ''));
           var checkW = outW != null ? outW : imgW;
           var checkH = outH != null ? outH : imgH;
           if (portfolioServerRejectRisk(result, checkW, checkH)) {
@@ -7415,6 +7422,7 @@
         img.onload = function () {
           imgW = img.naturalWidth;
           imgH = img.naturalHeight;
+          portfolioTwlog('compress load ' + imgW + 'x' + imgH + ' ' + (file.name || '') + ' ' + file.size);
           var longEdge = Math.max(imgW, imgH);
           var scale = Math.min(1, maxEdge / longEdge);
           var cw = Math.max(1, Math.round(imgW * scale));
@@ -7548,7 +7556,7 @@
         return compressPortfolioFileForUpload(slot.file).then(function (compressed) {
           var uploadSize = compressed.size || compressed.byteLength || 0;
           var uploadMime = (compressed.type || '').toLowerCase();
-          portfolioTwlog('upload slot ' + slot.position + ' ' + uploadSize + ' ' + (compressed.name || '') + ' ' + uploadMime);
+          portfolioTwlog('upload slot ' + slot.position + ' src=' + (slot.file.type || '') + '/' + slot.file.size + ' out=' + uploadSize + ' ' + uploadMime + ' ' + (compressed.name || ''));
           if (uploadMime && !portfolioUploadMimeOk(uploadMime)) {
             portfolioTwlog('upload reject bad mime ' + slot.position + ' ' + uploadMime);
             lastResult = { ok: false, error: 'portfolio_compress_failed' };
