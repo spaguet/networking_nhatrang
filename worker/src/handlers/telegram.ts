@@ -9,6 +9,10 @@ import {
 import type { Env } from '../env';
 import { purgeFavoritesForListing } from './favorites';
 import {
+  approveListingModeration,
+  rejectListingModeration,
+} from '../services/listing-moderation';
+import {
   cleanupPortfolioOnReject,
   deleteMediaByListing,
   getPortfolioCount,
@@ -57,7 +61,6 @@ import {
   isUserBanned,
   logAction,
   paymentMethodLabel,
-  setUserFreeUsed,
 } from '../utils/helpers';
 import {
   appendLaunchTokenToUrl,
@@ -974,166 +977,6 @@ async function handleUserTextMessage(
   return false;
 }
 
-interface ListingStatusRow {
-  tg_id: number;
-  payment_status: string;
-  status: string;
-}
-
-interface EditDraftRow {
-  listing_id: string;
-  tg_id: number;
-  replaces_listing_id: string;
-  display_name: string;
-  category: string;
-  description: string;
-  experience: string | null;
-  contact_type: string;
-  contacts: string;
-  avatar_emoji: string | null;
-  keywords: string;
-  status: string;
-}
-
-async function approveListingEdit(
-  draftId: string,
-  adminChatId: number | string,
-  messageId: number,
-  callbackQueryId: string,
-  env: Env,
-): Promise<void> {
-  const draft = await env.DB.prepare(
-    `SELECT listing_id, tg_id, replaces_listing_id, display_name, category, description,
-            experience, contact_type, contacts, avatar_emoji, keywords, status
-     FROM listings WHERE listing_id = ?`,
-  )
-    .bind(draftId)
-    .first<EditDraftRow>();
-
-  if (!draft || draft.status !== 'edit_pending') {
-    await answerCallbackQuery(callbackQueryId, 'Черновик не найден', env);
-    return;
-  }
-
-  const parentId = String(draft.replaces_listing_id || '');
-  const parent = await env.DB.prepare(
-    'SELECT listing_id, tg_id, status FROM listings WHERE listing_id = ?',
-  )
-    .bind(parentId)
-    .first<{ listing_id: string; tg_id: number; status: string }>();
-
-  if (!parent || parent.status !== 'active' || parent.tg_id !== draft.tg_id) {
-    await answerCallbackQuery(
-      callbackQueryId,
-      'Родительская анкета недоступна',
-      env,
-    );
-    return;
-  }
-
-  await env.DB.prepare(
-    `UPDATE listings SET
-       display_name = ?, category = ?, description = ?, experience = ?,
-       contact_type = ?, contacts = ?, avatar_emoji = ?, keywords = ?
-     WHERE listing_id = ?`,
-  )
-    .bind(
-      draft.display_name,
-      draft.category,
-      draft.description,
-      draft.experience || '',
-      draft.contact_type,
-      draft.contacts,
-      draft.avatar_emoji,
-      draft.keywords,
-      parentId,
-    )
-    .run();
-
-  const draftHasMedia = await env.DB.prepare(
-    'SELECT 1 AS ok FROM listing_media WHERE listing_id = ? LIMIT 1',
-  )
-    .bind(draftId)
-    .first<{ ok: number }>();
-
-  if (draftHasMedia) {
-    await deleteMediaByListing(parentId, env.DB, env.PORTFOLIO);
-    await env.DB.prepare(
-      'UPDATE listing_media SET listing_id = ? WHERE listing_id = ?',
-    )
-      .bind(parentId, draftId)
-      .run();
-    await env.DB.prepare(
-      `UPDATE listing_media SET status = 'active'
-       WHERE listing_id = ? AND status = 'pending'`,
-    )
-      .bind(parentId)
-      .run();
-  }
-
-  await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?')
-    .bind(draftId)
-    .run();
-
-  await sendMessage(
-    draft.tg_id,
-    '✅ Изменения одобрены и опубликованы в каталоге. Срок размещения не изменился.',
-    null,
-    env,
-  );
-  await editMessageReplyMarkup(adminChatId, messageId, null, env);
-  await answerCallbackQuery(callbackQueryId, 'Правки опубликованы ✅', env);
-  await logAction(draft.tg_id, 'approve_edit', `${draftId} → ${parentId}`, env.DB);
-}
-
-async function rejectListingEdit(
-  draftId: string,
-  adminChatId: number | string,
-  messageId: number,
-  callbackQueryId: string,
-  env: Env,
-): Promise<void> {
-  const draft = await env.DB.prepare(
-    `SELECT listing_id, tg_id, replaces_listing_id, status
-     FROM listings WHERE listing_id = ?`,
-  )
-    .bind(draftId)
-    .first<{
-      listing_id: string;
-      tg_id: number;
-      replaces_listing_id: string;
-      status: string;
-    }>();
-
-  if (!draft || draft.status !== 'edit_pending') {
-    await answerCallbackQuery(callbackQueryId, 'Черновик не найден', env);
-    return;
-  }
-
-  const parent = await env.DB.prepare(
-    'SELECT edits_remaining FROM listings WHERE listing_id = ?',
-  )
-    .bind(draft.replaces_listing_id)
-    .first<{ edits_remaining: number | null }>();
-
-  await cleanupPortfolioOnReject(draftId, draft.tg_id, env);
-  await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?')
-    .bind(draftId)
-    .run();
-
-  const remaining = parent?.edits_remaining ?? 0;
-  await sendMessage(
-    draft.tg_id,
-    '❌ Редактирование отклонено. В каталоге по-прежнему прежняя версия. ' +
-      `Попытка редактирования использована. Осталось правок: ${remaining}.`,
-    null,
-    env,
-  );
-  await editMessageReplyMarkup(adminChatId, messageId, null, env);
-  await answerCallbackQuery(callbackQueryId, 'Правки отклонены ❌', env);
-  await logAction(draft.tg_id, 'reject_edit', draftId, env.DB);
-}
-
 async function approveListing(
   listingId: string,
   adminChatId: number | string,
@@ -1141,73 +984,22 @@ async function approveListing(
   callbackQueryId: string,
   env: Env,
 ): Promise<void> {
-  const listing = await env.DB.prepare(
-    'SELECT tg_id, payment_status, status FROM listings WHERE listing_id = ?',
-  )
-    .bind(listingId)
-    .first<ListingStatusRow>();
-
-  if (!listing) {
-    await answerCallbackQuery(callbackQueryId, 'Анкета не найдена', env);
+  const result = await approveListingModeration(listingId, env);
+  if (!result.ok) {
+    const hint =
+      result.error === 'not_found'
+        ? 'Анкета не найдена'
+        : result.error === 'invalid_status'
+          ? 'Анкета недоступна для размещения'
+          : 'Ошибка';
+    await answerCallbackQuery(callbackQueryId, hint, env);
     return;
   }
 
-  if (listing.status === 'edit_pending') {
-    await approveListingEdit(
-      listingId,
-      adminChatId,
-      messageId,
-      callbackQueryId,
-      env,
-    );
-    return;
-  }
-
-  const today = new Date();
-  const expires = new Date(today);
-  expires.setDate(expires.getDate() + 30);
-
-  await env.DB.prepare(
-    `UPDATE listings
-     SET status = 'active', created_at = ?, expires_at = ?,
-         edits_remaining = COALESCE(edits_remaining, 3)
-     WHERE listing_id = ?`,
-  )
-    .bind(today.toISOString(), expires.toISOString(), listingId)
-    .run();
-
-  const portfolioCount = await getPortfolioCount(listingId, env.DB, {
-    includePending: true,
-  });
-
-  await env.DB.prepare(
-    `UPDATE listing_media SET status = 'active' WHERE listing_id = ? AND status = 'pending'`,
-  )
-    .bind(listingId)
-    .run();
-
-  if (listing.payment_status === 'free') {
-    await setUserFreeUsed(listing.tg_id, true, env.DB);
-  }
-
-  let approveText =
-    '🎉 Ваше размещение успешно опубликовано в каталоге!\n' +
-    'Оно будет активно 30 дней.\n\n' +
-    '📦 После окончания срока анкета перейдёт в архив. В архиве данные хранятся 3 месяца, затем удаляются безвозвратно.';
-  if (portfolioCount > 0) {
-    approveText +=
-      '\n\n🖼 Фото портфолио также будут удалены. Для повторной публикации загрузите анкету и фото заново.';
-  }
-
-  await sendMessage(
-    listing.tg_id,
-    approveText,
-    null,
-    env,
-  );
   await editMessageReplyMarkup(adminChatId, messageId, null, env);
-  await answerCallbackQuery(callbackQueryId, 'Размещено ✅', env);
-  await logAction(listing.tg_id, 'approve', listingId, env.DB);
+  const toast =
+    result.kind === 'approved_edit' ? 'Правки опубликованы ✅' : 'Размещено ✅';
+  await answerCallbackQuery(callbackQueryId, toast, env);
 }
 
 async function rejectListing(
@@ -1217,47 +1009,22 @@ async function rejectListing(
   callbackQueryId: string,
   env: Env,
 ): Promise<void> {
-  const listing = await env.DB.prepare(
-    'SELECT tg_id, payment_status, status FROM listings WHERE listing_id = ?',
-  )
-    .bind(listingId)
-    .first<ListingStatusRow>();
-
-  if (!listing) {
-    await answerCallbackQuery(callbackQueryId, 'Анкета не найдена', env);
+  const result = await rejectListingModeration(listingId, env);
+  if (!result.ok) {
+    const hint =
+      result.error === 'not_found'
+        ? 'Анкета не найдена'
+        : result.error === 'invalid_status'
+          ? 'Анкета недоступна для отклонения'
+          : 'Ошибка';
+    await answerCallbackQuery(callbackQueryId, hint, env);
     return;
   }
 
-  if (listing.status === 'edit_pending') {
-    await rejectListingEdit(
-      listingId,
-      adminChatId,
-      messageId,
-      callbackQueryId,
-      env,
-    );
-    return;
-  }
-
-  await cleanupPortfolioOnReject(listingId, listing.tg_id, env);
-
-  await env.DB.prepare(
-    `UPDATE listings SET status = 'rejected' WHERE listing_id = ?`,
-  )
-    .bind(listingId)
-    .run();
-
-  await purgeFavoritesForListing(listingId, env);
-
-  const rejectText =
-    listing.payment_status === 'paid'
-      ? '❌ Размещение отклонено.\nАдминистратор свяжется с вами в течение 24 часов для возврата средств.'
-      : '❌ Размещение отклонено.\nАдминистратор свяжется с вами в течение 24 часов.';
-
-  await sendMessage(listing.tg_id, rejectText, null, env);
   await editMessageReplyMarkup(adminChatId, messageId, null, env);
-  await answerCallbackQuery(callbackQueryId, 'Отклонено ❌', env);
-  await logAction(listing.tg_id, 'reject', listingId, env.DB);
+  const toast =
+    result.kind === 'rejected_edit' ? 'Правки отклонены ❌' : 'Отклонено ❌';
+  await answerCallbackQuery(callbackQueryId, toast, env);
 }
 
 async function banUserByAdmin(

@@ -1647,6 +1647,42 @@
       border-color: rgba(224, 90, 40, 0.45);
       color: var(--orange);
     }
+    .admin-moderation-view-btn {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--orange);
+      font-size: 0.72rem;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .admin-moderation-popup {
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .admin-moderation-meta {
+      font-size: 0.74rem;
+      color: var(--text-sub);
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+    .admin-moderation-card {
+      margin-bottom: 12px;
+    }
+    .admin-moderation-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .admin-moderation-actions .btn { width: 100%; flex: none; }
+    .admin-moderation-delete-btn {
+      background: #dc2626;
+      color: #fff;
+      border: none;
+    }
     .admin-chat-log-actions {
       display: flex;
       flex-wrap: wrap;
@@ -3133,8 +3169,17 @@
     </div>
 
     <section class="admin-section">
+      <div class="admin-section-title">Анкеты на модерации</div>
+      <p class="admin-section-hint">Новые анкеты и правки, ожидающие решения.</p>
+      <div id="adminModerationLoader" class="loader" hidden>
+        <div class="spinner"></div>
+        <p class="loader-text">Загрузка…</p>
+      </div>
+      <div id="adminModerationContainer"></div>
+    </section>
+
+    <section class="admin-section">
       <div class="admin-section-title">Забаненные пользователи</div>
-      <p class="admin-section-hint">Модерация анкет — в чате бота.</p>
       <div id="adminBannedLoader" class="loader" hidden>
         <div class="spinner"></div>
         <p class="loader-text">Загрузка…</p>
@@ -3282,6 +3327,23 @@
     <div class="admin-modal-actions">
       <button type="button" id="adminCancelComplaintConfirmBtn" class="btn btn-cta">Отменить жалобу</button>
       <button type="button" id="adminCancelComplaintReviewBtn" class="btn btn-outline">Рассмотреть жалобу</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminModerationModal" class="popup-overlay" hidden>
+  <div class="popup admin-moderation-popup" role="dialog" aria-labelledby="adminModerationTitle">
+    <h3 class="popup-title" id="adminModerationTitle">Модерация анкеты</h3>
+    <div id="adminModerationMeta" class="admin-moderation-meta"></div>
+    <div id="adminModerationCard" class="admin-moderation-card"></div>
+    <div id="adminModerationPortfolioRow" hidden>
+      <button type="button" id="adminModerationPortfolioBtn" class="portfolio-btn" style="width:100%;margin-bottom:8px;">🖼 Портфолио</button>
+    </div>
+    <div class="admin-moderation-actions">
+      <button type="button" id="adminModerationApproveBtn" class="btn btn-cta">Разместить</button>
+      <button type="button" id="adminModerationDeleteBtn" class="btn admin-moderation-delete-btn">Удалить</button>
+      <button type="button" id="adminModerationRejectBtn" class="btn btn-outline">Отклонить</button>
+      <button type="button" id="adminModerationBackBtn" class="btn btn-secondary">Назад</button>
     </div>
   </div>
 </div>
@@ -3451,6 +3513,8 @@
     'pin_price_lifetime_vnd', 'pin_price_lifetime_crypto'
   ];
   var ADMIN_BANNED_PAGE_SIZE = 20;
+  var _adminModerationListingId = '';
+  var _adminModerationPortfolioUrl = '';
   var ADMIN_TZ = 'Asia/Ho_Chi_Minh';
 
   var _adminSessionToken = sessionStorage.getItem('adminSessionToken') || '';
@@ -8600,6 +8664,197 @@
     if (nextBtn) nextBtn.disabled = _adminBannedPage >= totalPages;
   }
 
+  function renderPendingListings(listings) {
+    var container = document.getElementById('adminModerationContainer');
+    if (!container) return;
+    if (!listings || listings.length === 0) {
+      container.innerHTML = '<div class="admin-banned-empty">Нет анкет на модерации</div>';
+      return;
+    }
+    var html = '<table class="admin-complaints-table"><thead><tr>' +
+      '<th>ID пользователя</th><th>Дата подачи</th><th></th>' +
+      '</tr></thead><tbody>';
+    listings.forEach(function (item) {
+      var statusHint = item.status === 'edit_pending' ? ' (правки)' : '';
+      html += '<tr data-moderation-id="' + esc(item.listingId) + '">' +
+        '<td>' + esc(String(item.tgId)) + statusHint + '</td>' +
+        '<td>' + esc(formatAdminDateTime(item.submittedAt)) + '</td>' +
+        '<td><button type="button" class="admin-moderation-view-btn" data-moderation-view="' +
+          esc(item.listingId) + '">Просмотреть</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    container.querySelectorAll('[data-moderation-view]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var listingId = btn.getAttribute('data-moderation-view');
+        if (listingId) openAdminModerationPopup(listingId);
+      });
+    });
+  }
+
+  function loadPendingListings() {
+    var loader = document.getElementById('adminModerationLoader');
+    var container = document.getElementById('adminModerationContainer');
+    if (loader) loader.hidden = false;
+    if (container) container.innerHTML = '';
+
+    var payload = buildAdminPayload('admin_list_pending_listings');
+    if (!payload) {
+      if (loader) loader.hidden = true;
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          if (handleAdminAuthError(data) === 'session_expired') {
+            showScreen('adminLogin');
+          }
+          return;
+        }
+        renderPendingListings(data.listings || []);
+      })
+      .catch(function () {
+        if (container) {
+          container.innerHTML = '<div class="admin-banned-empty">Не удалось загрузить список</div>';
+        }
+      })
+      .finally(function () {
+        if (loader) loader.hidden = true;
+      });
+  }
+
+  function buildAdminModerationCardHtml(listing) {
+    var l = {
+      listing_id: listing.listingId,
+      display_name: listing.displayName,
+      category: listing.category,
+      description: listing.description,
+      experience: listing.experience,
+      contacts: listing.contacts,
+      contact_type: listing.contactType,
+      avatar_emoji: listing.avatarEmoji,
+      keywords: listing.keywords || [],
+      has_portfolio: false
+    };
+    return buildListingCardHtml(l, 0, {});
+  }
+
+  function closeAdminModerationPopup() {
+    _adminModerationListingId = '';
+    _adminModerationPortfolioUrl = '';
+    document.getElementById('adminModerationModal').hidden = true;
+  }
+
+  function openAdminModerationPopup(listingId) {
+    _adminModerationListingId = listingId;
+    _adminModerationPortfolioUrl = '';
+    var metaEl = document.getElementById('adminModerationMeta');
+    var cardEl = document.getElementById('adminModerationCard');
+    var portfolioRow = document.getElementById('adminModerationPortfolioRow');
+    if (metaEl) metaEl.textContent = 'Загрузка…';
+    if (cardEl) cardEl.innerHTML = '';
+    if (portfolioRow) portfolioRow.hidden = true;
+    document.getElementById('adminModerationModal').hidden = false;
+
+    var payload = buildAdminPayload('admin_get_pending_listing', { listingId: listingId });
+    if (!payload) {
+      closeAdminModerationPopup();
+      return;
+    }
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(handleAdminAuthError(data), data.message));
+          closeAdminModerationPopup();
+          return;
+        }
+        var listing = data.listing || {};
+        _adminModerationListingId = listing.listingId || listingId;
+        _adminModerationPortfolioUrl = listing.portfolioUrl || '';
+
+        if (metaEl) {
+          var statusLabel = listing.status === 'edit_pending'
+            ? 'Правки к анкете'
+            : 'Новая анкета';
+          var metaHtml = 'Тип: <strong>' + esc(statusLabel) + '</strong><br>' +
+            'Telegram ID: <strong>' + esc(String(listing.tgId)) + '</strong><br>' +
+            'Дата подачи: ' + esc(formatAdminDateTime(listing.submittedAt)) + '<br>' +
+            'Оплата: ' + esc(listing.paymentLabel || listing.paymentStatus || '—');
+          if (listing.replacesListingId) {
+            metaHtml += '<br>Родительская анкета: ' + esc(listing.replacesListingId);
+          }
+          metaEl.innerHTML = metaHtml;
+        }
+
+        if (cardEl) {
+          cardEl.innerHTML = buildAdminModerationCardHtml(listing);
+          initCardDescToggles(cardEl);
+        }
+
+        if (portfolioRow) {
+          portfolioRow.hidden = !listing.hasPortfolio;
+        }
+      })
+      .catch(function () {
+        showToast('Не удалось загрузить анкету');
+        closeAdminModerationPopup();
+      });
+  }
+
+  function adminModerationAction(action) {
+    if (!_adminModerationListingId) return;
+    var confirmText = '';
+    if (action === 'approve') {
+      confirmText = 'Разместить эту анкету в каталоге?';
+    } else if (action === 'reject') {
+      confirmText = 'Отклонить эту анкету?';
+    } else if (action === 'delete') {
+      confirmText = 'Удалить анкету безвозвратно (включая фото)?';
+    }
+    if (confirmText && !confirm(confirmText)) return;
+
+    var actionName = action === 'approve'
+      ? 'admin_approve_listing'
+      : action === 'reject'
+        ? 'admin_reject_listing'
+        : 'admin_delete_listing';
+
+    var payload = buildAdminPayload(actionName, { listingId: _adminModerationListingId });
+    if (!payload) return;
+
+    apiPost(payload)
+      .then(function (data) {
+        if (!data.ok) {
+          showToast(adminErrorText(handleAdminAuthError(data), data.message));
+          return;
+        }
+        var toast = action === 'approve'
+          ? 'Анкета размещена'
+          : action === 'reject'
+            ? 'Анкета отклонена'
+            : 'Анкета удалена';
+        showToast(toast);
+        closeAdminModerationPopup();
+        loadPendingListings();
+        loadAdminStats();
+      })
+      .catch(function () {
+        showToast('Не удалось выполнить действие');
+      });
+  }
+
+  function openAdminModerationPortfolio() {
+    if (!_adminModerationPortfolioUrl) return;
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+      window.Telegram.WebApp.openLink(_adminModerationPortfolioUrl);
+    } else {
+      window.location.href = _adminModerationPortfolioUrl;
+    }
+  }
+
   function loadBannedUsers(page) {
     _adminBannedPage = page || 1;
     var loader = document.getElementById('adminBannedLoader');
@@ -9012,6 +9267,7 @@
     renderAdminDashboard();
     showScreen('admin');
     loadAdminStats();
+    loadPendingListings();
     loadBannedUsers(1);
     loadMessageComplaints();
     loadAdminSettings();
@@ -9390,6 +9646,20 @@
   });
   document.getElementById('adminConfirmPricesModal').addEventListener('click', function (e) {
     if (e.target === this) closeConfirmPricesModal();
+  });
+  document.getElementById('adminModerationApproveBtn').addEventListener('click', function () {
+    adminModerationAction('approve');
+  });
+  document.getElementById('adminModerationRejectBtn').addEventListener('click', function () {
+    adminModerationAction('reject');
+  });
+  document.getElementById('adminModerationDeleteBtn').addEventListener('click', function () {
+    adminModerationAction('delete');
+  });
+  document.getElementById('adminModerationBackBtn').addEventListener('click', closeAdminModerationPopup);
+  document.getElementById('adminModerationPortfolioBtn').addEventListener('click', openAdminModerationPortfolio);
+  document.getElementById('adminModerationModal').addEventListener('click', function (e) {
+    if (e.target === this) closeAdminModerationPopup();
   });
   document.getElementById('adminCancelComplaintConfirmBtn').addEventListener('click', confirmAdminCancelComplaint);
   document.getElementById('adminCancelComplaintReviewBtn').addEventListener('click', closeAdminCancelComplaintModal);

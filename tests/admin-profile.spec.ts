@@ -103,6 +103,30 @@ test.describe('Admin profile API smoke', () => {
     }
   });
 
+  test('admin_list_pending_listings — response shape', async ({ request }) => {
+    const cfg = config!;
+    const login = await adminLogin(request, cfg, cfg.adminTgId, cfg.adminPassword);
+    expect(login.status).toBe(200);
+    expect(login.body.adminToken).toBeTruthy();
+
+    const initData = initDataFor(cfg, { id: cfg.adminTgId, first_name: 'Admin' });
+    const { status, body } = await postAdminAction(request, cfg, 'admin_list_pending_listings', {
+      initData,
+      adminToken: login.body.adminToken,
+    });
+
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.listings)).toBe(true);
+
+    for (const row of body.listings as Record<string, unknown>[]) {
+      expect(typeof row.listingId).toBe('string');
+      expect(typeof row.tgId).toBe('number');
+      expect(typeof row.submittedAt).toBe('string');
+      expect(['on_moderation', 'edit_pending']).toContain(row.status);
+    }
+  });
+
   test.describe('rate limit (optional)', () => {
     test.skip(!config?.rateLimitTgId, 'Set TEST_LOGIN_RATE_TG_ID + TEST_LOGIN_RATE_PASSWORD');
 

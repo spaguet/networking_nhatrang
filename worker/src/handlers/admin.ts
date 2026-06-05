@@ -1,5 +1,11 @@
 import { getConfig, QR_PAYMENT_METHODS } from '../config';
 import type { Env } from '../env';
+import {
+  approveListingModeration,
+  deleteListingModeration,
+  rejectListingModeration,
+} from '../services/listing-moderation';
+import { getPortfolioCount } from '../services/portfolio-db';
 import { sendMessage } from '../services/telegram-api';
 import {
   invalidateAppSettingsCache,
@@ -35,7 +41,13 @@ import {
   logAction,
   unbanUser,
 } from '../utils/helpers';
+import { decodeDescriptionNewlines } from '../utils/description';
+import { parseKeywordsJson } from '../utils/keywords';
 import { fetchAllMessagesForConversation } from '../utils/messaging-helpers';
+import {
+  createAdminPortfolioToken,
+  getMiniAppPortfolioUrl,
+} from '../utils/portfolio-auth';
 import { jsonResponse } from '../utils/response';
 import { clearSession } from './sessions';
 
@@ -1054,6 +1066,193 @@ export async function handleAdminCancelMessageComplaint(
   return jsonResponse({ ok: true });
 }
 
+export async function handleAdminListPendingListings(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT listing_id, tg_id, submitted_at, status
+     FROM listings
+     WHERE status IN ('on_moderation', 'edit_pending')
+     ORDER BY submitted_at ASC`,
+  ).all<{
+    listing_id: string;
+    tg_id: number;
+    submitted_at: string;
+    status: string;
+  }>();
+
+  const listings = (results ?? []).map((row) => ({
+    listingId: row.listing_id,
+    tgId: row.tg_id,
+    submittedAt: row.submitted_at,
+    status: row.status,
+  }));
+
+  return jsonResponse({ ok: true, listings });
+}
+
+export async function handleAdminGetPendingListing(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const listingId = String(body.listingId ?? body.listing_id ?? '').trim();
+  if (!listingId) {
+    return jsonResponse({ ok: false, error: 'invalid_listing' }, 400);
+  }
+
+  const row = await env.DB.prepare(
+    `SELECT listing_id, tg_id, display_name, category, description, experience,
+            contact_type, contacts, avatar_emoji, keywords, payment_status, status,
+            submitted_at, replaces_listing_id
+     FROM listings
+     WHERE listing_id = ? AND status IN ('on_moderation', 'edit_pending')`,
+  )
+    .bind(listingId)
+    .first<{
+      listing_id: string;
+      tg_id: number;
+      display_name: string;
+      category: string;
+      description: string;
+      experience: string | null;
+      contact_type: string;
+      contacts: string;
+      avatar_emoji: string | null;
+      keywords: string;
+      payment_status: string;
+      status: string;
+      submitted_at: string;
+      replaces_listing_id: string | null;
+    }>();
+
+  if (!row) {
+    return jsonResponse({ ok: false, error: 'not_found' }, 404);
+  }
+
+  const portfolioCount = await getPortfolioCount(listingId, env.DB, {
+    includePending: true,
+  });
+
+  let portfolioUrl: string | null = null;
+  if (portfolioCount > 0) {
+    const config = getConfig(env);
+    const { token: portfolioToken, exp } = await createAdminPortfolioToken(
+      listingId,
+      env,
+    );
+    portfolioUrl = getMiniAppPortfolioUrl(
+      config.miniAppUrl,
+      listingId,
+      portfolioToken,
+      exp,
+    );
+  }
+
+  const paymentLabel =
+    row.payment_status === 'free'
+      ? 'Бесплатное (первое)'
+      : row.payment_status === 'paid'
+        ? 'Платное'
+        : row.payment_status;
+
+  return jsonResponse({
+    ok: true,
+    listing: {
+      listingId: row.listing_id,
+      tgId: row.tg_id,
+      displayName: row.display_name,
+      category: row.category,
+      description: decodeDescriptionNewlines(row.description),
+      experience: row.experience || '',
+      contactType: row.contact_type,
+      contacts: row.contacts,
+      avatarEmoji: row.avatar_emoji,
+      keywords: parseKeywordsJson(row.keywords),
+      paymentStatus: row.payment_status,
+      paymentLabel,
+      status: row.status,
+      submittedAt: row.submitted_at,
+      replacesListingId: row.replaces_listing_id,
+      hasPortfolio: portfolioCount > 0,
+      portfolioUrl,
+    },
+  });
+}
+
+async function handleAdminModerationAction(
+  body: Record<string, unknown>,
+  env: Env,
+  action: 'approve' | 'reject' | 'delete',
+): Promise<Response> {
+  const token = getAdminToken(body);
+  const session = await assertAdminSession(env, body, token);
+  if (session instanceof Response) {
+    return session;
+  }
+
+  const listingId = String(body.listingId ?? body.listing_id ?? '').trim();
+  if (!listingId) {
+    return jsonResponse({ ok: false, error: 'invalid_listing' }, 400);
+  }
+
+  let result;
+  if (action === 'approve') {
+    result = await approveListingModeration(listingId, env);
+  } else if (action === 'reject') {
+    result = await rejectListingModeration(listingId, env);
+  } else {
+    result = await deleteListingModeration(listingId, env);
+  }
+
+  if (!result.ok) {
+    const status = result.error === 'not_found' ? 404 : 400;
+    return jsonResponse({ ok: false, error: result.error }, status);
+  }
+
+  await logAction(
+    session.tgId,
+    `admin_${action}_listing`,
+    listingId,
+    env.DB,
+  );
+
+  return jsonResponse({ ok: true, kind: result.kind });
+}
+
+export async function handleAdminApproveListing(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  return handleAdminModerationAction(body, env, 'approve');
+}
+
+export async function handleAdminRejectListing(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  return handleAdminModerationAction(body, env, 'reject');
+}
+
+export async function handleAdminDeleteListing(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  return handleAdminModerationAction(body, env, 'delete');
+}
+
 /** Routes admin_* actions; returns null if action is not admin-related. */
 export async function routeAdminAction(
   body: Record<string, unknown>,
@@ -1107,6 +1306,16 @@ export async function routeAdminAction(
       return handleAdminPunishFromComplaint(body, env);
     case 'admin_cancel_message_complaint':
       return handleAdminCancelMessageComplaint(body, env);
+    case 'admin_list_pending_listings':
+      return handleAdminListPendingListings(body, env);
+    case 'admin_get_pending_listing':
+      return handleAdminGetPendingListing(body, env);
+    case 'admin_approve_listing':
+      return handleAdminApproveListing(body, env);
+    case 'admin_reject_listing':
+      return handleAdminRejectListing(body, env);
+    case 'admin_delete_listing':
+      return handleAdminDeleteListing(body, env);
     default:
       return jsonResponse({ ok: false, error: 'unknown_action' });
   }
