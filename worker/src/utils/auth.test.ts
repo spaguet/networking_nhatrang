@@ -91,6 +91,21 @@ describe('authenticateMiniAppUser', () => {
     expect(result).toEqual({ ok: true, tgId: 3003 });
   });
 
+  it('falls back to launch_token when initData is invalid', async () => {
+    const launchToken = await createMiniAppLaunchToken(3003, testEnv());
+    expect(launchToken).toBeTruthy();
+    const result = await authenticateMiniAppUser(
+      {
+        secret: WEBAPP_SECRET,
+        initData: 'hash=bad',
+        launch_token: launchToken!,
+        tg_id: 3003,
+      },
+      testEnv(),
+    );
+    expect(result).toEqual({ ok: true, tgId: 3003 });
+  });
+
   it('rejects mismatched tg_id with launch_token', async () => {
     const launchToken = await createMiniAppLaunchToken(3003, testEnv());
     const result = await authenticateMiniAppUser(

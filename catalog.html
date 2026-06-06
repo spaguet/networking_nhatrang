@@ -3395,7 +3395,7 @@
 </div>
 
 <div id="noAuthOverlay" class="ban-overlay" hidden aria-live="polite">
-  <p class="ban-overlay-text">Не удалось войти в приложение.<br><br>Закройте Mini App, в боте отправьте /start и откройте каталог кнопкой «Добро пожаловать!» <strong>в меню внизу</strong> у поля ввода.</p>
+  <p class="ban-overlay-text">Не удалось войти в приложение.<br><br>Закройте Mini App и откройте каталог кнопкой меню бота (⊞ слева от поля ввода) или отправьте /start и нажмите «Добро пожаловать!» <strong>в меню внизу</strong> у поля ввода.</p>
 </div>
 
 <script>
@@ -3591,7 +3591,7 @@
   var PORTFOLIO_SERVER_MAX_LONG_EDGE = 2560;
   var PORTFOLIO_SERVER_LARGE_BYTES = 2 * 1024 * 1024;
   var PORTFOLIO_DEBUG = /(?:^|[?&])portfolio_debug=1(?:&|$)/.test(String(location.search || ''));
-  var PORTFOLIO_CLIENT_VERSION = 'v95errorcode';
+  var PORTFOLIO_CLIENT_VERSION = 'v96launchtoken';
   var _portfolioSlots = [];
   var _portfolioObjectUrls = [];
   var LISTINGS_PER_PAGE = 20;
@@ -4192,7 +4192,6 @@
       return;
     }
 
-    if (!isLaunchTokenOnlyAuth()) return;
     var payload = buildPayload('get_my_telegram_username');
     if (!payload) return;
     apiPost(payload, 15000)
@@ -4661,7 +4660,7 @@
       initData:   (tg && tg.initData) ? tg.initData : '',
       secret:     WEBAPP_SECRET
     };
-    if (launchToken && !payload.initData) {
+    if (launchToken) {
       payload.launch_token = launchToken;
     }
     if (extra) {
@@ -7599,7 +7598,7 @@
     fd.append('action', action);
     fd.append('initData', (tg && tg.initData) ? tg.initData : '');
     fd.append('secret', WEBAPP_SECRET);
-    if (launchToken && !(tg && tg.initData)) {
+    if (launchToken) {
       fd.append('launch_token', launchToken);
     }
     if (user.id) {
@@ -7637,7 +7636,7 @@
             lastResult = { ok: false, error: 'portfolio_compress_failed' };
             return;
           }
-          if (hasMiniAppAuth() && tg && tg.initData) {
+          if (hasMiniAppAuth()) {
             return uploadPortfolioPhotoB64(action, slot, compressed, listingId).then(function (data) {
               if (!data.ok) {
                 portfolioTwlog('upload fail ' + slot.position + ' ' + (data.error || ''));
