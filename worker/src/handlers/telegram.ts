@@ -198,15 +198,27 @@ function normalizeMiniAppBaseUrl(url: string): string {
     .replace(/\/catalog\.html(\?.*)?$/i, '');
 }
 
+/** Cache-buster for Telegram Mini App (must match BotFather menu button URL). */
+const MINI_APP_CATALOG_VERSION = '14';
+
 function getMiniAppCatalogUrl(miniAppUrl: string): string {
   const u = miniAppUrl.trim();
   if (!u) {
     return '';
   }
+  let base: string;
   if (u.includes('/catalog.html')) {
-    return u.replace(/\/+$/, '');
+    base = u.replace(/\/+$/, '');
+  } else {
+    base = `${normalizeMiniAppBaseUrl(u)}/catalog.html`;
   }
-  return `${normalizeMiniAppBaseUrl(u)}/catalog.html`;
+  try {
+    const parsed = new URL(base);
+    parsed.searchParams.set('v', MINI_APP_CATALOG_VERSION);
+    return parsed.toString();
+  } catch {
+    return `${base}?v=${MINI_APP_CATALOG_VERSION}`;
+  }
 }
 
 function getMiniAppRulesUrl(miniAppUrl: string): string {
