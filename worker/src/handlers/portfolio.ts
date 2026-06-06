@@ -18,11 +18,7 @@ import {
   sendModerationToAdmins,
   sendToAllAdmins,
 } from '../services/telegram-api';
-import {
-  authenticateMiniAppUser,
-  getUserIdFromInitData,
-  validateInitData,
-} from '../utils/auth';
+import { authenticateMiniAppUser } from '../utils/auth';
 import { debugMediaLog, isDebugMedia } from '../utils/debug-media';
 import { decodeDescriptionNewlines } from '../utils/description';
 import { formatKeywordsModerationLine, parseKeywordsJson } from '../utils/keywords';
@@ -987,16 +983,11 @@ export async function handleGetPortfolio(
       }
       includePending = true;
     } else {
-      const initData = String(body.initData ?? '');
-      if (env.WEBAPP_SECRET && body.secret !== env.WEBAPP_SECRET) {
-        return jsonResponse({ ok: false, error: 'invalid_secret' });
+      const auth = await authenticateMiniAppUser(body, env, 'Invalid_initData');
+      if (!auth.ok) {
+        return jsonResponse({ ok: false, error: auth.error });
       }
-      if (!(await validateInitData(initData, env.BOT_TOKEN))) {
-        return jsonResponse({ ok: false, error: 'Invalid_initData' });
-      }
-
-      const requesterId = getUserIdFromInitData(initData);
-      if (requesterId === listing.tg_id) {
+      if (auth.tgId === listing.tg_id) {
         includePending = true;
       }
     }
