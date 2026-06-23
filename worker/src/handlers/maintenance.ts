@@ -21,6 +21,12 @@ interface MaintenanceListingRow {
   pin_expires_at: string | null;
 }
 
+interface ArchiveNotification {
+  key: string;
+  tgId: number;
+  text: string;
+}
+
 function parseStoredDate(value: string | null | undefined): Date | null {
   if (!value) {
     return null;
@@ -43,12 +49,186 @@ async function fetchMaintenanceListings(env: Env): Promise<MaintenanceListingRow
   return result.results ?? [];
 }
 
+function changedRows(result: D1Result<unknown>): number {
+  return typeof result.meta?.changes === 'number' ? result.meta.changes : 0;
+}
+
+function buildArchiveNotification(row: MaintenanceListingRow): ArchiveNotification {
+  const tgId = Number(row.tg_id);
+  const displayName = String(row.display_name || '');
+  const category = String(row.category || '');
+
+  return {
+    key: `${tgId}\u0000${displayName}\u0000${category}`,
+    tgId,
+    text:
+      '📦 Срок публикации вашей анкеты [' +
+      displayName +
+      ' — ' +
+      category +
+      '] истёк (30 дней). Анкета перемещена в архив.',
+  };
+}
+
+async function archiveExpiredListing(
+  row: MaintenanceListingRow,
+  now: Date,
+  env: Env,
+): Promise<ArchiveNotification | null> {
+  const listingId = String(row.listing_id || '');
+  const tgId = Number(row.tg_id);
+  const status = String(row.status || '');
+  const expiresRaw = String(row.expires_at || '').trim();
+
+  if (!listingId || !Number.isFinite(tgId) || status !== 'active' || expiresRaw === 'lifetime') {
+    return null;
+  }
+
+  const expiresAt = parseStoredDate(row.expires_at);
+  if (!expiresAt || expiresAt > now) {
+    return null;
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE listings
+     SET status = 'archived', archived_at = datetime('now')
+     WHERE listing_id = ? AND status = 'active' AND COALESCE(expires_at, '') = ?`,
+  )
+    .bind(listingId, expiresRaw)
+    .run();
+
+  if (changedRows(result) !== 1) {
+    return null;
+  }
+
+  await purgeFavoritesForListing(listingId, env);
+  await cleanupEditPendingForParent(listingId, tgId, env);
+  await logAction(tgId, 'archive', listingId, env.DB);
+
+  return buildArchiveNotification(row);
+}
+
+async function expirePinIfNeeded(
+  row: MaintenanceListingRow,
+  now: Date,
+  env: Env,
+): Promise<boolean> {
+  const listingId = String(row.listing_id || '');
+  const tgId = Number(row.tg_id);
+  const displayName = String(row.display_name || '');
+  const pinStatus = String(row.pin_status || 'regular');
+  const pinExpiresStr = String(row.pin_expires_at || '').trim();
+
+  if (
+    !listingId ||
+    !Number.isFinite(tgId) ||
+    pinStatus !== 'pinned' ||
+    !pinExpiresStr ||
+    pinExpiresStr === 'lifetime'
+  ) {
+    return false;
+  }
+
+  const pinExpiresAt = parseStoredDate(pinExpiresStr);
+  if (!pinExpiresAt || pinExpiresAt > now) {
+    return false;
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE listings
+     SET pin_status = 'regular', pinned_at = NULL, pin_expires_at = NULL
+     WHERE listing_id = ? AND pin_status = 'pinned' AND COALESCE(pin_expires_at, '') = ?`,
+  )
+    .bind(listingId, pinExpiresStr)
+    .run();
+
+  if (changedRows(result) !== 1) {
+    return false;
+  }
+
+  await sendMessage(
+    tgId,
+    '📌 Срок закрепления вашей карточки [' +
+      displayName +
+      '] истёк. Карточка переведена в обычный режим.',
+    undefined,
+    env,
+  );
+  await logAction(tgId, 'pin_expired', listingId, env.DB);
+
+  return true;
+}
+
+async function hasRecentPinExpiryWarning(listingId: string, env: Env): Promise<boolean> {
+  const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
+  const row = await env.DB.prepare(
+    `SELECT 1 AS ok FROM logs
+     WHERE action = 'pin_expiry_warning' AND details = ? AND timestamp >= ?
+     LIMIT 1`,
+  )
+    .bind(listingId, since)
+    .first<{ ok: number }>();
+
+  return !!row;
+}
+
+async function warnPinExpiryIfNeeded(
+  row: MaintenanceListingRow,
+  now: Date,
+  env: Env,
+): Promise<boolean> {
+  const listingId = String(row.listing_id || '');
+  const tgId = Number(row.tg_id);
+  const displayName = String(row.display_name || '');
+  const pinStatus = String(row.pin_status || 'regular');
+  const pinExpiresStr = String(row.pin_expires_at || '').trim();
+
+  if (
+    !listingId ||
+    !Number.isFinite(tgId) ||
+    pinStatus !== 'pinned' ||
+    !pinExpiresStr ||
+    pinExpiresStr === 'lifetime'
+  ) {
+    return false;
+  }
+
+  const pinExpiresAt = parseStoredDate(pinExpiresStr);
+  if (!pinExpiresAt) {
+    return false;
+  }
+
+  const hoursLeft = (pinExpiresAt.getTime() - now.getTime()) / 3600000;
+  if (hoursLeft < 20 || hoursLeft >= 28) {
+    return false;
+  }
+
+  if (await hasRecentPinExpiryWarning(listingId, env)) {
+    return false;
+  }
+
+  await sendMessage(
+    tgId,
+    '⚠️ Завтра, ' +
+      formatDateRu(pinExpiresAt) +
+      ', истекает срок закрепления вашей карточки [' +
+      displayName +
+      ']. Обратитесь к администратору для продления.',
+    undefined,
+    env,
+  );
+  await logAction(tgId, 'pin_expiry_warning', listingId, env.DB);
+
+  return true;
+}
+
 /** Port of dailyListingsMaintenance from Code.gs — cron 0 0 * * * UTC (= 07:00 Nha Trang). */
 export async function dailyMaintenance(env: Env): Promise<void> {
   const now = new Date();
   let archived = 0;
   let pinsRemoved = 0;
   let warningsSent = 0;
+  const archiveNotifications = new Map<string, ArchiveNotification>();
 
   let rows: MaintenanceListingRow[];
   try {
@@ -59,103 +239,24 @@ export async function dailyMaintenance(env: Env): Promise<void> {
     return;
   }
 
-  if (rows.length === 0) {
-    const summary = '{ archived: 0, pins_removed: 0, warnings_sent: 0 }';
-    await logAction(0, 'daily_maintenance', summary, env.DB);
-    return;
-  }
-
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     try {
-      const listingId = String(row.listing_id || '');
-      const tgId = Number(row.tg_id);
-      const displayName = String(row.display_name || '');
-      const status = String(row.status || '');
-
-      if (status === 'active') {
-        const expiresRaw = String(row.expires_at || '').trim();
-        if (expiresRaw === 'lifetime') {
-          continue;
+      const archiveNotification = await archiveExpiredListing(row, now, env);
+      if (archiveNotification) {
+        if (!archiveNotifications.has(archiveNotification.key)) {
+          archiveNotifications.set(archiveNotification.key, archiveNotification);
         }
-        const expiresAt = parseStoredDate(row.expires_at);
-        if (expiresAt && expiresAt <= now) {
-          await env.DB.prepare(
-            "UPDATE listings SET status = 'archived', archived_at = datetime('now') WHERE listing_id = ?",
-          )
-            .bind(listingId)
-            .run();
-
-          await purgeFavoritesForListing(listingId, env);
-          await cleanupEditPendingForParent(listingId, tgId, env);
-
-          const category = String(row.category || '');
-          await sendMessage(
-            tgId,
-            '📦 Срок публикации вашей анкеты [' +
-              displayName +
-              ' — ' +
-              category +
-              '] истёк (30 дней). Анкета перемещена в архив.',
-            undefined,
-            env,
-          );
-          await logAction(tgId, 'archive', listingId, env.DB);
-          archived++;
-          continue;
-        }
-      }
-
-      const pinStatus = String(row.pin_status || 'regular');
-      if (pinStatus !== 'pinned') {
+        archived++;
         continue;
       }
 
-      const pinExpiresStr = String(row.pin_expires_at || '').trim();
-      if (!pinExpiresStr || pinExpiresStr === 'lifetime') {
-        continue;
-      }
-
-      const pinExpiresAt = parseStoredDate(pinExpiresStr);
-      if (!pinExpiresAt) {
-        continue;
-      }
-
-      if (pinExpiresAt <= now) {
-        await env.DB.prepare(
-          `UPDATE listings
-           SET pin_status = 'regular', pinned_at = NULL, pin_expires_at = NULL
-           WHERE listing_id = ?`,
-        )
-          .bind(listingId)
-          .run();
-
-        await sendMessage(
-          tgId,
-          '📌 Срок закрепления вашей карточки [' +
-            displayName +
-            '] истёк. Карточка переведена в обычный режим.',
-          undefined,
-          env,
-        );
-        await logAction(tgId, 'pin_expired', listingId, env.DB);
+      if (await expirePinIfNeeded(row, now, env)) {
         pinsRemoved++;
         continue;
       }
 
-      const hoursLeft = (pinExpiresAt.getTime() - now.getTime()) / 3600000;
-      if (hoursLeft >= 20 && hoursLeft < 28) {
-        await sendMessage(
-          tgId,
-          '⚠️ Завтра, ' +
-            formatDateRu(pinExpiresAt) +
-            ', истекает срок закрепления вашей карточки [' +
-            displayName +
-            ']. Обратитесь к администратору для продления.',
-          undefined,
-          env,
-        );
-        await logAction(tgId, 'pin_expiry_warning', listingId, env.DB);
+      if (await warnPinExpiryIfNeeded(row, now, env)) {
         warningsSent++;
       }
     } catch (err) {
@@ -164,6 +265,20 @@ export async function dailyMaintenance(env: Env): Promise<void> {
         0,
         'error',
         `dailyListingsMaintenance row ${i + 1}: ${msg}`,
+        env.DB,
+      );
+    }
+  }
+
+  for (const notification of archiveNotifications.values()) {
+    try {
+      await sendMessage(notification.tgId, notification.text, undefined, env);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await logAction(
+        notification.tgId,
+        'error',
+        `dailyListingsMaintenance archive notification: ${msg}`,
         env.DB,
       );
     }
