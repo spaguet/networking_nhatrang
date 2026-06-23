@@ -91,7 +91,11 @@ async function archiveExpiredListing(
 
   const result = await env.DB.prepare(
     `UPDATE listings
-     SET status = 'archived', archived_at = datetime('now')
+     SET status = 'archived',
+         archived_at = datetime('now'),
+         pin_status = 'regular',
+         pinned_at = NULL,
+         pin_expires_at = NULL
      WHERE listing_id = ? AND status = 'active' AND COALESCE(expires_at, '') = ?`,
   )
     .bind(listingId, expiresRaw)

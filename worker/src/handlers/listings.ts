@@ -722,7 +722,12 @@ export async function handleArchiveListing(
     }
 
     await env.DB.prepare(
-      `UPDATE listings SET status = 'archived', archived_at = datetime('now')
+      `UPDATE listings
+       SET status = 'archived',
+           archived_at = datetime('now'),
+           pin_status = 'regular',
+           pinned_at = NULL,
+           pin_expires_at = NULL
        WHERE listing_id = ? AND tg_id = ? AND status = 'active'`,
     )
       .bind(listingId, tgId)
