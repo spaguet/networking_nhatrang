@@ -22,6 +22,7 @@ export interface ListingFormFields {
 export interface ListingFormError {
   error: string;
   message: string;
+  stop_word?: string;
 }
 
 export type ValidateListingFormResult =
@@ -43,10 +44,12 @@ function checkNoLinks(value: string): ListingFormError | null {
 function checkStopWords(description: string): ListingFormError | null {
   const descLower = description.toLowerCase();
   for (let i = 0; i < STOP_WORDS.length; i++) {
-    if (descLower.includes(STOP_WORDS[i])) {
+    const stopWord = STOP_WORDS[i];
+    if (descLower.includes(stopWord)) {
       return {
         error: 'stop_words',
-        message: 'Текст содержит запрещённые слова. Измените описание.',
+        message: `Текст содержит запрещённое слово: «${stopWord}». Измените описание.`,
+        stop_word: stopWord,
       };
     }
   }

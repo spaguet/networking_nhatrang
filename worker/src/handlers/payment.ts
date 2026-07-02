@@ -119,6 +119,7 @@ export async function handleSelectPaymentMethod(
         ok: false,
         error: formResult.error,
         message: formResult.message,
+        ...(formResult.stop_word ? { stop_word: formResult.stop_word } : {}),
       });
     }
     const form = formResult;

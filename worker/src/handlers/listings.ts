@@ -307,6 +307,7 @@ export async function handleSubmitListing(
         ok: false,
         error: formResult.error,
         message: formResult.message,
+        ...(formResult.stop_word ? { stop_word: formResult.stop_word } : {}),
       });
     }
     const form = formResult;
@@ -453,6 +454,7 @@ export async function handleSubmitListingEdit(
         ok: false,
         error: formResult.error,
         message: formResult.message,
+        ...(formResult.stop_word ? { stop_word: formResult.stop_word } : {}),
       });
     }
     const form = formResult;
