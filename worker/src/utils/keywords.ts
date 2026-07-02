@@ -1,5 +1,5 @@
-import { STOP_WORDS } from '../config';
 import { containsLink } from './links';
+import { containsStopWord } from './stop-words';
 import type { ListingFormError } from './validation';
 
 export const KEYWORD_LETTERS_RE = /^[a-zA-Zа-яА-ЯёЁ]+$/;
@@ -49,12 +49,7 @@ function keywordViolatesStopWords(word: string): boolean {
   if (!lower) {
     return false;
   }
-  for (let i = 0; i < STOP_WORDS.length; i++) {
-    if (lower.includes(STOP_WORDS[i])) {
-      return true;
-    }
-  }
-  return false;
+  return containsStopWord(lower);
 }
 
 export function formatKeywordsModerationLine(keywords: string[]): string {

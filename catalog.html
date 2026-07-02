@@ -3992,12 +3992,35 @@
   }
 
   function keywordViolatesStopWords(word) {
-    var lower = normalizeKeywordFilter(word);
-    if (!lower) return false;
+    return containsStopWord(word);
+  }
+
+  function containsStopWord(text) {
+    var value = String(text || '').trim();
+    if (!value) return false;
+    var lower = value.toLowerCase();
     for (var i = 0; i < STOP_WORDS.length; i++) {
-      if (lower.indexOf(STOP_WORDS[i]) !== -1) return true;
+      if (containsStopPhrase(lower, STOP_WORDS[i])) return true;
     }
     return false;
+  }
+
+  function containsStopPhrase(text, stopPhrase) {
+    var parts = stopPhrase.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return false;
+    if (parts.length === 1) {
+      var tokens = text.match(/[a-zA-Zа-яА-ЯёЁ]+/g) || [];
+      var target = parts[0].toLowerCase();
+      for (var j = 0; j < tokens.length; j++) {
+        if (tokens[j].toLowerCase() === target) return true;
+      }
+      return false;
+    }
+    var escaped = parts.map(function (part) {
+      return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    });
+    var pattern = '(?:^|[^a-zA-Zа-яА-ЯёЁ])' + escaped.join('[^a-zA-Zа-яА-ЯёЁ]+') + '(?:[^a-zA-Zа-яА-ЯёЁ]|$)';
+    return new RegExp(pattern, 'i').test(text);
   }
 
   function isValidKeywordToken(token) {

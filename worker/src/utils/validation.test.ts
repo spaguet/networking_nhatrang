@@ -26,4 +26,12 @@ describe('validateListingForm', () => {
       stop_word: 'пассивный',
     });
   });
+
+  it('allows words that only contain a stop word as substring', () => {
+    const result = validateListingForm(
+      validListingBody('Работаю с темой сексуальности в консультировании.'),
+    );
+
+    expect(result.error).toBeNull();
+  });
 });

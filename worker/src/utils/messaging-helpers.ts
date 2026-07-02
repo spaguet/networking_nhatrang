@@ -1,6 +1,6 @@
-import { STOP_WORDS } from '../config';
 import type { Env } from '../env';
 import { containsLink } from './links';
+import { containsStopWord } from './stop-words';
 
 export const MESSAGE_MAX_LEN = 500;
 export const MESSAGE_PREVIEW_LEN = 80;
@@ -84,11 +84,8 @@ export function validateMessageBody(
   if (containsLink(body)) {
     return { ok: false, error: 'links_forbidden' };
   }
-  const lower = body.toLowerCase();
-  for (let i = 0; i < STOP_WORDS.length; i++) {
-    if (lower.includes(STOP_WORDS[i])) {
-      return { ok: false, error: 'stop_words' };
-    }
+  if (containsStopWord(body)) {
+    return { ok: false, error: 'stop_words' };
   }
   return { ok: true, body };
 }
