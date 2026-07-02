@@ -242,9 +242,13 @@ export function getPinExpiresDate(duration: string): string {
   const d = new Date();
   if (duration === 'week') {
     d.setDate(d.getDate() + 7);
-  }
-  if (duration === 'month') {
+  } else if (duration === 'month') {
     d.setDate(d.getDate() + 30);
+  } else {
+    // Unknown duration: default to a week instead of silently returning
+    // "now" (which would make a paid pin expire immediately).
+    console.error(`getPinExpiresDate: unknown duration "${duration}", defaulting to week`);
+    d.setDate(d.getDate() + 7);
   }
   return d.toISOString();
 }

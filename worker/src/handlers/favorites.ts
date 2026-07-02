@@ -174,7 +174,8 @@ export async function handleGetFavoriteCounts(
     return await buildFavoriteCountsResponse(validation.userId, env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleGetFavoriteCounts:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -192,7 +193,8 @@ export async function handleGetFavoriteCountsPost(
     return await buildFavoriteCountsResponse(String(auth.tgId), env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleGetFavoriteCountsPost:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -221,7 +223,8 @@ export async function handleToggleFavorite(
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleToggleFavorite:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -243,7 +246,8 @@ export async function handleToggleFavoritePost(
     return await executeToggleFavorite(auth.tgId, initData, listingId, type, env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleToggleFavoritePost:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -303,6 +307,7 @@ export async function handleGetFavoritesListings(
     return jsonResponse({ ok: true, listings, totalCount, inactiveCount });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ ok: false, error: msg });
+    console.error('handleGetFavoritesListings:', msg);
+    return jsonResponse({ ok: false, error: 'server_error' });
   }
 }

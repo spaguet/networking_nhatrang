@@ -7,7 +7,12 @@ export interface TelegramTestUser {
 }
 
 /** Valid Mini App initData for unit tests (same HMAC as worker/src/utils/auth.ts). */
-export function buildInitData(botToken: string, user: TelegramTestUser, authDateSec?: number): string {
+export function buildInitData(
+  botToken: string,
+  user: TelegramTestUser,
+  authDateSec?: number,
+  options?: { withSignature?: boolean },
+): string {
   const authDate = authDateSec ?? Math.floor(Date.now() / 1000);
   const params: Record<string, string> = {
     auth_date: String(authDate),
@@ -26,7 +31,15 @@ export function buildInitData(botToken: string, user: TelegramTestUser, authDate
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-  const query: Record<string, string> = { ...params, hash };
+  // Recent Telegram clients also attach an Ed25519 `signature` field, which
+  // must be excluded from the HMAC data-check-string. It is not a valid
+  // base64 signature here — the tests only need it present to reproduce the
+  // real-world payload shape.
+  const query: Record<string, string> = {
+    ...params,
+    ...(options?.withSignature ? { signature: 'fake-ed25519-signature==' } : {}),
+    hash,
+  };
   return Object.entries(query)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join('&');

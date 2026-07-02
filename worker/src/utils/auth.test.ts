@@ -5,6 +5,7 @@ import {
   authenticateMiniAppUser,
   getUserIdFromInitData,
   validateInitData,
+  validateTelegramInitData,
 } from './auth';
 import {
   createMiniAppLaunchToken,
@@ -41,6 +42,36 @@ describe('validateInitData', () => {
     const expired = Math.floor(Date.now() / 1000) - 86401;
     const initData = buildInitData(BOT_TOKEN, { id: 1001 }, expired);
     expect(await validateInitData(initData, BOT_TOKEN)).toBe(false);
+  });
+
+  it('accepts valid initData that also includes a signature field', async () => {
+    const initData = buildInitData(BOT_TOKEN, { id: 1001, username: 'alice' }, undefined, {
+      withSignature: true,
+    });
+    expect(await validateInitData(initData, BOT_TOKEN)).toBe(true);
+  });
+});
+
+describe('validateTelegramInitData', () => {
+  it('accepts valid initData', async () => {
+    const initData = buildInitData(BOT_TOKEN, { id: 1001, username: 'alice' });
+    const result = await validateTelegramInitData(initData, BOT_TOKEN);
+    expect(result).toEqual({ valid: true, userId: '1001' });
+  });
+
+  it('accepts valid initData that also includes a signature field', async () => {
+    const initData = buildInitData(BOT_TOKEN, { id: 1001, username: 'alice' }, undefined, {
+      withSignature: true,
+    });
+    const result = await validateTelegramInitData(initData, BOT_TOKEN);
+    expect(result).toEqual({ valid: true, userId: '1001' });
+  });
+
+  it('rejects tampered hash', async () => {
+    const initData = buildInitData(BOT_TOKEN, { id: 1001 });
+    const tampered = initData.replace(/hash=[^&]+/, 'hash=deadbeef');
+    const result = await validateTelegramInitData(tampered, BOT_TOKEN);
+    expect(result.valid).toBe(false);
   });
 });
 

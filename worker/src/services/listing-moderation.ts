@@ -63,14 +63,22 @@ export async function approveListingModeration(
   const expires = new Date(today);
   expires.setDate(expires.getDate() + 30);
 
-  await env.DB.prepare(
+  // WHERE status='on_moderation' makes this an atomic claim: if a duplicate
+  // Telegram callback or admin double-tap races us here, only one request
+  // actually flips the row, so we avoid double notifications / double
+  // free-tier consumption below.
+  const claim = await env.DB.prepare(
     `UPDATE listings
      SET status = 'active', created_at = ?, expires_at = ?,
          edits_remaining = COALESCE(edits_remaining, 3)
-     WHERE listing_id = ?`,
+     WHERE listing_id = ? AND status = 'on_moderation'`,
   )
     .bind(today.toISOString(), expires.toISOString(), listingId)
     .run();
+
+  if (!claim.meta?.changes) {
+    return { ok: false, error: 'invalid_status' };
+  }
 
   const portfolioCount = await getPortfolioCount(listingId, env.DB, {
     includePending: true,
@@ -124,6 +132,16 @@ async function approveListingEditModeration(
     .first<{ listing_id: string; tg_id: number; status: string }>();
 
   if (!parent || parent.status !== 'active' || parent.tg_id !== draft.tg_id) {
+    return { ok: false, error: 'invalid_status' };
+  }
+
+  const claim = await env.DB.prepare(
+    `UPDATE listings SET status = 'edit_approving' WHERE listing_id = ? AND status = 'edit_pending'`,
+  )
+    .bind(draftId)
+    .run();
+
+  if (!claim.meta?.changes) {
     return { ok: false, error: 'invalid_status' };
   }
 
@@ -203,14 +221,17 @@ export async function rejectListingModeration(
     return { ok: false, error: 'invalid_status' };
   }
 
-  await cleanupPortfolioOnReject(listingId, listing.tg_id, env);
-
-  await env.DB.prepare(
-    `UPDATE listings SET status = 'rejected' WHERE listing_id = ?`,
+  const claim = await env.DB.prepare(
+    `UPDATE listings SET status = 'rejected' WHERE listing_id = ? AND status = 'on_moderation'`,
   )
     .bind(listingId)
     .run();
 
+  if (!claim.meta?.changes) {
+    return { ok: false, error: 'invalid_status' };
+  }
+
+  await cleanupPortfolioOnReject(listingId, listing.tg_id, env);
   await purgeFavoritesForListing(listingId, env);
 
   const rejectText =
@@ -241,6 +262,16 @@ async function rejectListingEditModeration(
 
   if (!draft || draft.status !== 'edit_pending') {
     return { ok: false, error: 'not_found' };
+  }
+
+  const claim = await env.DB.prepare(
+    `UPDATE listings SET status = 'edit_rejecting' WHERE listing_id = ? AND status = 'edit_pending'`,
+  )
+    .bind(draftId)
+    .run();
+
+  if (!claim.meta?.changes) {
+    return { ok: false, error: 'invalid_status' };
   }
 
   const parent = await env.DB.prepare(
@@ -281,6 +312,16 @@ export async function deleteListingModeration(
   }
 
   if (listing.status === 'edit_pending') {
+    const claim = await env.DB.prepare(
+      `UPDATE listings SET status = 'edit_deleting' WHERE listing_id = ? AND status = 'edit_pending'`,
+    )
+      .bind(listingId)
+      .run();
+
+    if (!claim.meta?.changes) {
+      return { ok: false, error: 'invalid_status' };
+    }
+
     await cleanupPortfolioOnReject(listingId, listing.tg_id, env);
     await env.DB.prepare('DELETE FROM listings WHERE listing_id = ?')
       .bind(listingId)
@@ -296,6 +337,16 @@ export async function deleteListingModeration(
   }
 
   if (listing.status !== 'on_moderation') {
+    return { ok: false, error: 'invalid_status' };
+  }
+
+  const claim = await env.DB.prepare(
+    `UPDATE listings SET status = 'admin_deleting' WHERE listing_id = ? AND status = 'on_moderation'`,
+  )
+    .bind(listingId)
+    .run();
+
+  if (!claim.meta?.changes) {
     return { ok: false, error: 'invalid_status' };
   }
 

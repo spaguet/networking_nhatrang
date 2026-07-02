@@ -133,7 +133,8 @@ export async function handleGetLikes(
     return await buildLikesResponse(validation.userId, env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleGetLikes:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -151,7 +152,8 @@ export async function handleGetLikesPost(
     return await buildLikesResponse(String(auth.tgId), env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleGetLikesPost:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -174,7 +176,8 @@ export async function handleToggleLike(
     return await executeToggleLike(Number(validation.userId), cardId, type, env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleToggleLike:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }
 
@@ -195,6 +198,7 @@ export async function handleToggleLikePost(
     return await executeToggleLike(auth.tgId, cardId, type, env);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ success: false, error: msg });
+    console.error('handleToggleLikePost:', msg);
+    return jsonResponse({ success: false, error: 'server_error' });
   }
 }

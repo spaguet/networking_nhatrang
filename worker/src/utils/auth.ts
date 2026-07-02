@@ -92,6 +92,11 @@ export async function validateInitData(
 
   const checkParams = { ...params };
   delete checkParams.hash;
+  // Telegram also sends a separate Ed25519 `signature` field (third-party
+  // validation without the bot token). It must be excluded from the HMAC
+  // data-check-string just like `hash`, or the computed hash never matches
+  // for clients that include it.
+  delete checkParams.signature;
 
   const dataCheckString = buildDataCheckString(checkParams);
   const calculatedHash = await computeInitDataHash(dataCheckString, botToken);
@@ -132,6 +137,7 @@ export async function validateTelegramInitData(
 
   const checkParams = { ...params };
   delete checkParams.hash;
+  delete checkParams.signature;
 
   const dataCheckString = buildDataCheckString(checkParams);
   const expectedHash = await computeInitDataHash(dataCheckString, botToken);

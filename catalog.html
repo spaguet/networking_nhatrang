@@ -8662,7 +8662,8 @@
 
   function adminErrorText(errorKey, fallback) {
     if (!errorKey) return fallback || 'Ошибка. Попробуйте позже.';
-    return ADMIN_ERRORS[errorKey] || ERRORS[errorKey] || fallback || errorKey;
+    var key = normalizeErrorCode(errorKey);
+    return ADMIN_ERRORS[key] || ERRORS[key] || ADMIN_ERRORS[errorKey] || ERRORS[errorKey] || fallback || errorKey;
   }
 
   function validateAdminPasswordClient(pwd) {
