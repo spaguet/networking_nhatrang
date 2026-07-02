@@ -1,3 +1,4 @@
+import { getConfig } from './config';
 import type { Env } from './env';
 import { routeApiAction } from './handlers/api';
 import {
@@ -14,6 +15,12 @@ import {
   handleTelegramUpdate,
   isDuplicateTelegramUpdate,
 } from './handlers/telegram';
+import { ensureMiniAppMenuButtonSynced } from './services/menu-button';
+import {
+  getMiniAppCatalogUrl,
+  getMiniAppRulesUrl,
+  isValidMiniAppUrl,
+} from './utils/miniapp-url';
 import { rejectUnlessValidTelegramWebhookSecret } from './utils/telegram-webhook-auth';
 import { corsHeaders, handleOptions, jsonResponse } from './utils/response';
 
@@ -35,6 +42,47 @@ async function parseJsonBody(request: Request): Promise<Record<string, unknown> 
   } catch {
     return null;
   }
+}
+
+/**
+ * Stable entry point for the Mini App: Telegram's persistent menu button is
+ * configured (once, see services/menu-button.ts) to point here forever.
+ * We always 302 to the current GitHub Pages catalog/rules URL with a fresh
+ * cache-buster, so deploys never require updating a link inside Telegram.
+ */
+function miniAppRedirect(request: Request, env: Env, kind: 'catalog' | 'rules'): Response {
+  const config = getConfig(env);
+  if (!isValidMiniAppUrl(config.miniAppUrl)) {
+    return new Response('MINI_APP_URL is not configured', {
+      status: 503,
+      headers: corsHeaders(),
+    });
+  }
+
+  let target =
+    kind === 'catalog'
+      ? getMiniAppCatalogUrl(config.miniAppUrl)
+      : getMiniAppRulesUrl(config.miniAppUrl);
+
+  const launchToken = new URL(request.url).searchParams.get('lt');
+  if (launchToken) {
+    try {
+      const targetUrl = new URL(target);
+      targetUrl.searchParams.set('lt', launchToken);
+      target = targetUrl.toString();
+    } catch {
+      // keep target without the launch token
+    }
+  }
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      ...corsHeaders(),
+      Location: target,
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+    },
+  });
 }
 
 function isMultipartRequest(request: Request): boolean {
@@ -81,6 +129,7 @@ async function processTelegramWebhook(
   }
 
   ctx.waitUntil(handleTelegramUpdate(body, env));
+  ctx.waitUntil(ensureMiniAppMenuButtonSynced(env));
   return textOk();
 }
 
@@ -149,11 +198,20 @@ export default {
     }
 
     if (method === 'GET' && pathname === '/') {
+      ctx.waitUntil(ensureMiniAppMenuButtonSynced(env));
       return textOk();
     }
 
     if (method === 'GET' && pathname === '/portfolio-media') {
       return handlePortfolioMediaGet(request, env);
+    }
+
+    if (method === 'GET' && pathname === '/miniapp') {
+      return miniAppRedirect(request, env, 'catalog');
+    }
+
+    if (method === 'GET' && pathname === '/miniapp/rules') {
+      return miniAppRedirect(request, env, 'rules');
     }
 
     if (method === 'GET' && pathname === '/api') {
@@ -194,5 +252,6 @@ export default {
     ctx: ExecutionContext,
   ): Promise<void> {
     ctx.waitUntil(dailyMaintenance(env));
+    ctx.waitUntil(ensureMiniAppMenuButtonSynced(env));
   },
 };

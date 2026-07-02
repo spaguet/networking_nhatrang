@@ -66,6 +66,11 @@ import {
   appendLaunchTokenToUrl,
   createMiniAppLaunchToken,
 } from '../utils/miniapp-launch-token';
+import {
+  getMiniAppCatalogUrl,
+  getMiniAppRulesUrl,
+  isValidMiniAppUrl,
+} from '../utils/miniapp-url';
 import { ensureTelegramListingContact } from '../utils/telegram-listing-verify';
 import { pinApproveListing, pinRejectListing } from './pins';
 import {
@@ -177,59 +182,6 @@ export async function findAdminLink(
     await logAction(0, 'error', `findAdminLink: ${msg}`, env.DB);
     return null;
   }
-}
-
-function isValidMiniAppUrl(url: string | undefined): boolean {
-  const u = (url || '').trim();
-  if (!u || !u.startsWith('https://')) {
-    return false;
-  }
-  if (u.includes('script.google.com') || u.includes('googleusercontent.com')) {
-    return false;
-  }
-  return true;
-}
-
-function normalizeMiniAppBaseUrl(url: string): string {
-  return url
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/index\.html(\?.*)?$/i, '')
-    .replace(/\/catalog\.html(\?.*)?$/i, '');
-}
-
-/** Cache-buster for Telegram Mini App (must match BotFather menu button URL). */
-const MINI_APP_CATALOG_VERSION = '14';
-
-function getMiniAppCatalogUrl(miniAppUrl: string): string {
-  const u = miniAppUrl.trim();
-  if (!u) {
-    return '';
-  }
-  let base: string;
-  if (u.includes('/catalog.html')) {
-    base = u.replace(/\/+$/, '');
-  } else {
-    base = `${normalizeMiniAppBaseUrl(u)}/catalog.html`;
-  }
-  try {
-    const parsed = new URL(base);
-    parsed.searchParams.set('v', MINI_APP_CATALOG_VERSION);
-    return parsed.toString();
-  } catch {
-    return `${base}?v=${MINI_APP_CATALOG_VERSION}`;
-  }
-}
-
-function getMiniAppRulesUrl(miniAppUrl: string): string {
-  const u = miniAppUrl.trim();
-  if (!u) {
-    return '';
-  }
-  if (u.includes('/rules.html')) {
-    return u.replace(/\/+$/, '');
-  }
-  return `${normalizeMiniAppBaseUrl(u)}/rules.html`;
 }
 
 function getMessageCommand(message: TelegramMessage): string {

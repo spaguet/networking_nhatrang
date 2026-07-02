@@ -86,6 +86,24 @@ async function notifyAdminDebug(text: string, env: Env): Promise<void> {
   }
 }
 
+/**
+ * Sets the global (all-users) persistent Mini App menu button. Called
+ * idempotently from services/menu-button.ts so the URL configured in
+ * Telegram never has to be touched by hand again after a deploy.
+ */
+export async function setChatMenuButton(
+  url: string,
+  text: string,
+  env: Env,
+): Promise<boolean> {
+  const result = await telegramRequest(
+    'setChatMenuButton',
+    { menu_button: { type: 'web_app', text, web_app: { url } } },
+    env,
+  );
+  return !!result.ok;
+}
+
 export async function moderationKeyboard(
   listingId: string,
   portfolioCount: number,

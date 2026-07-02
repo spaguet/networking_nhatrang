@@ -4,6 +4,9 @@ export interface Env {
   PORTFOLIO: R2Bucket;
 
   MINI_APP_URL: string;
+  /** Public URL of this Worker itself (e.g. https://xxx.workers.dev); used to build
+   *  the one stable /miniapp link that Telegram's persistent menu button points to. */
+  WORKER_URL?: string;
 
   BOT_TOKEN: string;
   /** Secret for X-Telegram-Bot-Api-Secret-Token (set via wrangler secret; match setWebhook secret_token). */

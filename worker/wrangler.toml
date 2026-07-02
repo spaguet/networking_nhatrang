@@ -22,3 +22,7 @@ crons = ["0 0 * * *"]
 
 [vars]
 MINI_APP_URL = "https://spaguet.github.io/networking_nhatrang/"
+# Public URL of this Worker (from `wrangler deploy` output / custom domain).
+# Used to build the one stable /miniapp redirect link for Telegram's
+# persistent menu button, so it never needs to be updated by hand again.
+WORKER_URL = "https://tg-networking-nhatrang.albertkoall.workers.dev"
