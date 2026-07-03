@@ -7419,11 +7419,18 @@
     });
   }
 
+  function portfolioPreferJpegCanvasUpload() {
+    var ua = String(navigator.userAgent || '');
+    var platform = String(navigator.platform || '');
+    var isIos = /iPad|iPhone|iPod/.test(ua) || /iPad|iPhone|iPod/.test(platform);
+    var isMacTouch = platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    return isIos || isMacTouch;
+  }
+
   function canvasExportFormats() {
-    return [
-      { label: 'webp', mime: 'image/webp', ext: 'webp', dataUrl: function (canvas) { return canvas.toDataURL('image/webp', 0.82); } },
-      { label: 'jpeg', mime: 'image/jpeg', ext: 'jpg', dataUrl: function (canvas) { return canvas.toDataURL('image/jpeg', 0.85); } }
-    ];
+    var webp = { label: 'webp', mime: 'image/webp', ext: 'webp', dataUrl: function (canvas) { return canvas.toDataURL('image/webp', 0.82); } };
+    var jpeg = { label: 'jpeg', mime: 'image/jpeg', ext: 'jpg', dataUrl: function (canvas) { return canvas.toDataURL('image/jpeg', 0.85); } };
+    return portfolioPreferJpegCanvasUpload() ? [jpeg, webp] : [webp, jpeg];
   }
 
   function portfolioUploadMimeOk(mime) {
